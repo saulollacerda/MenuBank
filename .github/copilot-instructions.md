@@ -334,7 +334,7 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `dateTime`        | Data/Hora         | `LocalDateTime`     | Date and time the order was placed                |
 | `customer`        | Cliente           | `Customer` (FK)     | Reference to the customer who placed the order    |
 | `status`          | Status            | `Enum`              | Order status: `PAID`, `PENDING`, `CANCELLED`      |
@@ -346,7 +346,7 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `order`           | Pedido            | `Order` (FK)        | Reference to the parent order                     |
 | `product`         | Produto           | `Product` (FK)      | Reference to the product                          |
 | `quantity`        | Quantidade        | `Integer`           | Quantity of this product in the order              |
@@ -356,7 +356,7 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                      | Description                                       |
 | ----------------- | ----------------- | ------------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)               | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)               | Auto-generated primary key                        |
 | `name`            | Nome              | `String`                  | Product name                                      |
 | `price`           | Preço             | `BigDecimal`              | Selling price in R$                               |
 | `estimatedCost`   | Custo Estimado    | `BigDecimal`              | Estimated cost based on ingredient recipe sheet   |
@@ -370,7 +370,7 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `product`         | Produto           | `Product` (FK)      | Reference to the parent product                   |
 | `ingredient`      | Ingrediente       | `Ingredient` (FK)   | Reference to the ingredient                       |
 | `quantity`        | Quantidade        | `BigDecimal`        | Amount of the ingredient needed                   |
@@ -379,14 +379,14 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `name`            | Nome              | `String`            | Category name                                     |
 
 ### Ingredient (Ingrediente)
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `name`            | Nome              | `String`            | Ingredient name                                   |
 | `unit`            | Unidade           | `String`            | Unit of measurement (e.g., "kg", "L", "un")       |
 | `costPerUnit`     | Custo/Unidade     | `BigDecimal`        | Cost per unit of measurement in R$                |
@@ -396,7 +396,7 @@ All data can be **filtered by date range** (default: today).
 
 | Field (EN)        | Field (PT-BR)     | Type                | Description                                       |
 | ----------------- | ----------------- | ------------------- | ------------------------------------------------- |
-| `id`              | —                 | `Long` (PK)         | Auto-generated primary key                        |
+| `id`              | —                 | `UUID` (PK)         | Auto-generated primary key                        |
 | `name`            | Nome              | `String`            | Customer name                                     |
 | `phone`           | Telefone          | `String`            | Phone number                                      |
 | `email`           | Email             | `String`            | Email address                                     |
