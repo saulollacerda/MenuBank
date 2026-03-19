@@ -20,11 +20,17 @@ It is a **monorepo** containing a **Java Spring Boot backend** and a **Vue 3 fro
 | Spring Boot           | 4.0.3                             |
 | Spring Data JPA       | `spring-boot-starter-data-jpa`     |
 | Spring Web MVC        | `spring-boot-starter-webmvc`       |
+| Spring Security       | `spring-boot-starter-security`     |
+| OAuth2 Resource Server | `spring-boot-starter-oauth2-resource-server` |
+| OAuth2 Authorization Server | `spring-boot-starter-oauth2-authorization-server` |
+| Validation            | `spring-boot-starter-validation`   |
 | Lombok                | Annotation processing enabled      |
 | H2 Database           | Runtime (dev/test only)            |
 | PostgreSQL            | 16 (production via Docker)         |
 | Build Tool            | Maven (Maven Wrapper — `mvnw`)     |
-| Test                  | `spring-boot-starter-data-jpa-test`, `spring-boot-starter-webmvc-test`, JUnit 5 |
+| Test — Slices         | `spring-boot-starter-data-jpa-test`, `spring-boot-starter-webmvc-test` |
+| Test — Unit           | JUnit 5 (Jupiter), Mockito 5 (`mockito-core`, `mockito-junit-jupiter`) |
+| Test — Security       | `spring-security-test`             |
 | Containerization      | Docker (multi-stage: `eclipse-temurin:21-jdk` → `eclipse-temurin:21-jre`) |
 
 ### Frontend
@@ -151,6 +157,12 @@ com.MenuBank.MenuBank/
 ├── dashboard/                    # Dashboard domain (read-only aggregations)
 │   ├── DashboardController.java
 │   └── DashboardService.java     # Aggregates data from other services
+│
+├── user/                         # Users domain (restaurant owner/operator)
+│   ├── UserController.java
+│   ├── UserService.java
+│   ├── UserRepository.java
+│   └── User.java                 # JPA entity
 │
 └── (future domains follow the same pattern)
 ```
@@ -401,6 +413,19 @@ All data can be **filtered by date range** (default: today).
 | `phone`           | Telefone          | `String`            | Phone number                                      |
 | `email`           | Email             | `String`            | Email address                                     |
 
+### User (Usuário / Restaurante)
+
+| Field (EN)        | Field (PT-BR)       | Type                | Description                                             |
+| ----------------- | ------------------- | ------------------- | ------------------------------------------------------- |
+| `id`              | —                   | `UUID` (PK)         | Auto-generated primary key                              |
+| `restaurantName`  | Nome do Restaurante | `String`            | Legal or trade name of the restaurant                   |
+| `cnpj`            | CNPJ                | `String`            | Brazilian company tax ID (unique, 14 digits, formatted) |
+| `email`           | Email               | `String`            | Login email address (unique)                            |
+| `password`        | Senha               | `String`            | Bcrypt-hashed password — never returned in responses    |
+| `phone`           | Telefone            | `String`            | Restaurant contact phone number                         |
+| `status`          | Status              | `Enum`              | `ACTIVE` or `INACTIVE`                                  |
+| `createdAt`       | Data de Cadastro    | `LocalDateTime`     | Account creation timestamp                              |
+
 ### Entity Relationship Summary
 
 ```
@@ -424,4 +449,12 @@ Ingredient 1 ── N RecipeItem
 6. **DTOs for API communication** — never expose JPA entities directly in REST responses.
 7. **TypeScript strict mode** — use proper types and interfaces, avoid `any`.
 8. **Test coverage** — write unit tests for services (backend) and components (frontend).
+9. **Test-Driven Development (TDD) — strictly enforced:**
+   - **NEVER write implementation code before the test exists.** No exceptions.
+   - The cycle is always: 🔴 Red (write failing test) → 🟢 Green (write minimal implementation to pass) → 🔵 Refactor.
+   - Stub classes (empty methods that `throw new UnsupportedOperationException`) are the only production code allowed before a test.
+   - Backend: use **JUnit 5 (Jupiter)** + **Mockito** (`@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`, `given/then` BDD style).
+   - Backend controller tests: use `@WebMvcTest` + `MockMvc` + `@MockitoBean`.
+   - Frontend: use **Vitest** + `@vue/test-utils`.
+   - If asked to implement a feature, always create the test file first and get explicit confirmation (or follow the TDD cycle within the same response).
 
