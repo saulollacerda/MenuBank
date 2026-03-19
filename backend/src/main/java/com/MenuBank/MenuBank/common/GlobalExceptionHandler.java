@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.common;
 
+import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.user.DuplicateUserException;
 import com.MenuBank.MenuBank.user.UserNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUserNotFound(UserNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Usuário não encontrado");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleOrderNotFound(OrderNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Recurso não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
