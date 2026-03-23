@@ -1,5 +1,9 @@
 package com.MenuBank.MenuBank.common;
 
+import com.MenuBank.MenuBank.category.CategoryNotFoundException;
+import com.MenuBank.MenuBank.category.DuplicateCategoryException;
+import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
+import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.user.DuplicateUserException;
 import com.MenuBank.MenuBank.user.UserNotFoundException;
@@ -41,5 +45,32 @@ public class GlobalExceptionHandler {
         problem.setDetail("Um ou mais campos são inválidos");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
-}
 
+    @ExceptionHandler(IngredientNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleIngredientNotFound(IngredientNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Ingrediente não encontrado");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicateIngredientException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateIngredient(DuplicateIngredientException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleCategoryNotFound(CategoryNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Categoria não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicateCategoryException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateCategory(DuplicateCategoryException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+}
