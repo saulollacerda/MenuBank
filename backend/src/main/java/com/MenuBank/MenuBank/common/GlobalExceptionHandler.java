@@ -5,6 +5,8 @@ import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
+import com.MenuBank.MenuBank.product.DuplicateProductException;
+import com.MenuBank.MenuBank.product.ProductNotFoundException;
 import com.MenuBank.MenuBank.user.DuplicateUserException;
 import com.MenuBank.MenuBank.user.UserNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -69,6 +71,20 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateCategoryException.class)
     public ResponseEntity<ProblemDetail> handleDuplicateCategory(DuplicateCategoryException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleProductNotFound(ProductNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Produto não encontrado");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicateProductException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateProduct(DuplicateProductException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
