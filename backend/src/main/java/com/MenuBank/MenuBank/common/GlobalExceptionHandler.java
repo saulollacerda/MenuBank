@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.common;
 
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
+import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
@@ -88,5 +89,12 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleCustomerNotFound(CustomerNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Cliente não encontrado");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 }
