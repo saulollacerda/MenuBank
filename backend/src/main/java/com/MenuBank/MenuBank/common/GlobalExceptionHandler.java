@@ -8,6 +8,7 @@ import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.product.DuplicateProductException;
 import com.MenuBank.MenuBank.product.ProductNotFoundException;
+import com.MenuBank.MenuBank.product.RecipeItemNotFoundException;
 import com.MenuBank.MenuBank.user.DuplicateUserException;
 import com.MenuBank.MenuBank.user.UserNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -95,6 +96,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleCustomerNotFound(CustomerNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Cliente não encontrado");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(RecipeItemNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleRecipeItemNotFound(RecipeItemNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Item da ficha técnica não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 }
