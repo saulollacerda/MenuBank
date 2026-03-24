@@ -1,0 +1,14 @@
+import api from './api'
+import type { DashboardResponse } from '@/types/Dashboard'
+
+export const dashboardService = {
+  async getDashboard(startDate?: string, endDate?: string): Promise<DashboardResponse> {
+    const params: Record<string, string> = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+
+    const { data } = await api.get<DashboardResponse>('/dashboard', { params })
+    return data
+  },
+}
+
