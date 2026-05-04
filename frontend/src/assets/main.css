@@ -601,6 +601,123 @@ select.form-control {
   }
 }
 
+/* ===== Auth Pages ===== */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-gray-900) 0%, #1e3a5f 100%);
+  padding: 16px;
+}
+
+.auth-card {
+  background: var(--color-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 32px;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-logo {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--color-gray-900);
+  letter-spacing: -0.03em;
+}
+
+.auth-logo span {
+  color: var(--color-primary);
+}
+
+.auth-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-gray-500);
+  margin-top: 8px;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 0.9375rem;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.auth-footer {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-gray-500);
+  margin-top: 24px;
+}
+
+.auth-link {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+/* ===== Sidebar Footer ===== */
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--color-gray-700);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  font-size: 0.8125rem;
+  color: var(--color-gray-400);
+  overflow: hidden;
+}
+
+.sidebar-restaurant-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--border-radius);
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.sidebar-logout:hover {
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .sidebar {

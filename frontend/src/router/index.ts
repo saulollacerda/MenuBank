@@ -4,6 +4,18 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/RegisterView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
@@ -34,6 +46,19 @@ const router = createRouter({
       component: () => import('@/views/CustomersView.vue'),
     },
   ],
+})
+
+router.beforeEach((to) => {
+  const token = localStorage.getItem('menubank_token')
+  const isPublic = to.meta.public === true
+
+  if (!token && !isPublic) {
+    return { name: 'login' }
+  }
+
+  if (token && isPublic) {
+    return { name: 'dashboard' }
+  }
 })
 
 export default router

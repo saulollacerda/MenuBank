@@ -4,19 +4,26 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - DB_URL=jdbc:postgresql://db:5432/${DB_NAME}
-      - DB_USERNAME=${DB_USER}
-      - DB_PASSWORD=postgres${DB_PASSWORD}
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
     depends_on:
-      - db
-
+      db:
+        condition: service_healthy
+    networks:
+      - menubank-network
+ 
   frontend:
     build: ./frontend
     ports:
       - "80:80"
     depends_on:
       - backend
+    networks:
+      - menubank-network
 
   db:
     image: postgres:16-alpine
@@ -28,6 +35,17 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - menubank-network
+
+networks:
+  menubank-network:
+    driver: bridge
 
 volumes:
   postgres_data:
