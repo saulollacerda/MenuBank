@@ -51,7 +51,13 @@ describe('orderStore', () => {
     const store = useOrderStore()
     await store.create({
       customerId: 'c1',
-      items: [{ productId: 'p1', quantity: 2 }],
+      items: [
+        {
+          productId: 'p1',
+          quantity: 2,
+          extraIngredients: [{ ingredientId: 'i1', quantity: 1.5 }],
+        },
+      ],
     })
 
     expect(store.items).toContainEqual(created)

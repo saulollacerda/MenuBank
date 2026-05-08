@@ -148,9 +148,10 @@ class AuthControllerTest {
         private UserRequest buildValidRegisterRequest() {
             return UserRequest.builder()
                     .restaurantName("Restaurante Teste")
-                    .cnpj("12345678000199")
+                    .cnpj("12345678000195")
                     .email("teste@email.com")
                     .password("senha123")
+                    .confirmPassword("senha123")
                     .phone("11999999999")
                     .build();
         }
@@ -178,6 +179,44 @@ class AuthControllerTest {
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(UserRequest.builder().build())))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando CNPJ é inválido")
+        void shouldReturn400WhenCnpjIsInvalid() throws Exception {
+            UserRequest invalidRequest = UserRequest.builder()
+                    .restaurantName("Restaurante Teste")
+                    .cnpj("12345678000199")
+                    .email("teste@email.com")
+                    .password("senha123")
+                    .confirmPassword("senha123")
+                    .phone("11999999999")
+                    .build();
+
+            mockMvc.perform(post("/api/auth/register")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando confirmação de senha não confere")
+        void shouldReturn400WhenPasswordsDoNotMatch() throws Exception {
+            UserRequest invalidRequest = UserRequest.builder()
+                    .restaurantName("Restaurante Teste")
+                    .cnpj("12345678000195")
+                    .email("teste@email.com")
+                    .password("senha123")
+                    .confirmPassword("senhaDiferente")
+                    .phone("11999999999")
+                    .build();
+
+            mockMvc.perform(post("/api/auth/register")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
         }
 

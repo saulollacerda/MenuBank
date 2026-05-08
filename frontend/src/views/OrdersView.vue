@@ -3,11 +3,18 @@ import { ref, onMounted } from 'vue'
 import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
-import type { OrderRequest, OrderResponse, OrderItemRequest } from '@/types/Order'
+import { useIngredientStore } from '@/stores/ingredientStore'
+import type {
+  OrderRequest,
+  OrderResponse,
+  OrderItemRequest,
+  OrderItemExtraIngredientRequest,
+} from '@/types/Order'
 
 const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
 const productStore = useProductStore()
+const ingredientStore = useIngredientStore()
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
@@ -16,8 +23,13 @@ const confirmDeleteId = ref<string | null>(null)
 
 const form = ref<OrderRequest>({
   customerId: '',
-  items: [{ productId: '', quantity: 1 }],
+  items: [{ productId: '', quantity: 1, extraIngredients: [] }],
 })
+
+function ensureExtrasArray(item: OrderItemRequest): OrderItemExtraIngredientRequest[] {
+  if (!item.extraIngredients) item.extraIngredients = []
+  return item.extraIngredients
+}
 
 function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -50,7 +62,7 @@ function statusClass(status: string): string {
 function openCreateModal() {
   form.value = {
     customerId: '',
-    items: [{ productId: '', quantity: 1 }],
+    items: [{ productId: '', quantity: 1, extraIngredients: [] }],
   }
   showModal.value = true
 }
@@ -60,13 +72,24 @@ function closeModal() {
 }
 
 function addItem() {
-  form.value.items.push({ productId: '', quantity: 1 })
+  form.value.items.push({ productId: '', quantity: 1, extraIngredients: [] })
 }
 
 function removeItem(index: number) {
   if (form.value.items.length > 1) {
     form.value.items.splice(index, 1)
   }
+}
+
+function addExtraIngredient(itemIndex: number) {
+  const item = form.value.items[itemIndex]
+  ensureExtrasArray(item).push({ ingredientId: '', quantity: 1 })
+}
+
+function removeExtraIngredient(itemIndex: number, extraIndex: number) {
+  const item = form.value.items[itemIndex]
+  const extras = ensureExtrasArray(item)
+  extras.splice(extraIndex, 1)
 }
 
 async function handleSubmit() {
@@ -106,6 +129,7 @@ onMounted(() => {
   orderStore.fetchAll()
   customerStore.fetchAll()
   productStore.fetchAll()
+  ingredientStore.fetchAll()
 })
 </script>
 
@@ -113,7 +137,9 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Pedidos</h1>
-      <button class="btn btn-primary" @click="openCreateModal">+ Novo Pedido</button>
+      <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
+        + Novo Pedido
+      </button>
     </div>
 
     <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
@@ -174,7 +200,12 @@ onMounted(() => {
           <form @submit.prevent="handleSubmit">
             <div class="form-group">
               <label>Cliente</label>
-              <select v-model="form.customerId" class="form-control" required>
+              <select
+                v-model="form.customerId"
+                class="form-control"
+                data-testid="order-customer-select"
+                required
+              >
                 <option value="" disabled>Selecione o cliente...</option>
                 <option
                   v-for="customer in customerStore.items"
@@ -197,7 +228,12 @@ onMounted(() => {
               >
                 <div class="form-group">
                   <label>Produto</label>
-                  <select v-model="item.productId" class="form-control" required>
+                  <select
+                    v-model="item.productId"
+                    class="form-control"
+                    :data-testid="`order-item-${index}-product-select`"
+                    required
+                  >
                     <option value="" disabled>Selecione...</option>
                     <option
                       v-for="product in productStore.items"
@@ -215,6 +251,7 @@ onMounted(() => {
                     type="number"
                     min="1"
                     class="form-control"
+                    :data-testid="`order-item-${index}-quantity-input`"
                     required
                   />
                 </div>
@@ -227,6 +264,68 @@ onMounted(() => {
                 >
                   ✕
                 </button>
+
+                <div class="order-extras" style="grid-column: 1 / -1">
+                  <label style="font-weight: 600; margin-bottom: 6px; display: block">
+                    Ingredientes extras
+                  </label>
+
+                  <div
+                    v-for="(extra, extraIndex) in ensureExtrasArray(item)"
+                    :key="extraIndex"
+                    class="order-extras-row"
+                    style="display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px"
+                  >
+                    <div class="form-group" style="flex: 1">
+                      <label>Ingrediente</label>
+                      <select
+                        v-model="extra.ingredientId"
+                        class="form-control"
+                        :data-testid="`order-item-${index}-extra-${extraIndex}-ingredient-select`"
+                        required
+                      >
+                        <option value="" disabled>Selecione...</option>
+                        <option
+                          v-for="ingredient in ingredientStore.items"
+                          :key="ingredient.id"
+                          :value="ingredient.id"
+                        >
+                          {{ ingredient.name }} ({{ ingredient.unit }})
+                        </option>
+                      </select>
+                    </div>
+
+                    <div class="form-group" style="max-width: 160px">
+                      <label>Quantidade</label>
+                      <input
+                        v-model.number="extra.quantity"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        class="form-control"
+                        :data-testid="`order-item-${index}-extra-${extraIndex}-quantity-input`"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      class="btn btn-danger btn-sm"
+                      @click="removeExtraIngredient(index, extraIndex)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :data-testid="`order-item-${index}-add-extra-button`"
+                    @click="addExtraIngredient(index)"
+                  >
+                    + Adicionar ingrediente extra
+                  </button>
+                </div>
               </div>
               <button type="button" class="btn btn-secondary btn-sm" @click="addItem">
                 + Adicionar Item
@@ -237,7 +336,12 @@ onMounted(() => {
               <button type="button" class="btn btn-secondary" @click="closeModal">
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-primary" :disabled="orderStore.loading">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                data-testid="order-submit-button"
+                :disabled="orderStore.loading"
+              >
                 Criar Pedido
               </button>
             </div>

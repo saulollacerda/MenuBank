@@ -2,6 +2,9 @@ package com.MenuBank.MenuBank.order;
 
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
+import com.MenuBank.MenuBank.ingredient.Ingredient;
+import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
+import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import org.springframework.stereotype.Service;
@@ -18,13 +21,16 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
+    private final IngredientRepository ingredientRepository;
 
     public OrderService(OrderRepository orderRepository,
                         CustomerRepository customerRepository,
-                        ProductRepository productRepository) {
+                        ProductRepository productRepository,
+                        IngredientRepository ingredientRepository) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
+        this.ingredientRepository = ingredientRepository;
     }
 
     public OrderResponse create(OrderRequest request) {
@@ -109,9 +115,37 @@ public class OrderService {
                     .unitPrice(product.getPrice())
                     .build();
 
+            List<OrderItemExtraIngredient> extraIngredients = buildExtraIngredients(itemRequest);
+            extraIngredients.forEach(extra -> extra.setOrderItem(item));
+            item.setExtraIngredients(extraIngredients);
+
             items.add(item);
         }
         return items;
+    }
+
+    private List<OrderItemExtraIngredient> buildExtraIngredients(OrderItemRequest itemRequest) {
+        List<OrderItemExtraIngredient> extraIngredients = new ArrayList<>();
+        if (itemRequest.getExtraIngredients() == null || itemRequest.getExtraIngredients().isEmpty()) {
+            return extraIngredients;
+        }
+
+        for (OrderItemExtraIngredientRequest extraRequest : itemRequest.getExtraIngredients()) {
+            Ingredient ingredient = ingredientRepository.findById(extraRequest.getIngredientId())
+                    .orElseThrow(() -> new IngredientNotFoundException(extraRequest.getIngredientId()));
+
+            OrderItemExtraIngredient extra = OrderItemExtraIngredient.builder()
+                    .ingredient(ingredient)
+                    .quantity(extraRequest.getQuantity())
+                    .costPerUnit(ingredient.getCostPerUnit())
+                    .ingredientName(ingredient.getName())
+                    .ingredientUnit(ingredient.getUnit())
+                    .build();
+
+            extraIngredients.add(extra);
+        }
+
+        return extraIngredients;
     }
 
     private BigDecimal calculateTotalValue(List<OrderItem> items) {
@@ -127,9 +161,23 @@ public class OrderService {
                     if (cost == null) {
                         cost = BigDecimal.ZERO;
                     }
-                    return cost.multiply(BigDecimal.valueOf(item.getQuantity()));
+                    BigDecimal baseCost = cost.multiply(BigDecimal.valueOf(item.getQuantity()));
+                    BigDecimal extraCost = calculateExtraIngredientsCost(item);
+                    return baseCost.add(extraCost);
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateExtraIngredientsCost(OrderItem item) {
+        if (item.getExtraIngredients() == null || item.getExtraIngredients().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal perUnitExtraCost = item.getExtraIngredients().stream()
+                .map(extra -> extra.getQuantity().multiply(extra.getCostPerUnit()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return perUnitExtraCost.multiply(BigDecimal.valueOf(item.getQuantity()));
     }
 
     private OrderResponse toResponse(Order order) {
@@ -150,12 +198,31 @@ public class OrderService {
     }
 
     private OrderItemResponse toItemResponse(OrderItem item) {
+        List<OrderItemExtraIngredientResponse> extraResponses = item.getExtraIngredients() != null
+                ? item.getExtraIngredients().stream().map(extra -> {
+                    BigDecimal totalCost = extra.getQuantity()
+                            .multiply(extra.getCostPerUnit())
+                            .multiply(BigDecimal.valueOf(item.getQuantity()));
+
+                    return OrderItemExtraIngredientResponse.builder()
+                            .id(extra.getId())
+                            .ingredientId(extra.getIngredient().getId())
+                            .ingredientName(extra.getIngredientName())
+                            .ingredientUnit(extra.getIngredientUnit())
+                            .quantity(extra.getQuantity())
+                            .costPerUnit(extra.getCostPerUnit())
+                            .totalCost(totalCost)
+                            .build();
+                }).toList()
+                : List.of();
+
         return OrderItemResponse.builder()
                 .id(item.getId())
                 .productId(item.getProduct().getId())
                 .productName(item.getProduct().getName())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
+                .extraIngredients(extraResponses)
                 .build();
     }
 }

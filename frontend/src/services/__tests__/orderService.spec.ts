@@ -40,7 +40,13 @@ describe('orderService', () => {
   it('create should POST /orders', async () => {
     const request = {
       customerId: 'c1',
-      items: [{ productId: 'p1', quantity: 2 }],
+      items: [
+        {
+          productId: 'p1',
+          quantity: 2,
+          extraIngredients: [{ ingredientId: 'i1', quantity: 1.5 }],
+        },
+      ],
     }
     const mockData = {
       id: '1',
@@ -50,7 +56,26 @@ describe('orderService', () => {
       status: 'PENDING',
       totalValue: 50.0,
       estimatedProfit: 20.0,
-      items: [{ id: 'oi1', productId: 'p1', productName: 'Hambúrguer', quantity: 2, unitPrice: 25.0 }],
+      items: [
+        {
+          id: 'oi1',
+          productId: 'p1',
+          productName: 'Hambúrguer',
+          quantity: 2,
+          unitPrice: 25.0,
+          extraIngredients: [
+            {
+              id: 'e1',
+              ingredientId: 'i1',
+              ingredientName: 'Bacon',
+              ingredientUnit: 'g',
+              quantity: 1.5,
+              costPerUnit: 0.1,
+              totalCost: 0.3,
+            },
+          ],
+        },
+      ],
     }
     vi.mocked(api.post).mockResolvedValue({ data: mockData })
 
