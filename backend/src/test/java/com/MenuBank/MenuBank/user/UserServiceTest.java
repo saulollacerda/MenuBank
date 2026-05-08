@@ -39,16 +39,17 @@ class UserServiceTest {
 
         userRequest = UserRequest.builder()
                 .restaurantName("Restaurante Teste")
-                .cnpj("12345678000199")
+                .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("senha123")
+                .confirmPassword("senha123")
                 .phone("11999999999")
                 .build();
 
         user = User.builder()
                 .id(userId)
                 .restaurantName("Restaurante Teste")
-                .cnpj("12345678000199")
+                .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("$2a$10$encodedpassword")
                 .phone("11999999999")
@@ -211,16 +212,17 @@ class UserServiceTest {
         void shouldUpdateAndReturnUpdatedUserResponse() {
             UserRequest updateRequest = UserRequest.builder()
                     .restaurantName("Restaurante Atualizado")
-                    .cnpj("12345678000199")
+                    .cnpj("12345678000195")
                     .email("teste@email.com")
                     .password("novaSenha123")
+                    .confirmPassword("novaSenha123")
                     .phone("11988888888")
                     .build();
 
             User updatedUser = User.builder()
                     .id(userId)
                     .restaurantName("Restaurante Atualizado")
-                    .cnpj("12345678000199")
+                    .cnpj("12345678000195")
                     .email("teste@email.com")
                     .password("$2a$10$newencoded")
                     .phone("11988888888")

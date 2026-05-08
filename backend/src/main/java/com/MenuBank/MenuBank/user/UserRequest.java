@@ -1,8 +1,11 @@
 package com.MenuBank.MenuBank.user;
 
+import com.MenuBank.MenuBank.validation.PasswordMatch;
+import com.MenuBank.MenuBank.validation.ValidCnpj;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+@PasswordMatch
 @Data
 @Builder
 @NoArgsConstructor
@@ -13,7 +16,7 @@ public class UserRequest {
     private String restaurantName;
 
     @NotBlank(message = "CNPJ é obrigatório")
-    @Size(min = 14, max = 14, message = "CNPJ deve ter 14 dígitos")
+    @ValidCnpj
     private String cnpj;
 
     @NotBlank(message = "Email é obrigatório")
@@ -24,6 +27,9 @@ public class UserRequest {
     @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
     private String password;
 
+    @NotBlank(message = "Confirmação de senha é obrigatória")
+    @Size(min = 6, message = "Confirmação de senha deve ter no mínimo 6 caracteres")
+    private String confirmPassword;
+
     private String phone;
 }
-

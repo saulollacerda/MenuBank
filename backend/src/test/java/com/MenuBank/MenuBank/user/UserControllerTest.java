@@ -43,7 +43,7 @@ class UserControllerTest {
         userResponse = UserResponse.builder()
                 .id(userId)
                 .restaurantName("Restaurante Teste")
-                .cnpj("12345678000199")
+                .cnpj("12345678000195")
                 .email("teste@email.com")
                 .phone("11999999999")
                 .status(UserStatus.ACTIVE)
@@ -54,9 +54,10 @@ class UserControllerTest {
     private UserRequest buildValidRequest() {
         return UserRequest.builder()
                 .restaurantName("Restaurante Teste")
-                .cnpj("12345678000199")
+                .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("senha123")
+                .confirmPassword("senha123")
                 .phone("11999999999")
                 .build();
     }
