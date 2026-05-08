@@ -105,6 +105,32 @@ class OrderControllerTest {
         }
 
         @Test
+        @DisplayName("deve aceitar ingrediente extra no item do pedido")
+        void shouldAcceptExtraIngredientsOnCreate() throws Exception {
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(2)
+                            .extraIngredients(List.of(
+                                    OrderItemExtraIngredientRequest.builder()
+                                            .ingredientId(UUID.randomUUID())
+                                            .quantity(new BigDecimal("1.5"))
+                                            .build()
+                            ))
+                            .build()))
+                    .build();
+
+            given(orderService.create(any(OrderRequest.class))).willReturn(orderResponse);
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(requestWithExtra)))
+                    .andExpect(status().isCreated());
+        }
+
+        @Test
         @DisplayName("deve retornar 400 quando campos obrigatórios estão ausentes")
         void shouldReturn400WhenRequiredFieldsMissing() throws Exception {
             mockMvc.perform(post("/api/orders")
@@ -127,6 +153,32 @@ class OrderControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(emptyItems)))
                     .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando ingrediente extra possui campos inválidos")
+        void shouldReturn400WhenExtraIngredientIsInvalid() throws Exception {
+            // ingredientId ausente
+            OrderRequest invalid = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .extraIngredients(List.of(
+                                    OrderItemExtraIngredientRequest.builder()
+                                            .quantity(new BigDecimal("1"))
+                                            .build()
+                            ))
+                            .build()))
+                    .build();
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalid)))
+                    .andExpect(status().isBadRequest());
+
+            then(orderService).should(never()).create(any(OrderRequest.class));
         }
 
         @Test

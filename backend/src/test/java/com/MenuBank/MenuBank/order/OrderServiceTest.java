@@ -2,6 +2,10 @@ package com.MenuBank.MenuBank.order;
 
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
+import com.MenuBank.MenuBank.ingredient.Ingredient;
+import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
+import com.MenuBank.MenuBank.ingredient.IngredientRepository;
+import com.MenuBank.MenuBank.ingredient.IngredientStatus;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
@@ -34,14 +38,19 @@ class OrderServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private IngredientRepository ingredientRepository;
+
     @InjectMocks
     private OrderService orderService;
 
     private UUID orderId;
     private UUID customerId;
     private UUID productId;
+    private UUID ingredientId;
     private Customer customer;
     private Product product;
+    private Ingredient ingredient;
     private Order order;
     private OrderRequest orderRequest;
 
@@ -50,6 +59,7 @@ class OrderServiceTest {
         orderId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         productId = UUID.randomUUID();
+        ingredientId = UUID.randomUUID();
 
         customer = Customer.builder()
                 .id(customerId)
@@ -64,6 +74,14 @@ class OrderServiceTest {
                 .price(new BigDecimal("30.00"))
                 .estimatedCost(new BigDecimal("12.00"))
                 .status(ProductStatus.ACTIVE)
+                .build();
+
+        ingredient = Ingredient.builder()
+                .id(ingredientId)
+                .name("Bacon")
+                .unit("g")
+                .costPerUnit(new BigDecimal("0.10"))
+                .status(IngredientStatus.ACTIVE)
                 .build();
 
         OrderItemRequest itemRequest = OrderItemRequest.builder()
@@ -233,6 +251,77 @@ class OrderServiceTest {
             assertThat(result.getItems().get(0).getQuantity()).isEqualTo(2);
             assertThat(result.getItems().get(0).getUnitPrice())
                     .isEqualByComparingTo(new BigDecimal("30.00"));
+        }
+
+        @Test
+        @DisplayName("deve incluir custo de ingredientes extras no cálculo de estimatedProfit")
+        void shouldIncludeExtraIngredientsCostWhenCalculatingEstimatedProfit() {
+            OrderItemExtraIngredientRequest extra = OrderItemExtraIngredientRequest.builder()
+                    .ingredientId(ingredientId)
+                    // quantidade extra por unidade do produto
+                    .quantity(new BigDecimal("50"))
+                    .build();
+
+            OrderItemRequest itemWithExtra = OrderItemRequest.builder()
+                    .productId(productId)
+                    .quantity(2)
+                    .extraIngredients(List.of(extra))
+                    .build();
+
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(itemWithExtra))
+                    .build();
+
+            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+
+            // return a saved copy so OrderResponse uses the calculated values
+            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
+                Order saved = invocation.getArgument(0);
+                saved.setId(orderId);
+                saved.getItems().forEach(i -> i.setId(UUID.randomUUID()));
+                return saved;
+            });
+
+            OrderResponse response = orderService.create(requestWithExtra);
+
+            // totalValue = 2 * 30.00 = 60.00
+            // baseCost = 2 * 12.00 = 24.00
+            // extraCost(per unit) = 50 * 0.10 = 5.00; for 2 units => 10.00
+            // estimatedProfit = 60.00 - (24.00 + 10.00) = 26.00
+            assertThat(response.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("26.00"));
+        }
+
+        @Test
+        @DisplayName("deve lançar IngredientNotFoundException quando ingrediente extra não existe")
+        void shouldThrowWhenExtraIngredientNotFound() {
+            OrderItemExtraIngredientRequest extra = OrderItemExtraIngredientRequest.builder()
+                    .ingredientId(ingredientId)
+                    .quantity(new BigDecimal("1"))
+                    .build();
+
+            OrderItemRequest itemWithExtra = OrderItemRequest.builder()
+                    .productId(productId)
+                    .quantity(1)
+                    .extraIngredients(List.of(extra))
+                    .build();
+
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(itemWithExtra))
+                    .build();
+
+            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> orderService.create(requestWithExtra))
+                    .isInstanceOf(IngredientNotFoundException.class)
+                    .hasMessageContaining("Ingrediente");
+
+            then(orderRepository).should(never()).save(any(Order.class));
         }
     }
 
