@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.ingredient;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -9,17 +10,22 @@ import java.util.UUID;
 public class IngredientService {
 
     private final IngredientRepository ingredientRepository;
+    private final UserContext userContext;
 
-    public IngredientService(IngredientRepository ingredientRepository) {
+    public IngredientService(IngredientRepository ingredientRepository, UserContext userContext) {
         this.ingredientRepository = ingredientRepository;
+        this.userContext = userContext;
     }
 
     public IngredientResponse create(IngredientRequest request) {
-        if (ingredientRepository.existsByName(request.getName())) {
+        UUID ownerId = userContext.getUserId();
+
+        if (ingredientRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
             throw new DuplicateIngredientException("nome");
         }
 
         Ingredient ingredient = Ingredient.builder()
+                .ownerId(ownerId)
                 .name(request.getName())
                 .unit(request.getUnit())
                 .costPerUnit(request.getCostPerUnit())
@@ -32,19 +38,22 @@ public class IngredientService {
     }
 
     public IngredientResponse findById(UUID id) {
-        Ingredient ingredient = ingredientRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
         return toResponse(ingredient);
     }
 
     public List<IngredientResponse> findAll() {
-        return ingredientRepository.findAll().stream()
+        UUID ownerId = userContext.getUserId();
+        return ingredientRepository.findAllByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public IngredientResponse update(UUID id, IngredientRequest request) {
-        Ingredient ingredient = ingredientRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
         ingredient.setName(request.getName());
@@ -57,10 +66,11 @@ public class IngredientService {
     }
 
     public void delete(UUID id) {
-        if (!ingredientRepository.existsById(id)) {
+        UUID ownerId = userContext.getUserId();
+        if (!ingredientRepository.existsByIdAndOwnerId(id, ownerId)) {
             throw new IngredientNotFoundException(id);
         }
-        ingredientRepository.deleteById(id);
+        ingredientRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
     private IngredientResponse toResponse(Ingredient ingredient) {

@@ -17,6 +17,9 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
     @Column(nullable = false)
     private String name;
 }

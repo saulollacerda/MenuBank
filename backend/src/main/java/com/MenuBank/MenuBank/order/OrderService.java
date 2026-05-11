@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.order;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
@@ -22,19 +23,24 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final IngredientRepository ingredientRepository;
+    private final UserContext userContext;
 
     public OrderService(OrderRepository orderRepository,
                         CustomerRepository customerRepository,
                         ProductRepository productRepository,
-                        IngredientRepository ingredientRepository) {
+                        IngredientRepository ingredientRepository,
+                        UserContext userContext) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.ingredientRepository = ingredientRepository;
+        this.userContext = userContext;
     }
 
     public OrderResponse create(OrderRequest request) {
-        Customer customer = customerRepository.findById(request.getCustomerId())
+        UUID ownerId = userContext.getUserId();
+
+        Customer customer = customerRepository.findByIdAndOwnerId(request.getCustomerId(), ownerId)
                 .orElseThrow(() -> new OrderNotFoundException(
                         "Cliente com ID " + request.getCustomerId() + " não encontrado"));
 
@@ -45,6 +51,7 @@ public class OrderService {
         BigDecimal estimatedProfit = totalValue.subtract(totalCost);
 
         Order order = Order.builder()
+                .ownerId(ownerId)
                 .dateTime(LocalDateTime.now())
                 .customer(customer)
                 .status(OrderStatus.PENDING)
@@ -60,22 +67,27 @@ public class OrderService {
     }
 
     public OrderResponse findById(UUID id) {
-        Order order = orderRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+
+        Order order = orderRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new OrderNotFoundException(id));
         return toResponse(order);
     }
 
     public List<OrderResponse> findAll() {
-        return orderRepository.findAll().stream()
+        UUID ownerId = userContext.getUserId();
+        return orderRepository.findAllByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public OrderResponse update(UUID id, OrderRequest request) {
-        Order order = orderRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+
+        Order order = orderRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new OrderNotFoundException(id));
 
-        Customer customer = customerRepository.findById(request.getCustomerId())
+        Customer customer = customerRepository.findByIdAndOwnerId(request.getCustomerId(), ownerId)
                 .orElseThrow(() -> new OrderNotFoundException(
                         "Cliente com ID " + request.getCustomerId() + " não encontrado"));
 
@@ -96,16 +108,18 @@ public class OrderService {
     }
 
     public void delete(UUID id) {
-        if (!orderRepository.existsById(id)) {
+        UUID ownerId = userContext.getUserId();
+        if (!orderRepository.existsByIdAndOwnerId(id, ownerId)) {
             throw new OrderNotFoundException(id);
         }
-        orderRepository.deleteById(id);
+        orderRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
     private List<OrderItem> buildItems(List<OrderItemRequest> itemRequests) {
+        UUID ownerId = userContext.getUserId();
         List<OrderItem> items = new ArrayList<>();
         for (OrderItemRequest itemRequest : itemRequests) {
-            Product product = productRepository.findById(itemRequest.getProductId())
+            Product product = productRepository.findByIdAndOwnerId(itemRequest.getProductId(), ownerId)
                     .orElseThrow(() -> new OrderNotFoundException(
                             "Produto com ID " + itemRequest.getProductId() + " não encontrado"));
 
@@ -125,13 +139,14 @@ public class OrderService {
     }
 
     private List<OrderItemExtraIngredient> buildExtraIngredients(OrderItemRequest itemRequest) {
+        UUID ownerId = userContext.getUserId();
         List<OrderItemExtraIngredient> extraIngredients = new ArrayList<>();
         if (itemRequest.getExtraIngredients() == null || itemRequest.getExtraIngredients().isEmpty()) {
             return extraIngredients;
         }
 
         for (OrderItemExtraIngredientRequest extraRequest : itemRequest.getExtraIngredients()) {
-            Ingredient ingredient = ingredientRepository.findById(extraRequest.getIngredientId())
+            Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(extraRequest.getIngredientId(), ownerId)
                     .orElseThrow(() -> new IngredientNotFoundException(extraRequest.getIngredientId()));
 
             OrderItemExtraIngredient extra = OrderItemExtraIngredient.builder()

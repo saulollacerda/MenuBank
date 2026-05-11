@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,15 +23,20 @@ class ProductServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private ProductService productService;
 
+    private UUID ownerId;
     private UUID productId;
     private Product product;
     private ProductRequest productRequest;
 
     @BeforeEach
     void setUp() {
+        ownerId = UUID.randomUUID();
         productId = UUID.randomUUID();
 
         productRequest = ProductRequest.builder()
@@ -40,6 +46,7 @@ class ProductServiceTest {
 
         product = Product.builder()
                 .id(productId)
+                .ownerId(ownerId)
                 .name("X-Burguer")
                 .price(new BigDecimal("25.90"))
                 .estimatedCost(BigDecimal.ZERO)
@@ -60,7 +67,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve criar produto com dados válidos e retornar ProductResponse")
         void shouldCreateProductAndReturnResponse() {
-            given(productRepository.existsByName(productRequest.getName())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(productRequest.getName(), ownerId)).willReturn(false);
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -69,13 +77,14 @@ class ProductServiceTest {
             assertThat(result.getId()).isEqualTo(productId);
             assertThat(result.getName()).isEqualTo(productRequest.getName());
             assertThat(result.getPrice()).isEqualByComparingTo(productRequest.getPrice());
-            then(productRepository).should().save(any(Product.class));
+            then(productRepository).should().save(argThat(p -> ownerId.equals(p.getOwnerId())));
         }
 
         @Test
         @DisplayName("deve criar produto com status ACTIVE por padrão")
         void shouldCreateProductWithActiveStatusByDefault() {
-            given(productRepository.existsByName(anyString())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -86,7 +95,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve criar produto com estimatedCost zero e margin igual ao preço")
         void shouldCreateProductWithZeroCostAndFullMargin() {
-            given(productRepository.existsByName(anyString())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -99,7 +109,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateProductException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(productRepository.existsByName(productRequest.getName())).willReturn(true);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(productRequest.getName(), ownerId)).willReturn(true);
 
             assertThatThrownBy(() -> productService.create(productRequest))
                     .isInstanceOf(DuplicateProductException.class)
@@ -120,7 +131,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve retornar ProductResponse quando produto existe")
         void shouldReturnResponseWhenExists() {
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
 
             ProductResponse result = productService.findById(productId);
 
@@ -134,7 +146,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException quando produto não existe")
         void shouldThrowWhenProductNotFound() {
-            given(productRepository.findById(productId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> productService.findById(productId))
                     .isInstanceOf(ProductNotFoundException.class);
@@ -152,7 +165,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve retornar lista de todos os produtos")
         void shouldReturnListOfAllProducts() {
-            given(productRepository.findAll()).willReturn(List.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findAllByOwnerId(ownerId)).willReturn(List.of(product));
 
             List<ProductResponse> result = productService.findAll();
 
@@ -164,7 +178,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando não há produtos")
         void shouldReturnEmptyList() {
-            given(productRepository.findAll()).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
 
             List<ProductResponse> result = productService.findAll();
 
@@ -190,6 +205,7 @@ class ProductServiceTest {
 
             Product updatedProduct = Product.builder()
                     .id(productId)
+                    .ownerId(ownerId)
                     .name("X-Salada")
                     .price(new BigDecimal("29.90"))
                     .estimatedCost(BigDecimal.ZERO)
@@ -198,7 +214,8 @@ class ProductServiceTest {
                     .cmv(BigDecimal.ZERO)
                     .build();
 
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(productRepository.save(any(Product.class))).willReturn(updatedProduct);
 
             ProductResponse result = productService.update(productId, updateRequest);
@@ -210,7 +227,8 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException ao atualizar produto inexistente")
         void shouldThrowWhenProductNotFoundForUpdate() {
-            given(productRepository.findById(productId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> productService.update(productId, productRequest))
                     .isInstanceOf(ProductNotFoundException.class);
@@ -230,23 +248,25 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve deletar produto existente sem lançar exceção")
         void shouldDeleteExistingProduct() {
-            given(productRepository.existsById(productId)).willReturn(true);
-            willDoNothing().given(productRepository).deleteById(productId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByIdAndOwnerId(productId, ownerId)).willReturn(true);
+            willDoNothing().given(productRepository).deleteByIdAndOwnerId(productId, ownerId);
 
             assertThatNoException().isThrownBy(() -> productService.delete(productId));
 
-            then(productRepository).should().deleteById(productId);
+            then(productRepository).should().deleteByIdAndOwnerId(productId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar ProductNotFoundException ao deletar produto inexistente")
         void shouldThrowWhenProductNotFoundForDelete() {
-            given(productRepository.existsById(productId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByIdAndOwnerId(productId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> productService.delete(productId))
                     .isInstanceOf(ProductNotFoundException.class);
 
-            then(productRepository).should(never()).deleteById(any());
+            then(productRepository).should(never()).deleteByIdAndOwnerId(any(), any());
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.customer;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,15 +22,20 @@ class CustomerServiceTest {
     @Mock
     private CustomerRepository customerRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private CustomerService customerService;
 
+    private UUID ownerId;
     private UUID customerId;
     private Customer customer;
     private CustomerRequest customerRequest;
 
     @BeforeEach
     void setUp() {
+        ownerId = UUID.randomUUID();
         customerId = UUID.randomUUID();
 
         customerRequest = CustomerRequest.builder()
@@ -40,6 +46,7 @@ class CustomerServiceTest {
 
         customer = Customer.builder()
                 .id(customerId)
+                .ownerId(ownerId)
                 .name("João Silva")
                 .phone("11999999999")
                 .email("joao@email.com")
@@ -57,6 +64,7 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve criar cliente com dados válidos e retornar CustomerResponse")
         void shouldCreateCustomerAndReturnResponse() {
+            given(userContext.getUserId()).willReturn(ownerId);
             given(customerRepository.save(any(Customer.class))).willReturn(customer);
 
             CustomerResponse result = customerService.create(customerRequest);
@@ -66,7 +74,7 @@ class CustomerServiceTest {
             assertThat(result.getName()).isEqualTo(customerRequest.getName());
             assertThat(result.getPhone()).isEqualTo(customerRequest.getPhone());
             assertThat(result.getEmail()).isEqualTo(customerRequest.getEmail());
-            then(customerRepository).should().save(any(Customer.class));
+            then(customerRepository).should().save(argThat(c -> ownerId.equals(c.getOwnerId())));
         }
 
         @Test
@@ -78,9 +86,11 @@ class CustomerServiceTest {
 
             Customer minimalCustomer = Customer.builder()
                     .id(customerId)
+                    .ownerId(ownerId)
                     .name("Maria Souza")
                     .build();
 
+            given(userContext.getUserId()).willReturn(ownerId);
             given(customerRepository.save(any(Customer.class))).willReturn(minimalCustomer);
 
             CustomerResponse result = customerService.create(minimalRequest);
@@ -103,7 +113,8 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve retornar CustomerResponse quando cliente existe")
         void shouldReturnResponseWhenExists() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
 
             CustomerResponse result = customerService.findById(customerId);
 
@@ -117,7 +128,8 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve lançar CustomerNotFoundException quando cliente não existe")
         void shouldThrowWhenCustomerNotFound() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> customerService.findById(customerId))
                     .isInstanceOf(CustomerNotFoundException.class);
@@ -135,7 +147,8 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve retornar lista de todos os clientes")
         void shouldReturnListOfAllCustomers() {
-            given(customerRepository.findAll()).willReturn(List.of(customer));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findAllByOwnerId(ownerId)).willReturn(List.of(customer));
 
             List<CustomerResponse> result = customerService.findAll();
 
@@ -147,7 +160,8 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando não há clientes")
         void shouldReturnEmptyList() {
-            given(customerRepository.findAll()).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
 
             List<CustomerResponse> result = customerService.findAll();
 
@@ -174,12 +188,14 @@ class CustomerServiceTest {
 
             Customer updatedCustomer = Customer.builder()
                     .id(customerId)
+                    .ownerId(ownerId)
                     .name("João Santos")
                     .phone("11988888888")
                     .email("joao.santos@email.com")
                     .build();
 
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
             given(customerRepository.save(any(Customer.class))).willReturn(updatedCustomer);
 
             CustomerResponse result = customerService.update(customerId, updateRequest);
@@ -192,7 +208,8 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve lançar CustomerNotFoundException ao atualizar cliente inexistente")
         void shouldThrowWhenCustomerNotFoundForUpdate() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> customerService.update(customerId, customerRequest))
                     .isInstanceOf(CustomerNotFoundException.class);
@@ -212,23 +229,25 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve deletar cliente existente sem lançar exceção")
         void shouldDeleteExistingCustomer() {
-            given(customerRepository.existsById(customerId)).willReturn(true);
-            willDoNothing().given(customerRepository).deleteById(customerId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.existsByIdAndOwnerId(customerId, ownerId)).willReturn(true);
+            willDoNothing().given(customerRepository).deleteByIdAndOwnerId(customerId, ownerId);
 
             assertThatNoException().isThrownBy(() -> customerService.delete(customerId));
 
-            then(customerRepository).should().deleteById(customerId);
+            then(customerRepository).should().deleteByIdAndOwnerId(customerId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar CustomerNotFoundException ao deletar cliente inexistente")
         void shouldThrowWhenCustomerNotFoundForDelete() {
-            given(customerRepository.existsById(customerId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.existsByIdAndOwnerId(customerId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> customerService.delete(customerId))
                     .isInstanceOf(CustomerNotFoundException.class);
 
-            then(customerRepository).should(never()).deleteById(any());
+            then(customerRepository).should(never()).deleteByIdAndOwnerId(any(), any());
         }
     }
 }

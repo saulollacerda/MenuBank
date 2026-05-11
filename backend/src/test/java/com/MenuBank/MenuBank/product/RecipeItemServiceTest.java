@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
@@ -32,12 +33,16 @@ class RecipeItemServiceTest {
     @Mock
     private IngredientRepository ingredientRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private RecipeItemService recipeItemService;
 
     private UUID productId;
     private UUID ingredientId;
     private UUID recipeItemId;
+    private UUID ownerId;
     private Product product;
     private Ingredient ingredient;
     private RecipeItem recipeItem;
@@ -45,12 +50,14 @@ class RecipeItemServiceTest {
 
     @BeforeEach
     void setUp() {
+        ownerId = UUID.randomUUID();
         productId = UUID.randomUUID();
         ingredientId = UUID.randomUUID();
         recipeItemId = UUID.randomUUID();
 
         product = Product.builder()
                 .id(productId)
+                .ownerId(ownerId)
                 .name("X-Burguer")
                 .price(new BigDecimal("25.00"))
                 .estimatedCost(BigDecimal.ZERO)
@@ -61,6 +68,7 @@ class RecipeItemServiceTest {
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
+                .ownerId(ownerId)
                 .name("Queijo Mussarela")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("30.00"))
@@ -91,8 +99,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve adicionar item à ficha técnica e retornar RecipeItemResponse")
         void shouldAddRecipeItemAndReturnResponse() {
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
             given(recipeItemRepository.save(any(RecipeItem.class))).willReturn(recipeItem);
 
             RecipeItemResponse result = recipeItemService.addRecipeItem(productId, recipeItemRequest);
@@ -108,8 +117,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve calcular totalCost como quantity * costPerUnit")
         void shouldCalculateTotalCost() {
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
             given(recipeItemRepository.save(any(RecipeItem.class))).willReturn(recipeItem);
 
             RecipeItemResponse result = recipeItemService.addRecipeItem(productId, recipeItemRequest);
@@ -122,7 +132,8 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException quando produto não existe")
         void shouldThrowWhenProductNotFound() {
-            given(productRepository.findById(productId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> recipeItemService.addRecipeItem(productId, recipeItemRequest))
                     .isInstanceOf(ProductNotFoundException.class);
@@ -133,8 +144,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException quando ingrediente não existe")
         void shouldThrowWhenIngredientNotFound() {
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> recipeItemService.addRecipeItem(productId, recipeItemRequest))
                     .isInstanceOf(IngredientNotFoundException.class);
@@ -154,8 +166,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve retornar lista de itens da ficha técnica do produto")
         void shouldReturnRecipeItemsForProduct() {
-            given(productRepository.existsById(productId)).willReturn(true);
-            given(recipeItemRepository.findByProductId(productId)).willReturn(List.of(recipeItem));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByIdAndOwnerId(productId, ownerId)).willReturn(true);
+            given(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId)).willReturn(List.of(recipeItem));
 
             List<RecipeItemResponse> result = recipeItemService.findByProductId(productId);
 
@@ -166,8 +179,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando produto não tem itens na ficha técnica")
         void shouldReturnEmptyListWhenNoRecipeItems() {
-            given(productRepository.existsById(productId)).willReturn(true);
-            given(recipeItemRepository.findByProductId(productId)).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByIdAndOwnerId(productId, ownerId)).willReturn(true);
+            given(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId)).willReturn(List.of());
 
             List<RecipeItemResponse> result = recipeItemService.findByProductId(productId);
 
@@ -177,7 +191,8 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException quando produto não existe")
         void shouldThrowWhenProductNotFound() {
-            given(productRepository.existsById(productId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByIdAndOwnerId(productId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> recipeItemService.findByProductId(productId))
                     .isInstanceOf(ProductNotFoundException.class);
@@ -207,8 +222,10 @@ class RecipeItemServiceTest {
                     .quantity(new BigDecimal("0.200"))
                     .build();
 
-            given(recipeItemRepository.findById(recipeItemId)).willReturn(Optional.of(recipeItem));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
+                    .willReturn(Optional.of(recipeItem));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
             given(recipeItemRepository.save(any(RecipeItem.class))).willReturn(updatedItem);
 
             RecipeItemResponse result = recipeItemService.update(productId, recipeItemId, updateRequest);
@@ -219,7 +236,9 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve lançar RecipeItemNotFoundException quando item não existe")
         void shouldThrowWhenRecipeItemNotFound() {
-            given(recipeItemRepository.findById(recipeItemId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
+                    .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> recipeItemService.update(productId, recipeItemId, recipeItemRequest))
                     .isInstanceOf(RecipeItemNotFoundException.class);
@@ -239,23 +258,27 @@ class RecipeItemServiceTest {
         @Test
         @DisplayName("deve deletar item da ficha técnica existente")
         void shouldDeleteExistingRecipeItem() {
-            given(recipeItemRepository.findById(recipeItemId)).willReturn(Optional.of(recipeItem));
-            willDoNothing().given(recipeItemRepository).deleteById(recipeItemId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
+                    .willReturn(Optional.of(recipeItem));
+            willDoNothing().given(recipeItemRepository).deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
 
             assertThatNoException().isThrownBy(() -> recipeItemService.delete(productId, recipeItemId));
 
-            then(recipeItemRepository).should().deleteById(recipeItemId);
+            then(recipeItemRepository).should().deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar RecipeItemNotFoundException quando item não existe")
         void shouldThrowWhenRecipeItemNotFoundForDelete() {
-            given(recipeItemRepository.findById(recipeItemId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
+                    .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> recipeItemService.delete(productId, recipeItemId))
                     .isInstanceOf(RecipeItemNotFoundException.class);
 
-            then(recipeItemRepository).should(never()).deleteById(any());
+            then(recipeItemRepository).should(never()).deleteByIdAndProductIdAndProductOwnerId(any(), any(), any());
         }
     }
 }

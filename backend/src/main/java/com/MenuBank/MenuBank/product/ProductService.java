@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -10,13 +11,17 @@ import java.util.UUID;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final UserContext userContext;
 
-    public ProductService(ProductRepository productRepository) {
+    public ProductService(ProductRepository productRepository, UserContext userContext) {
         this.productRepository = productRepository;
+        this.userContext = userContext;
     }
 
     public ProductResponse create(ProductRequest request) {
-        if (productRepository.existsByName(request.getName())) {
+        UUID ownerId = userContext.getUserId();
+
+        if (productRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
             throw new DuplicateProductException("nome");
         }
 
@@ -25,6 +30,7 @@ public class ProductService {
         BigDecimal margin = price.subtract(estimatedCost);
 
         Product product = Product.builder()
+                .ownerId(ownerId)
                 .name(request.getName())
                 .price(price)
                 .estimatedCost(estimatedCost)
@@ -38,19 +44,22 @@ public class ProductService {
     }
 
     public ProductResponse findById(UUID id) {
-        Product product = productRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Product product = productRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
         return toResponse(product);
     }
 
     public List<ProductResponse> findAll() {
-        return productRepository.findAll().stream()
+        UUID ownerId = userContext.getUserId();
+        return productRepository.findAllByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public ProductResponse update(UUID id, ProductRequest request) {
-        Product product = productRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Product product = productRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 
         product.setName(request.getName());
@@ -63,10 +72,11 @@ public class ProductService {
     }
 
     public void delete(UUID id) {
-        if (!productRepository.existsById(id)) {
+        UUID ownerId = userContext.getUserId();
+        if (!productRepository.existsByIdAndOwnerId(id, ownerId)) {
             throw new ProductNotFoundException(id);
         }
-        productRepository.deleteById(id);
+        productRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
     private ProductResponse toResponse(Product product) {

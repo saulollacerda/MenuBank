@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.customer;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -9,13 +10,18 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final UserContext userContext;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, UserContext userContext) {
         this.customerRepository = customerRepository;
+        this.userContext = userContext;
     }
 
     public CustomerResponse create(CustomerRequest request) {
+        UUID ownerId = userContext.getUserId();
+
         Customer customer = Customer.builder()
+                .ownerId(ownerId)
                 .name(request.getName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
@@ -26,19 +32,22 @@ public class CustomerService {
     }
 
     public CustomerResponse findById(UUID id) {
-        Customer customer = customerRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Customer customer = customerRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
         return toResponse(customer);
     }
 
     public List<CustomerResponse> findAll() {
-        return customerRepository.findAll().stream()
+        UUID ownerId = userContext.getUserId();
+        return customerRepository.findAllByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public CustomerResponse update(UUID id, CustomerRequest request) {
-        Customer customer = customerRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Customer customer = customerRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
 
         customer.setName(request.getName());
@@ -50,10 +59,11 @@ public class CustomerService {
     }
 
     public void delete(UUID id) {
-        if (!customerRepository.existsById(id)) {
+        UUID ownerId = userContext.getUserId();
+        if (!customerRepository.existsByIdAndOwnerId(id, ownerId)) {
             throw new CustomerNotFoundException(id);
         }
-        customerRepository.deleteById(id);
+        customerRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
     private CustomerResponse toResponse(Customer customer) {

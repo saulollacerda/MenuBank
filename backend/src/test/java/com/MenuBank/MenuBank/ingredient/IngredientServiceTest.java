@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.ingredient;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,15 +23,20 @@ class IngredientServiceTest {
     @Mock
     private IngredientRepository ingredientRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private IngredientService ingredientService;
 
+    private UUID ownerId;
     private UUID ingredientId;
     private Ingredient ingredient;
     private IngredientRequest ingredientRequest;
 
     @BeforeEach
     void setUp() {
+        ownerId = UUID.randomUUID();
         ingredientId = UUID.randomUUID();
 
         ingredientRequest = IngredientRequest.builder()
@@ -42,6 +48,7 @@ class IngredientServiceTest {
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
+                .ownerId(ownerId)
                 .name("Farinha de Trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
@@ -61,7 +68,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve criar ingrediente com dados válidos e retornar IngredientResponse")
         void shouldCreateIngredientAndReturnResponse() {
-            given(ingredientRepository.existsByName(ingredientRequest.getName())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByNameAndOwnerId(ingredientRequest.getName(), ownerId)).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
             IngredientResponse result = ingredientService.create(ingredientRequest);
@@ -71,13 +79,14 @@ class IngredientServiceTest {
             assertThat(result.getUnit()).isEqualTo(ingredientRequest.getUnit());
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(ingredientRequest.getCostPerUnit());
             assertThat(result.getDefaultQuantity()).isEqualByComparingTo(ingredientRequest.getDefaultQuantity());
-            then(ingredientRepository).should().save(any(Ingredient.class));
+            then(ingredientRepository).should().save(argThat(i -> ownerId.equals(i.getOwnerId())));
         }
 
         @Test
         @DisplayName("deve criar ingrediente com status ACTIVE por padrão")
         void shouldCreateIngredientWithActiveStatusByDefault() {
-            given(ingredientRepository.existsByName(anyString())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
             IngredientResponse result = ingredientService.create(ingredientRequest);
@@ -88,7 +97,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateIngredientException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(ingredientRepository.existsByName(ingredientRequest.getName())).willReturn(true);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByNameAndOwnerId(ingredientRequest.getName(), ownerId)).willReturn(true);
 
             assertThatThrownBy(() -> ingredientService.create(ingredientRequest))
                     .isInstanceOf(DuplicateIngredientException.class)
@@ -109,7 +119,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve retornar IngredientResponse quando ingrediente existe")
         void shouldReturnResponseWhenExists() {
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
 
             IngredientResponse result = ingredientService.findById(ingredientId);
 
@@ -124,7 +135,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException quando ingrediente não existe")
         void shouldThrowWhenIngredientNotFound() {
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> ingredientService.findById(ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
@@ -142,7 +154,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve retornar lista de todos os ingredientes")
         void shouldReturnListOfAllIngredients() {
-            given(ingredientRepository.findAll()).willReturn(List.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of(ingredient));
 
             List<IngredientResponse> result = ingredientService.findAll();
 
@@ -153,7 +166,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando não há ingredientes")
         void shouldReturnEmptyList() {
-            given(ingredientRepository.findAll()).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
 
             List<IngredientResponse> result = ingredientService.findAll();
 
@@ -181,6 +195,7 @@ class IngredientServiceTest {
 
             Ingredient updatedIngredient = Ingredient.builder()
                     .id(ingredientId)
+                    .ownerId(ownerId)
                     .name("Farinha de Trigo Integral")
                     .unit("kg")
                     .costPerUnit(new BigDecimal("5.75"))
@@ -188,7 +203,8 @@ class IngredientServiceTest {
                     .status(IngredientStatus.ACTIVE)
                     .build();
 
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(updatedIngredient);
 
             IngredientResponse result = ingredientService.update(ingredientId, updateRequest);
@@ -201,7 +217,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException ao atualizar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForUpdate() {
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> ingredientService.update(ingredientId, ingredientRequest))
                     .isInstanceOf(IngredientNotFoundException.class);
@@ -221,23 +238,25 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve deletar ingrediente existente sem lançar exceção")
         void shouldDeleteExistingIngredient() {
-            given(ingredientRepository.existsById(ingredientId)).willReturn(true);
-            willDoNothing().given(ingredientRepository).deleteById(ingredientId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByIdAndOwnerId(ingredientId, ownerId)).willReturn(true);
+            willDoNothing().given(ingredientRepository).deleteByIdAndOwnerId(ingredientId, ownerId);
 
             assertThatNoException().isThrownBy(() -> ingredientService.delete(ingredientId));
 
-            then(ingredientRepository).should().deleteById(ingredientId);
+            then(ingredientRepository).should().deleteByIdAndOwnerId(ingredientId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar IngredientNotFoundException ao deletar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForDelete() {
-            given(ingredientRepository.existsById(ingredientId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByIdAndOwnerId(ingredientId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> ingredientService.delete(ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
 
-            then(ingredientRepository).should(never()).deleteById(any());
+            then(ingredientRepository).should(never()).deleteByIdAndOwnerId(any(), any());
         }
     }
 }

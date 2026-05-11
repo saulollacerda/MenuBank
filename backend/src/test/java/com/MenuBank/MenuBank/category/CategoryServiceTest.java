@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.category;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,15 +22,20 @@ class CategoryServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private CategoryService categoryService;
 
+    private UUID ownerId;
     private UUID categoryId;
     private Category category;
     private CategoryRequest categoryRequest;
 
     @BeforeEach
     void setUp() {
+        ownerId = UUID.randomUUID();
         categoryId = UUID.randomUUID();
 
         categoryRequest = CategoryRequest.builder()
@@ -38,6 +44,7 @@ class CategoryServiceTest {
 
         category = Category.builder()
                 .id(categoryId)
+                .ownerId(ownerId)
                 .name("Lanches")
                 .build();
     }
@@ -53,7 +60,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve criar categoria com dados válidos e retornar CategoryResponse")
         void shouldCreateCategoryAndReturnResponse() {
-            given(categoryRepository.existsByName(categoryRequest.getName())).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.existsByNameAndOwnerId(categoryRequest.getName(), ownerId)).willReturn(false);
             given(categoryRepository.save(any(Category.class))).willReturn(category);
 
             CategoryResponse result = categoryService.create(categoryRequest);
@@ -61,13 +69,14 @@ class CategoryServiceTest {
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(categoryId);
             assertThat(result.getName()).isEqualTo(categoryRequest.getName());
-            then(categoryRepository).should().save(any(Category.class));
+            then(categoryRepository).should().save(argThat(c -> ownerId.equals(c.getOwnerId())));
         }
 
         @Test
         @DisplayName("deve lançar DuplicateCategoryException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(categoryRepository.existsByName(categoryRequest.getName())).willReturn(true);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.existsByNameAndOwnerId(categoryRequest.getName(), ownerId)).willReturn(true);
 
             assertThatThrownBy(() -> categoryService.create(categoryRequest))
                     .isInstanceOf(DuplicateCategoryException.class)
@@ -88,7 +97,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve retornar CategoryResponse quando categoria existe")
         void shouldReturnResponseWhenExists() {
-            given(categoryRepository.findById(categoryId)).willReturn(Optional.of(category));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
 
             CategoryResponse result = categoryService.findById(categoryId);
 
@@ -100,7 +110,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException quando categoria não existe")
         void shouldThrowWhenCategoryNotFound() {
-            given(categoryRepository.findById(categoryId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> categoryService.findById(categoryId))
                     .isInstanceOf(CategoryNotFoundException.class);
@@ -118,7 +129,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve retornar lista de todas as categorias")
         void shouldReturnListOfAllCategories() {
-            given(categoryRepository.findAll()).willReturn(List.of(category));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findAllByOwnerId(ownerId)).willReturn(List.of(category));
 
             List<CategoryResponse> result = categoryService.findAll();
 
@@ -130,7 +142,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando não há categorias")
         void shouldReturnEmptyList() {
-            given(categoryRepository.findAll()).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
 
             List<CategoryResponse> result = categoryService.findAll();
 
@@ -155,10 +168,12 @@ class CategoryServiceTest {
 
             Category updatedCategory = Category.builder()
                     .id(categoryId)
+                    .ownerId(ownerId)
                     .name("Bebidas")
                     .build();
 
-            given(categoryRepository.findById(categoryId)).willReturn(Optional.of(category));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
             given(categoryRepository.save(any(Category.class))).willReturn(updatedCategory);
 
             CategoryResponse result = categoryService.update(categoryId, updateRequest);
@@ -170,7 +185,8 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException ao atualizar categoria inexistente")
         void shouldThrowWhenCategoryNotFoundForUpdate() {
-            given(categoryRepository.findById(categoryId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> categoryService.update(categoryId, categoryRequest))
                     .isInstanceOf(CategoryNotFoundException.class);
@@ -190,23 +206,25 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve deletar categoria existente sem lançar exceção")
         void shouldDeleteExistingCategory() {
-            given(categoryRepository.existsById(categoryId)).willReturn(true);
-            willDoNothing().given(categoryRepository).deleteById(categoryId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.existsByIdAndOwnerId(categoryId, ownerId)).willReturn(true);
+            willDoNothing().given(categoryRepository).deleteByIdAndOwnerId(categoryId, ownerId);
 
             assertThatNoException().isThrownBy(() -> categoryService.delete(categoryId));
 
-            then(categoryRepository).should().deleteById(categoryId);
+            then(categoryRepository).should().deleteByIdAndOwnerId(categoryId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar CategoryNotFoundException ao deletar categoria inexistente")
         void shouldThrowWhenCategoryNotFoundForDelete() {
-            given(categoryRepository.existsById(categoryId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(categoryRepository.existsByIdAndOwnerId(categoryId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> categoryService.delete(categoryId))
                     .isInstanceOf(CategoryNotFoundException.class);
 
-            then(categoryRepository).should(never()).deleteById(any());
+            then(categoryRepository).should(never()).deleteByIdAndOwnerId(any(), any());
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.order;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
@@ -41,10 +42,14 @@ class OrderServiceTest {
     @Mock
     private IngredientRepository ingredientRepository;
 
+    @Mock
+    private UserContext userContext;
+
     @InjectMocks
     private OrderService orderService;
 
     private UUID orderId;
+    private UUID ownerId;
     private UUID customerId;
     private UUID productId;
     private UUID ingredientId;
@@ -57,12 +62,14 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderId = UUID.randomUUID();
+        ownerId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         productId = UUID.randomUUID();
         ingredientId = UUID.randomUUID();
 
         customer = Customer.builder()
                 .id(customerId)
+                .ownerId(ownerId)
                 .name("Cliente Teste")
                 .phone("11999999999")
                 .email("cliente@email.com")
@@ -70,6 +77,7 @@ class OrderServiceTest {
 
         product = Product.builder()
                 .id(productId)
+                .ownerId(ownerId)
                 .name("Hambúrguer")
                 .price(new BigDecimal("30.00"))
                 .estimatedCost(new BigDecimal("12.00"))
@@ -78,6 +86,7 @@ class OrderServiceTest {
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
+                .ownerId(ownerId)
                 .name("Bacon")
                 .unit("g")
                 .costPerUnit(new BigDecimal("0.10"))
@@ -103,6 +112,7 @@ class OrderServiceTest {
 
         order = Order.builder()
                 .id(orderId)
+                .ownerId(ownerId)
                 .dateTime(LocalDateTime.now())
                 .customer(customer)
                 .status(OrderStatus.PENDING)
@@ -123,8 +133,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve criar pedido com dados válidos e retornar OrderResponse")
         void shouldCreateOrderAndReturnOrderResponse() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             OrderResponse result = orderService.create(orderRequest);
@@ -139,8 +150,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir status como PENDING por padrão")
         void shouldSetStatusToPendingByDefault() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -153,8 +165,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve calcular totalValue a partir dos itens (quantidade × preço)")
         void shouldCalculateTotalValueFromItems() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -168,8 +181,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve calcular estimatedProfit (totalValue − custo total dos itens)")
         void shouldCalculateEstimatedProfitFromItems() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -183,8 +197,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir unitPrice do item com o preço atual do produto")
         void shouldSetItemUnitPriceFromProductPrice() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -198,8 +213,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir dateTime no momento da criação")
         void shouldSetDateTimeOnCreation() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             LocalDateTime before = LocalDateTime.now();
@@ -215,7 +231,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando cliente não encontrado")
         void shouldThrowWhenCustomerNotFound() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(orderRequest))
                     .isInstanceOf(OrderNotFoundException.class)
@@ -227,8 +244,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando produto não encontrado")
         void shouldThrowWhenProductNotFound() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(orderRequest))
                     .isInstanceOf(OrderNotFoundException.class)
@@ -240,8 +258,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve mapear corretamente os itens na resposta")
         void shouldMapItemsCorrectlyInResponse() {
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             OrderResponse result = orderService.create(orderRequest);
@@ -273,9 +292,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
 
             // return a saved copy so OrderResponse uses the calculated values
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
@@ -313,9 +333,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findById(ingredientId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(requestWithExtra))
                     .isInstanceOf(IngredientNotFoundException.class)
@@ -336,7 +357,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve retornar OrderResponse quando pedido existe")
         void shouldReturnOrderResponseWhenExists() {
-            given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
 
             OrderResponse result = orderService.findById(orderId);
 
@@ -349,7 +371,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando pedido não existe")
         void shouldThrowWhenOrderNotFound() {
-            given(orderRepository.findById(orderId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.findById(orderId))
                     .isInstanceOf(OrderNotFoundException.class);
@@ -367,7 +390,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve retornar lista de todos os pedidos")
         void shouldReturnListOfAllOrders() {
-            given(orderRepository.findAll()).willReturn(List.of(order));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findAllByOwnerId(ownerId)).willReturn(List.of(order));
 
             List<OrderResponse> result = orderService.findAll();
 
@@ -378,7 +402,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve retornar lista vazia quando não há pedidos")
         void shouldReturnEmptyList() {
-            given(orderRepository.findAll()).willReturn(List.of());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
 
             List<OrderResponse> result = orderService.findAll();
 
@@ -400,6 +425,7 @@ class OrderServiceTest {
             UUID newProductId = UUID.randomUUID();
             Product newProduct = Product.builder()
                     .id(newProductId)
+                    .ownerId(ownerId)
                     .name("Pizza")
                     .price(new BigDecimal("45.00"))
                     .estimatedCost(new BigDecimal("18.00"))
@@ -425,6 +451,7 @@ class OrderServiceTest {
 
             Order updatedOrder = Order.builder()
                     .id(orderId)
+                    .ownerId(ownerId)
                     .dateTime(order.getDateTime())
                     .customer(customer)
                     .status(OrderStatus.PENDING)
@@ -433,9 +460,10 @@ class OrderServiceTest {
                     .items(List.of(updatedItem))
                     .build();
 
-            given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(newProductId)).willReturn(Optional.of(newProduct));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(newProductId, ownerId)).willReturn(Optional.of(newProduct));
             given(orderRepository.save(any(Order.class))).willReturn(updatedOrder);
 
             OrderResponse result = orderService.update(orderId, updateRequest);
@@ -448,9 +476,10 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve recalcular totais ao atualizar pedido")
         void shouldRecalculateTotalsOnUpdate() {
-            given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
-            given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.update(orderId, orderRequest);
@@ -464,7 +493,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException ao atualizar pedido inexistente")
         void shouldThrowWhenOrderNotFoundForUpdate() {
-            given(orderRepository.findById(orderId)).willReturn(Optional.empty());
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.update(orderId, orderRequest))
                     .isInstanceOf(OrderNotFoundException.class);
@@ -484,23 +514,25 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve deletar pedido existente sem lançar exceção")
         void shouldDeleteExistingOrder() {
-            given(orderRepository.existsById(orderId)).willReturn(true);
-            willDoNothing().given(orderRepository).deleteById(orderId);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.existsByIdAndOwnerId(orderId, ownerId)).willReturn(true);
+            willDoNothing().given(orderRepository).deleteByIdAndOwnerId(orderId, ownerId);
 
             assertThatNoException().isThrownBy(() -> orderService.delete(orderId));
 
-            then(orderRepository).should().deleteById(orderId);
+            then(orderRepository).should().deleteByIdAndOwnerId(orderId, ownerId);
         }
 
         @Test
         @DisplayName("deve lançar OrderNotFoundException ao deletar pedido inexistente")
         void shouldThrowWhenOrderNotFoundForDelete() {
-            given(orderRepository.existsById(orderId)).willReturn(false);
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.existsByIdAndOwnerId(orderId, ownerId)).willReturn(false);
 
             assertThatThrownBy(() -> orderService.delete(orderId))
                     .isInstanceOf(OrderNotFoundException.class);
 
-            then(orderRepository).should(never()).deleteById(any());
+            then(orderRepository).should(never()).deleteByIdAndOwnerId(any(), any());
         }
     }
 }

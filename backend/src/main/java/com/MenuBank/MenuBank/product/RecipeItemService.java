@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
@@ -15,20 +16,25 @@ public class RecipeItemService {
     private final RecipeItemRepository recipeItemRepository;
     private final ProductRepository productRepository;
     private final IngredientRepository ingredientRepository;
+    private final UserContext userContext;
 
     public RecipeItemService(RecipeItemRepository recipeItemRepository,
                              ProductRepository productRepository,
-                             IngredientRepository ingredientRepository) {
+                             IngredientRepository ingredientRepository,
+                             UserContext userContext) {
         this.recipeItemRepository = recipeItemRepository;
         this.productRepository = productRepository;
         this.ingredientRepository = ingredientRepository;
+        this.userContext = userContext;
     }
 
     public RecipeItemResponse addRecipeItem(UUID productId, RecipeItemRequest request) {
-        Product product = productRepository.findById(productId)
+        UUID ownerId = userContext.getUserId();
+
+        Product product = productRepository.findByIdAndOwnerId(productId, ownerId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
 
-        Ingredient ingredient = ingredientRepository.findById(request.getIngredientId())
+        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(request.getIngredientId(), ownerId)
                 .orElseThrow(() -> new IngredientNotFoundException(request.getIngredientId()));
 
         RecipeItem recipeItem = RecipeItem.builder()
@@ -42,19 +48,23 @@ public class RecipeItemService {
     }
 
     public List<RecipeItemResponse> findByProductId(UUID productId) {
-        if (!productRepository.existsById(productId)) {
+        UUID ownerId = userContext.getUserId();
+
+        if (!productRepository.existsByIdAndOwnerId(productId, ownerId)) {
             throw new ProductNotFoundException(productId);
         }
-        return recipeItemRepository.findByProductId(productId).stream()
+        return recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public RecipeItemResponse update(UUID productId, UUID recipeItemId, RecipeItemRequest request) {
-        RecipeItem recipeItem = recipeItemRepository.findById(recipeItemId)
+        UUID ownerId = userContext.getUserId();
+
+        RecipeItem recipeItem = recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId)
                 .orElseThrow(() -> new RecipeItemNotFoundException(recipeItemId));
 
-        Ingredient ingredient = ingredientRepository.findById(request.getIngredientId())
+        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(request.getIngredientId(), ownerId)
                 .orElseThrow(() -> new IngredientNotFoundException(request.getIngredientId()));
 
         recipeItem.setIngredient(ingredient);
@@ -65,10 +75,12 @@ public class RecipeItemService {
     }
 
     public void delete(UUID productId, UUID recipeItemId) {
-        if (!recipeItemRepository.findById(recipeItemId).isPresent()) {
+        UUID ownerId = userContext.getUserId();
+
+        if (recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId).isEmpty()) {
             throw new RecipeItemNotFoundException(recipeItemId);
         }
-        recipeItemRepository.deleteById(recipeItemId);
+        recipeItemRepository.deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
     }
 
     private RecipeItemResponse toResponse(RecipeItem recipeItem) {

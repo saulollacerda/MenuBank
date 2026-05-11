@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.category;
 
+import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -9,17 +10,22 @@ import java.util.UUID;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final UserContext userContext;
 
-    public CategoryService(CategoryRepository categoryRepository) {
+    public CategoryService(CategoryRepository categoryRepository, UserContext userContext) {
         this.categoryRepository = categoryRepository;
+        this.userContext = userContext;
     }
 
     public CategoryResponse create(CategoryRequest request) {
-        if (categoryRepository.existsByName(request.getName())) {
+        UUID ownerId = userContext.getUserId();
+
+        if (categoryRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
             throw new DuplicateCategoryException("nome");
         }
 
         Category category = Category.builder()
+                .ownerId(ownerId)
                 .name(request.getName())
                 .build();
 
@@ -28,19 +34,22 @@ public class CategoryService {
     }
 
     public CategoryResponse findById(UUID id) {
-        Category category = categoryRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Category category = categoryRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
         return toResponse(category);
     }
 
     public List<CategoryResponse> findAll() {
-        return categoryRepository.findAll().stream()
+        UUID ownerId = userContext.getUserId();
+        return categoryRepository.findAllByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public CategoryResponse update(UUID id, CategoryRequest request) {
-        Category category = categoryRepository.findById(id)
+        UUID ownerId = userContext.getUserId();
+        Category category = categoryRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
 
         category.setName(request.getName());
@@ -50,10 +59,11 @@ public class CategoryService {
     }
 
     public void delete(UUID id) {
-        if (!categoryRepository.existsById(id)) {
+        UUID ownerId = userContext.getUserId();
+        if (!categoryRepository.existsByIdAndOwnerId(id, ownerId)) {
             throw new CategoryNotFoundException(id);
         }
-        categoryRepository.deleteById(id);
+        categoryRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
     private CategoryResponse toResponse(Category category) {
