@@ -7,7 +7,7 @@ const store = useIngredientStore()
 
 const showModal = ref(false)
 const editing = ref<IngredientResponse | null>(null)
-const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0 })
+const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 })
 const confirmDeleteId = ref<string | null>(null)
 
 function formatCurrency(value: number | null | undefined): string {
@@ -26,7 +26,7 @@ function statusClass(status: string): string {
 
 function openCreateModal() {
   editing.value = null
-  form.value = { name: '', unit: '', costPerUnit: 0 }
+  form.value = { name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 }
   showModal.value = true
 }
 
@@ -36,6 +36,7 @@ function openEditModal(ingredient: IngredientResponse) {
     name: ingredient.name,
     unit: ingredient.unit,
     costPerUnit: ingredient.costPerUnit,
+    defaultQuantity: ingredient.defaultQuantity ?? 0,
   }
   showModal.value = true
 }
@@ -104,6 +105,7 @@ onMounted(() => {
             <th>Nome</th>
             <th>Unidade</th>
             <th>Custo/Unidade</th>
+            <th>Qtd. Padrão</th>
             <th>Status</th>
             <th style="width: 150px">Ações</th>
           </tr>
@@ -113,6 +115,7 @@ onMounted(() => {
             <td>{{ ingredient.name }}</td>
             <td>{{ ingredient.unit }}</td>
             <td>{{ formatCurrency(ingredient.costPerUnit) }}</td>
+            <td>{{ ingredient.defaultQuantity ?? '-' }}</td>
             <td>
               <span :class="statusClass(ingredient.status)">
                 {{ statusLabel(ingredient.status) }}
@@ -174,6 +177,18 @@ onMounted(() => {
                 required
               />
             </div>
+            <div class="form-group">
+              <label>Quantidade padrão (unidade do ingrediente)</label>
+              <input
+                v-model.number="form.defaultQuantity"
+                type="number"
+                step="0.001"
+                min="0"
+                class="form-control"
+                placeholder="0"
+                data-testid="ingredient-default-quantity-input"
+              />
+            </div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" @click="closeModal">
                 Cancelar
@@ -207,4 +222,3 @@ onMounted(() => {
 </template>
 
 <style scoped></style>
-

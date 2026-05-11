@@ -27,8 +27,10 @@ public class Ingredient {
     @Column(nullable = false)
     private BigDecimal costPerUnit;
 
+    @Column
+    private BigDecimal defaultQuantity;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private IngredientStatus status;
 }
-

@@ -23,6 +23,7 @@ public class IngredientService {
                 .name(request.getName())
                 .unit(request.getUnit())
                 .costPerUnit(request.getCostPerUnit())
+                .defaultQuantity(request.getDefaultQuantity())
                 .status(IngredientStatus.ACTIVE)
                 .build();
 
@@ -49,6 +50,7 @@ public class IngredientService {
         ingredient.setName(request.getName());
         ingredient.setUnit(request.getUnit());
         ingredient.setCostPerUnit(request.getCostPerUnit());
+        ingredient.setDefaultQuantity(request.getDefaultQuantity());
 
         Ingredient saved = ingredientRepository.save(ingredient);
         return toResponse(saved);
@@ -67,6 +69,7 @@ public class IngredientService {
                 .name(ingredient.getName())
                 .unit(ingredient.getUnit())
                 .costPerUnit(ingredient.getCostPerUnit())
+                .defaultQuantity(ingredient.getDefaultQuantity())
                 .status(ingredient.getStatus())
                 .build();
     }

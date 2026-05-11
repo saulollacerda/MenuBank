@@ -45,6 +45,7 @@ class IngredientControllerTest {
                 .name("Farinha de Trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
+                .defaultQuantity(new BigDecimal("0.20"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
     }
@@ -54,6 +55,7 @@ class IngredientControllerTest {
                 .name("Farinha de Trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
+                .defaultQuantity(new BigDecimal("0.20"))
                 .build();
     }
 
@@ -78,7 +80,8 @@ class IngredientControllerTest {
                     .andExpect(jsonPath("$.id").value(ingredientId.toString()))
                     .andExpect(jsonPath("$.name").value("Farinha de Trigo"))
                     .andExpect(jsonPath("$.unit").value("kg"))
-                    .andExpect(jsonPath("$.costPerUnit").value(4.50));
+                    .andExpect(jsonPath("$.costPerUnit").value(4.50))
+                    .andExpect(jsonPath("$.defaultQuantity").value(0.20));
         }
 
         @Test
@@ -121,7 +124,8 @@ class IngredientControllerTest {
             mockMvc.perform(get("/api/ingredients/{id}", ingredientId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(ingredientId.toString()))
-                    .andExpect(jsonPath("$.name").value("Farinha de Trigo"));
+                    .andExpect(jsonPath("$.name").value("Farinha de Trigo"))
+                    .andExpect(jsonPath("$.defaultQuantity").value(0.20));
         }
 
         @Test
@@ -151,7 +155,8 @@ class IngredientControllerTest {
             mockMvc.perform(get("/api/ingredients"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(ingredientId.toString()));
+                    .andExpect(jsonPath("$[0].id").value(ingredientId.toString()))
+                    .andExpect(jsonPath("$[0].defaultQuantity").value(0.20));
         }
 
         @Test
@@ -185,7 +190,8 @@ class IngredientControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(buildValidRequest())))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(ingredientId.toString()));
+                    .andExpect(jsonPath("$.id").value(ingredientId.toString()))
+                    .andExpect(jsonPath("$.defaultQuantity").value(0.20));
         }
 
         @Test
@@ -242,4 +248,3 @@ class IngredientControllerTest {
         }
     }
 }
-

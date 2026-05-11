@@ -20,5 +20,7 @@ public class IngredientRequest {
     @NotNull(message = "Custo por unidade é obrigatório")
     @DecimalMin(value = "0.0", inclusive = false, message = "Custo por unidade deve ser maior que zero")
     private BigDecimal costPerUnit;
-}
 
+    @DecimalMin(value = "0.0", inclusive = true, message = "Quantidade padrão deve ser maior ou igual a zero")
+    private BigDecimal defaultQuantity;
+}

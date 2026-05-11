@@ -66,6 +66,13 @@ async function openRecipeModal(product: ProductResponse) {
   await productStore.fetchRecipeItems(product.id)
 }
 
+function handleRecipeIngredientChange() {
+  const selected = ingredientStore.items.find(
+    (ingredient) => ingredient.id === recipeForm.value.ingredientId,
+  )
+  recipeForm.value.quantity = selected?.defaultQuantity ?? 0
+}
+
 function closeRecipeModal() {
   showRecipeModal.value = false
   selectedProduct.value = null
@@ -227,7 +234,13 @@ onMounted(() => {
           <form @submit.prevent="handleAddRecipeItem" class="order-items-row" style="margin-bottom: 16px">
             <div class="form-group">
               <label>Ingrediente</label>
-              <select v-model="recipeForm.ingredientId" class="form-control" required>
+              <select
+                v-model="recipeForm.ingredientId"
+                class="form-control"
+                data-testid="recipe-ingredient-select"
+                required
+                @change="handleRecipeIngredientChange"
+              >
                 <option value="" disabled>Selecione...</option>
                 <option
                   v-for="ingredient in ingredientStore.items"
@@ -247,6 +260,7 @@ onMounted(() => {
                 min="0.001"
                 class="form-control"
                 placeholder="0"
+                data-testid="recipe-quantity-input"
                 required
               />
             </div>
@@ -314,4 +328,3 @@ onMounted(() => {
 </template>
 
 <style scoped></style>
-

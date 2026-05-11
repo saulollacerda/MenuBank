@@ -4,6 +4,7 @@ export interface IngredientRequest {
   name: string
   unit: string
   costPerUnit: number
+  defaultQuantity?: number
 }
 
 export interface IngredientResponse {
@@ -11,6 +12,6 @@ export interface IngredientResponse {
   name: string
   unit: string
   costPerUnit: number
+  defaultQuantity?: number
   status: IngredientStatus
 }
-

@@ -37,6 +37,7 @@ class IngredientServiceTest {
                 .name("Farinha de Trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
+                .defaultQuantity(new BigDecimal("0.20"))
                 .build();
 
         ingredient = Ingredient.builder()
@@ -44,6 +45,7 @@ class IngredientServiceTest {
                 .name("Farinha de Trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
+                .defaultQuantity(new BigDecimal("0.20"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
     }
@@ -68,6 +70,7 @@ class IngredientServiceTest {
             assertThat(result.getName()).isEqualTo(ingredientRequest.getName());
             assertThat(result.getUnit()).isEqualTo(ingredientRequest.getUnit());
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(ingredientRequest.getCostPerUnit());
+            assertThat(result.getDefaultQuantity()).isEqualByComparingTo(ingredientRequest.getDefaultQuantity());
             then(ingredientRepository).should().save(any(Ingredient.class));
         }
 
@@ -115,6 +118,7 @@ class IngredientServiceTest {
             assertThat(result.getName()).isEqualTo(ingredient.getName());
             assertThat(result.getUnit()).isEqualTo(ingredient.getUnit());
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(ingredient.getCostPerUnit());
+            assertThat(result.getDefaultQuantity()).isEqualByComparingTo(ingredient.getDefaultQuantity());
         }
 
         @Test
@@ -172,6 +176,7 @@ class IngredientServiceTest {
                     .name("Farinha de Trigo Integral")
                     .unit("kg")
                     .costPerUnit(new BigDecimal("5.75"))
+                    .defaultQuantity(new BigDecimal("0.35"))
                     .build();
 
             Ingredient updatedIngredient = Ingredient.builder()
@@ -179,6 +184,7 @@ class IngredientServiceTest {
                     .name("Farinha de Trigo Integral")
                     .unit("kg")
                     .costPerUnit(new BigDecimal("5.75"))
+                    .defaultQuantity(new BigDecimal("0.35"))
                     .status(IngredientStatus.ACTIVE)
                     .build();
 
@@ -189,6 +195,7 @@ class IngredientServiceTest {
 
             assertThat(result.getName()).isEqualTo("Farinha de Trigo Integral");
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(new BigDecimal("5.75"));
+            assertThat(result.getDefaultQuantity()).isEqualByComparingTo(new BigDecimal("0.35"));
         }
 
         @Test
@@ -234,4 +241,3 @@ class IngredientServiceTest {
         }
     }
 }
-
