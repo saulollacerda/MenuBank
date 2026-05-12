@@ -19,5 +19,7 @@ public class OrderRequest {
     @NotEmpty(message = "Pedido deve ter pelo menos um item")
     @Valid
     private List<OrderItemRequest> items;
+
+    private OrderStatus status;
 }
 

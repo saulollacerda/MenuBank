@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.user;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,6 +67,7 @@ public class UserService {
         return toResponse(saved);
     }
 
+    @Transactional
     public void delete(UUID id) {
         if (!userRepository.existsById(id)) {
             throw new UserNotFoundException(id);

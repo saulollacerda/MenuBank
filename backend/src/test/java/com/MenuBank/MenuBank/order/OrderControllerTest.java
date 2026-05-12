@@ -58,7 +58,7 @@ class OrderControllerTest {
                 .dateTime(LocalDateTime.now())
                 .customerId(customerId)
                 .customerName("Cliente Teste")
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.PAID)
                 .totalValue(new BigDecimal("60.00"))
                 .estimatedProfit(new BigDecimal("36.00"))
                 .items(List.of(itemResponse))
@@ -98,7 +98,7 @@ class OrderControllerTest {
                     .andExpect(jsonPath("$.id").value(orderId.toString()))
                     .andExpect(jsonPath("$.customerId").value(customerId.toString()))
                     .andExpect(jsonPath("$.customerName").value("Cliente Teste"))
-                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.status").value("PAID"))
                     .andExpect(jsonPath("$.totalValue").value(60.00))
                     .andExpect(jsonPath("$.items").isArray())
                     .andExpect(jsonPath("$.items[0].productName").value("Hambúrguer"));
@@ -224,7 +224,7 @@ class OrderControllerTest {
             mockMvc.perform(get("/api/orders/{id}", orderId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(orderId.toString()))
-                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.status").value("PAID"))
                     .andExpect(jsonPath("$.totalValue").value(60.00));
         }
 
@@ -255,7 +255,7 @@ class OrderControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$[0].id").value(orderId.toString()))
-                    .andExpect(jsonPath("$[0].status").value("PENDING"));
+                    .andExpect(jsonPath("$[0].status").value("PAID"));
         }
 
         @Test

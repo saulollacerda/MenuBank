@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.customer;
 
 import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -58,6 +59,7 @@ public class CustomerService {
         return toResponse(saved);
     }
 
+    @Transactional
     public void delete(UUID id) {
         UUID ownerId = userContext.getUserId();
         if (!customerRepository.existsByIdAndOwnerId(id, ownerId)) {

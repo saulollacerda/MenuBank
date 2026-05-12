@@ -9,6 +9,7 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -54,7 +55,7 @@ public class OrderService {
                 .ownerId(ownerId)
                 .dateTime(LocalDateTime.now())
                 .customer(customer)
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.PAID)
                 .totalValue(totalValue)
                 .estimatedProfit(estimatedProfit)
                 .items(items)
@@ -100,6 +101,9 @@ public class OrderService {
         order.setCustomer(customer);
         order.setTotalValue(totalValue);
         order.setEstimatedProfit(estimatedProfit);
+        if (request.getStatus() != null) {
+            order.setStatus(request.getStatus());
+        }
         newItems.forEach(item -> item.setOrder(order));
         order.setItems(new ArrayList<>(newItems));
 
@@ -107,6 +111,7 @@ public class OrderService {
         return toResponse(saved);
     }
 
+    @Transactional
     public void delete(UUID id) {
         UUID ownerId = userContext.getUserId();
         if (!orderRepository.existsByIdAndOwnerId(id, ownerId)) {

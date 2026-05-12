@@ -7,6 +7,7 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RecipeItemService")
@@ -130,6 +132,26 @@ class RecipeItemServiceTest {
         }
 
         @Test
+        @DisplayName("deve recalcular estimatedCost e margin do produto ao adicionar item")
+        void shouldRecalculateProductEstimatedCostAndMarginWhenAddingRecipeItem() {
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(recipeItemRepository.save(any(RecipeItem.class))).willReturn(recipeItem);
+            given(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId)).willReturn(List.of(recipeItem));
+
+            recipeItemService.addRecipeItem(productId, recipeItemRequest);
+
+            ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+            then(productRepository).should(times(1)).save(productCaptor.capture());
+            Product savedProduct = productCaptor.getValue();
+
+            // 0.100 * 30.00 = 3.000; margin = 25.00 - 3.000 = 22.000
+            assertThat(savedProduct.getEstimatedCost()).isEqualByComparingTo(new BigDecimal("3.000"));
+            assertThat(savedProduct.getMargin()).isEqualByComparingTo(new BigDecimal("22.000"));
+        }
+
+        @Test
         @DisplayName("deve lançar ProductNotFoundException quando produto não existe")
         void shouldThrowWhenProductNotFound() {
             given(userContext.getUserId()).willReturn(ownerId);
@@ -223,6 +245,7 @@ class RecipeItemServiceTest {
                     .build();
 
             given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
                     .willReturn(Optional.of(recipeItem));
             given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
@@ -259,13 +282,35 @@ class RecipeItemServiceTest {
         @DisplayName("deve deletar item da ficha técnica existente")
         void shouldDeleteExistingRecipeItem() {
             given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
                     .willReturn(Optional.of(recipeItem));
             willDoNothing().given(recipeItemRepository).deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
+            given(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId)).willReturn(List.of());
 
             assertThatNoException().isThrownBy(() -> recipeItemService.delete(productId, recipeItemId));
 
             then(recipeItemRepository).should().deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
+        }
+
+        @Test
+        @DisplayName("deve recalcular estimatedCost e margin do produto ao deletar item")
+        void shouldRecalculateProductEstimatedCostAndMarginWhenDeletingRecipeItem() {
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(recipeItemRepository.findByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId))
+                    .willReturn(Optional.of(recipeItem));
+            willDoNothing().given(recipeItemRepository).deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
+            given(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId)).willReturn(List.of());
+
+            recipeItemService.delete(productId, recipeItemId);
+
+            ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+            then(productRepository).should(times(1)).save(productCaptor.capture());
+            Product savedProduct = productCaptor.getValue();
+
+            assertThat(savedProduct.getEstimatedCost()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(savedProduct.getMargin()).isEqualByComparingTo(new BigDecimal("25.00"));
         }
 
         @Test

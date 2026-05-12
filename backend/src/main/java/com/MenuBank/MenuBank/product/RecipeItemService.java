@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,6 +29,7 @@ public class RecipeItemService {
         this.userContext = userContext;
     }
 
+    @Transactional
     public RecipeItemResponse addRecipeItem(UUID productId, RecipeItemRequest request) {
         UUID ownerId = userContext.getUserId();
 
@@ -44,7 +46,27 @@ public class RecipeItemService {
                 .build();
 
         RecipeItem saved = recipeItemRepository.save(recipeItem);
+        recalculateEstimatedCost(productId);
+
         return toResponse(saved);
+    }
+
+    private void recalculateEstimatedCost(UUID productId) {
+        UUID ownerId = userContext.getUserId();
+
+        Product product = productRepository.findByIdAndOwnerId(productId, ownerId)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+
+        List<RecipeItem> items = recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId);
+
+        BigDecimal estimatedCost = items.stream()
+                .map(i -> i.getQuantity().multiply(i.getIngredient().getCostPerUnit()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        product.setEstimatedCost(estimatedCost);
+        BigDecimal price = product.getPrice() != null ? product.getPrice() : BigDecimal.ZERO;
+        product.setMargin(price.subtract(estimatedCost));
+        productRepository.save(product);
     }
 
     public List<RecipeItemResponse> findByProductId(UUID productId) {
@@ -58,6 +80,7 @@ public class RecipeItemService {
                 .toList();
     }
 
+    @Transactional
     public RecipeItemResponse update(UUID productId, UUID recipeItemId, RecipeItemRequest request) {
         UUID ownerId = userContext.getUserId();
 
@@ -71,9 +94,12 @@ public class RecipeItemService {
         recipeItem.setQuantity(request.getQuantity());
 
         RecipeItem saved = recipeItemRepository.save(recipeItem);
+        recalculateEstimatedCost(productId);
+
         return toResponse(saved);
     }
 
+    @Transactional
     public void delete(UUID productId, UUID recipeItemId) {
         UUID ownerId = userContext.getUserId();
 
@@ -81,6 +107,8 @@ public class RecipeItemService {
             throw new RecipeItemNotFoundException(recipeItemId);
         }
         recipeItemRepository.deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
+        recalculateEstimatedCost(productId);
+
     }
 
     private RecipeItemResponse toResponse(RecipeItem recipeItem) {

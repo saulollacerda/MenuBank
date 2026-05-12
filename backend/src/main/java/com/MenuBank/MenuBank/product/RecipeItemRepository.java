@@ -1,6 +1,8 @@
 package com.MenuBank.MenuBank.product;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +14,8 @@ public interface RecipeItemRepository extends JpaRepository<RecipeItem, UUID> {
 
     Optional<RecipeItem> findByIdAndProductIdAndProductOwnerId(UUID id, UUID productId, UUID ownerId);
 
+    @Modifying
+    @Transactional
     void deleteByIdAndProductIdAndProductOwnerId(UUID id, UUID productId, UUID ownerId);
 
     boolean existsByProductIdAndIngredientId(UUID productId, UUID ingredientId);

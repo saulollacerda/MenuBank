@@ -115,7 +115,7 @@ class OrderServiceTest {
                 .ownerId(ownerId)
                 .dateTime(LocalDateTime.now())
                 .customer(customer)
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.PAID)
                 .totalValue(new BigDecimal("60.00"))
                 .estimatedProfit(new BigDecimal("36.00"))
                 .items(List.of(orderItem))
@@ -148,8 +148,8 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("deve definir status como PENDING por padrão")
-        void shouldSetStatusToPendingByDefault() {
+        @DisplayName("deve definir status como PAID (concluído) por padrão")
+        void shouldSetStatusToPaidByDefault() {
             given(userContext.getUserId()).willReturn(ownerId);
             given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
             given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
@@ -157,9 +157,7 @@ class OrderServiceTest {
 
             orderService.create(orderRequest);
 
-            then(orderRepository).should().save(argThat(savedOrder ->
-                    savedOrder.getStatus() == OrderStatus.PENDING
-            ));
+            then(orderRepository).should().save(argThat(savedOrder -> savedOrder.getStatus() == OrderStatus.PAID));
         }
 
         @Test
@@ -364,7 +362,7 @@ class OrderServiceTest {
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(orderId);
-            assertThat(result.getStatus()).isEqualTo(OrderStatus.PENDING);
+            assertThat(result.getStatus()).isEqualTo(OrderStatus.PAID);
             assertThat(result.getCustomerId()).isEqualTo(customerId);
         }
 
@@ -486,8 +484,29 @@ class OrderServiceTest {
 
             then(orderRepository).should().save(argThat(savedOrder ->
                     savedOrder.getTotalValue().compareTo(new BigDecimal("60.00")) == 0 &&
-                    savedOrder.getEstimatedProfit().compareTo(new BigDecimal("36.00")) == 0
+                    savedOrder.getEstimatedProfit().compareTo(new BigDecimal("36.00")) == 0 &&
+                    savedOrder.getStatus() == OrderStatus.PAID
             ));
+        }
+
+        @Test
+        @DisplayName("deve permitir alterar status do pedido quando status é informado")
+        void shouldUpdateOrderStatusWhenProvided() {
+            OrderRequest updateWithStatus = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(orderRequest.getItems())
+                    .status(OrderStatus.CANCELLED)
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.update(orderId, updateWithStatus);
+
+            then(orderRepository).should().save(argThat(savedOrder -> savedOrder.getStatus() == OrderStatus.CANCELLED));
         }
 
         @Test
