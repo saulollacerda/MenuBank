@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 # Install dependencies
 apt-get update -y
@@ -19,6 +19,7 @@ DB_USER=${db_user}
 DB_PASSWORD=${db_password}
 DB_NAME=${db_name}
 EOF
+chmod 600 /app/MenuBank/.env
 
 # Deploy
 cd /app/MenuBank

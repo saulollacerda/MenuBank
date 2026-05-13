@@ -20,3 +20,7 @@ infra/.terraform/
 infra/.terraform.lock.hcl
 infra/terraform.tfstate
 infra/terraform.tfstate.backup
+
+# Claude Code
+.claude/worktrees/
+.claude/**/.DS_Store
