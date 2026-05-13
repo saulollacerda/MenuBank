@@ -36,7 +36,7 @@ locals {
 
 resource "oci_core_instance" "menubank_vm" {
   compartment_id      = var.compartment_id
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[var.ad_index].name
   display_name        = "menubank-demo"
   shape               = "VM.Standard.A1.Flex"
 
