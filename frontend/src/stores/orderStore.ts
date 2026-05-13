@@ -7,18 +7,32 @@ export const useOrderStore = defineStore('order', () => {
   const items = ref<OrderResponse[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const loaded = ref(false)
 
-  async function fetchAll() {
+  let fetchAllInFlight: Promise<void> | null = null
+
+  async function fetchAll(force = false) {
+    if (!force && loaded.value) return
+    if (!force && fetchAllInFlight) return fetchAllInFlight
+
     loading.value = true
     error.value = null
-    try {
-      items.value = await orderService.findAll()
-    } catch (e: unknown) {
-      error.value = 'Erro ao carregar pedidos'
-      throw e
-    } finally {
-      loading.value = false
-    }
+
+    fetchAllInFlight = (async () => {
+      try {
+        items.value = await orderService.findAll()
+        loaded.value = true
+      } catch (e: unknown) {
+        loaded.value = false
+        error.value = 'Erro ao carregar pedidos'
+        throw e
+      } finally {
+        loading.value = false
+        fetchAllInFlight = null
+      }
+    })()
+
+    return fetchAllInFlight
   }
 
   async function create(request: OrderRequest) {
@@ -27,6 +41,7 @@ export const useOrderStore = defineStore('order', () => {
     try {
       const created = await orderService.create(request)
       items.value.push(created)
+      loaded.value = true
       return created
     } catch (e: unknown) {
       error.value = 'Erro ao criar pedido'
@@ -43,6 +58,7 @@ export const useOrderStore = defineStore('order', () => {
       const updated = await orderService.update(id, request)
       const index = items.value.findIndex((item) => item.id === id)
       if (index !== -1) items.value[index] = updated
+      loaded.value = true
       return updated
     } catch (e: unknown) {
       error.value = 'Erro ao atualizar pedido'
@@ -58,6 +74,7 @@ export const useOrderStore = defineStore('order', () => {
     try {
       await orderService.remove(id)
       items.value = items.value.filter((item) => item.id !== id)
+      loaded.value = true
     } catch (e: unknown) {
       error.value = 'Erro ao excluir pedido'
       throw e

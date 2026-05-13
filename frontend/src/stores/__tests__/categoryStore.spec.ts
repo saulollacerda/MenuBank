@@ -25,6 +25,40 @@ describe('categoryStore', () => {
     expect(store.error).toBeNull()
   })
 
+  it('fetchAll should not call service again when data is already loaded', async () => {
+    const mockData = [{ id: '1', name: 'Bebidas' }]
+    mockedService.findAll.mockResolvedValue(mockData)
+
+    const store = useCategoryStore()
+    await store.fetchAll()
+    await store.fetchAll()
+
+    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+    expect(store.items).toEqual(mockData)
+  })
+
+  it('fetchAll should deduplicate concurrent calls', async () => {
+    const mockData = [{ id: '1', name: 'Bebidas' }]
+
+    let resolvePromise!: (value: typeof mockData) => void
+    const deferred = new Promise<typeof mockData>((resolve) => {
+      resolvePromise = resolve
+    })
+    mockedService.findAll.mockReturnValue(deferred)
+
+    const store = useCategoryStore()
+
+    const p1 = store.fetchAll()
+    const p2 = store.fetchAll()
+
+    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+
+    resolvePromise(mockData)
+    await Promise.all([p1, p2])
+
+    expect(store.items).toEqual(mockData)
+  })
+
   it('fetchAll should set error on failure', async () => {
     mockedService.findAll.mockRejectedValue(new Error('Network error'))
 

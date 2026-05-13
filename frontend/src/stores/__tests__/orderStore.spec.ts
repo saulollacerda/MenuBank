@@ -35,6 +35,29 @@ describe('orderStore', () => {
     expect(store.loading).toBe(false)
   })
 
+  it('fetchAll should not call service again when data is already loaded', async () => {
+    const mockData = [
+      {
+        id: '1',
+        dateTime: '2026-03-24T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PENDING' as const,
+        totalValue: 50.0,
+        estimatedProfit: 20.0,
+        items: [],
+      },
+    ]
+    mockedService.findAll.mockResolvedValue(mockData)
+
+    const store = useOrderStore()
+    await store.fetchAll()
+    await store.fetchAll()
+
+    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+    expect(store.items).toEqual(mockData)
+  })
+
   it('create should add item to the list', async () => {
     const created = {
       id: '1',

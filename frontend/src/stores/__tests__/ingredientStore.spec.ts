@@ -26,6 +26,20 @@ describe('ingredientStore', () => {
     expect(store.loading).toBe(false)
   })
 
+  it('fetchAll should not call service again when data is already loaded', async () => {
+    const mockData = [
+      { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' as const },
+    ]
+    mockedService.findAll.mockResolvedValue(mockData)
+
+    const store = useIngredientStore()
+    await store.fetchAll()
+    await store.fetchAll()
+
+    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+    expect(store.items).toEqual(mockData)
+  })
+
   it('create should add item to the list', async () => {
     const created = { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' as const }
     mockedService.create.mockResolvedValue(created)

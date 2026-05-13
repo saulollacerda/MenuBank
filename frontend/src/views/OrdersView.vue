@@ -83,11 +83,13 @@ function removeItem(index: number) {
 
 function addExtraIngredient(itemIndex: number) {
   const item = form.value.items[itemIndex]
+  if (!item) return
   ensureExtrasArray(item).push({ ingredientId: '', quantity: 1 })
 }
 
 function removeExtraIngredient(itemIndex: number, extraIndex: number) {
   const item = form.value.items[itemIndex]
+  if (!item) return
   const extras = ensureExtrasArray(item)
   extras.splice(extraIndex, 1)
 }
