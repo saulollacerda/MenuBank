@@ -1,0 +1,14 @@
+tenancy_ocid     = "ocid1.tenancy.oc1..<unique_id>"
+user_ocid        = "ocid1.user.oc1..<unique_id>"
+fingerprint      = "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "sa-saopaulo-1"
+compartment_id   = "ocid1.tenancy.oc1..<unique_id>"
+
+ssh_public_key = "ssh-rsa AAAA..."
+
+repo_url = "https://github.com/youruser/MenuBank.git"
+
+db_user     = "menubank"
+db_password = "choose_a_strong_password"
+db_name     = "menubank_prod"
