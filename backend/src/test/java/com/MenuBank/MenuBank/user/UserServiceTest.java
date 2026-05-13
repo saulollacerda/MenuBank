@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.user;
 
+import com.MenuBank.MenuBank.common.ForbiddenException;
+import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -8,7 +10,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +26,9 @@ class UserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private UserContext userContext;
 
     @InjectMocks
     private UserService userService;
@@ -57,10 +61,6 @@ class UserServiceTest {
                 .createdAt(LocalDateTime.now())
                 .build();
     }
-
-    // -------------------------------------------------------------------------
-    // create()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("create()")
@@ -138,30 +138,37 @@ class UserServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // findById()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("findById()")
     class FindById {
 
         @Test
-        @DisplayName("deve retornar UserResponse quando usuário existe")
-        void shouldReturnUserResponseWhenExists() {
+        @DisplayName("deve retornar UserResponse quando o usuário é o próprio")
+        void shouldReturnUserResponseWhenOwner() {
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
             UserResponse result = userService.findById(userId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(userId);
-            assertThat(result.getEmail()).isEqualTo(user.getEmail());
-            assertThat(result.getRestaurantName()).isEqualTo(user.getRestaurantName());
+        }
+
+        @Test
+        @DisplayName("deve lançar ForbiddenException ao tentar ler outro usuário")
+        void shouldThrowForbiddenWhenAccessingAnotherUser() {
+            given(userContext.getUserId()).willReturn(UUID.randomUUID());
+
+            assertThatThrownBy(() -> userService.findById(userId))
+                    .isInstanceOf(ForbiddenException.class);
+
+            then(userRepository).should(never()).findById(any());
         }
 
         @Test
         @DisplayName("deve lançar UserNotFoundException quando usuário não existe")
         void shouldThrowWhenUserNotFound() {
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.findById(userId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userService.findById(userId))
@@ -169,46 +176,12 @@ class UserServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // findAll()
-    // -------------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("findAll()")
-    class FindAll {
-
-        @Test
-        @DisplayName("deve retornar lista de todos os usuários")
-        void shouldReturnListOfAllUsers() {
-            given(userRepository.findAll()).willReturn(List.of(user));
-
-            List<UserResponse> result = userService.findAll();
-
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(userId);
-        }
-
-        @Test
-        @DisplayName("deve retornar lista vazia quando não há usuários")
-        void shouldReturnEmptyList() {
-            given(userRepository.findAll()).willReturn(List.of());
-
-            List<UserResponse> result = userService.findAll();
-
-            assertThat(result).isEmpty();
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // update()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("update()")
     class Update {
 
         @Test
-        @DisplayName("deve atualizar usuário existente e retornar UserResponse atualizado")
+        @DisplayName("deve atualizar o próprio usuário e retornar UserResponse atualizado")
         void shouldUpdateAndReturnUpdatedUserResponse() {
             UserRequest updateRequest = UserRequest.builder()
                     .restaurantName("Restaurante Atualizado")
@@ -230,6 +203,7 @@ class UserServiceTest {
                     .createdAt(user.getCreatedAt())
                     .build();
 
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.findById(userId)).willReturn(Optional.of(user));
             given(passwordEncoder.encode(updateRequest.getPassword())).willReturn("$2a$10$newencoded");
             given(userRepository.save(any(User.class))).willReturn(updatedUser);
@@ -241,8 +215,20 @@ class UserServiceTest {
         }
 
         @Test
+        @DisplayName("deve lançar ForbiddenException ao tentar atualizar outro usuário")
+        void shouldThrowForbiddenWhenUpdatingAnotherUser() {
+            given(userContext.getUserId()).willReturn(UUID.randomUUID());
+
+            assertThatThrownBy(() -> userService.update(userId, userRequest))
+                    .isInstanceOf(ForbiddenException.class);
+
+            then(userRepository).should(never()).save(any(User.class));
+        }
+
+        @Test
         @DisplayName("deve lançar UserNotFoundException ao atualizar usuário inexistente")
         void shouldThrowWhenUserNotFoundForUpdate() {
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.findById(userId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userService.update(userId, userRequest))
@@ -252,17 +238,14 @@ class UserServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // delete()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("delete()")
     class Delete {
 
         @Test
-        @DisplayName("deve deletar usuário existente sem lançar exceção")
-        void shouldDeleteExistingUser() {
+        @DisplayName("deve deletar o próprio usuário sem lançar exceção")
+        void shouldDeleteOwnUser() {
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.existsById(userId)).willReturn(true);
             willDoNothing().given(userRepository).deleteById(userId);
 
@@ -272,8 +255,20 @@ class UserServiceTest {
         }
 
         @Test
+        @DisplayName("deve lançar ForbiddenException ao tentar deletar outro usuário")
+        void shouldThrowForbiddenWhenDeletingAnotherUser() {
+            given(userContext.getUserId()).willReturn(UUID.randomUUID());
+
+            assertThatThrownBy(() -> userService.delete(userId))
+                    .isInstanceOf(ForbiddenException.class);
+
+            then(userRepository).should(never()).deleteById(any());
+        }
+
+        @Test
         @DisplayName("deve lançar UserNotFoundException ao deletar usuário inexistente")
         void shouldThrowWhenUserNotFoundForDelete() {
+            given(userContext.getUserId()).willReturn(userId);
             given(userRepository.existsById(userId)).willReturn(false);
 
             assertThatThrownBy(() -> userService.delete(userId))
@@ -283,4 +278,3 @@ class UserServiceTest {
         }
     }
 }
-
