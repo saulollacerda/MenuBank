@@ -10,7 +10,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -149,37 +148,6 @@ class UserControllerTest {
 
             mockMvc.perform(get("/api/users/{id}", userId))
                     .andExpect(status().isNotFound());
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // GET /api/users
-    // -------------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("GET /api/users")
-    class GetAllUsers {
-
-        @Test
-        @DisplayName("deve retornar 200 com lista de usuários")
-        void shouldReturn200WithUserList() throws Exception {
-            given(userService.findAll()).willReturn(List.of(userResponse));
-
-            mockMvc.perform(get("/api/users"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(userId.toString()));
-        }
-
-        @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há usuários")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(userService.findAll()).willReturn(List.of());
-
-            mockMvc.perform(get("/api/users"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
         }
     }
 

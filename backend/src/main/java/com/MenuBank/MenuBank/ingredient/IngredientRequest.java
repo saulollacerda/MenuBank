@@ -12,9 +12,11 @@ import java.math.BigDecimal;
 public class IngredientRequest {
 
     @NotBlank(message = "Nome é obrigatório")
+    @Size(max = 255, message = "Nome não pode ter mais de 255 caracteres")
     private String name;
 
     @NotBlank(message = "Unidade é obrigatória")
+    @Size(max = 20, message = "Unidade não pode ter mais de 20 caracteres")
     private String unit;
 
     @NotNull(message = "Custo por unidade é obrigatório")

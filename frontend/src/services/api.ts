@@ -20,13 +20,14 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname
       if (currentPath !== '/login' && currentPath !== '/register') {
         localStorage.removeItem('menubank_token')
         localStorage.removeItem('menubank_user')
-        window.location.href = '/login'
+        const { default: router } = await import('@/router')
+        router.push({ name: 'login' })
       }
     }
     return Promise.reject(error)

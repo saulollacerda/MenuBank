@@ -5,7 +5,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,12 +27,6 @@ public class UserController {
     public ResponseEntity<UserResponse> findById(@PathVariable UUID id) {
         UserResponse response = userService.findById(id);
         return ResponseEntity.ok(response);
-    }
-
-    @GetMapping
-    public ResponseEntity<List<UserResponse>> findAll() {
-        List<UserResponse> responses = userService.findAll();
-        return ResponseEntity.ok(responses);
     }
 
     @PutMapping("/{id}")
