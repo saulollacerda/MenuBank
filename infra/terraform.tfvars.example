@@ -12,3 +12,6 @@ repo_url = "https://github.com/youruser/MenuBank.git"
 db_user     = "menubank"
 db_password = "choose_a_strong_password"
 db_name     = "menubank_prod"
+
+# If you get "Out of host capacity", try ad_index = 1 or 2
+ad_index = 0

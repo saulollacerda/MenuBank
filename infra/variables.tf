@@ -55,3 +55,9 @@ variable "db_name" {
   type        = string
   default     = "menubank_prod"
 }
+
+variable "ad_index" {
+  description = "Availability Domain index (0, 1 or 2). Change if you get 'Out of host capacity'."
+  type        = number
+  default     = 0
+}
