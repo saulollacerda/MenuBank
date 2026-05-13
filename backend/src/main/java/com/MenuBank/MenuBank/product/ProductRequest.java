@@ -12,10 +12,10 @@ import java.math.BigDecimal;
 public class ProductRequest {
 
     @NotBlank(message = "Nome é obrigatório")
+    @Size(max = 255, message = "Nome não pode ter mais de 255 caracteres")
     private String name;
 
     @NotNull(message = "Preço é obrigatório")
     @DecimalMin(value = "0.0", inclusive = false, message = "Preço deve ser maior que zero")
     private BigDecimal price;
 }
-

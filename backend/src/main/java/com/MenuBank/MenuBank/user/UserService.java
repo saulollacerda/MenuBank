@@ -1,11 +1,12 @@
 package com.MenuBank.MenuBank.user;
 
+import com.MenuBank.MenuBank.common.ForbiddenException;
+import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -13,10 +14,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserContext userContext;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserContext userContext) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userContext = userContext;
     }
 
     public UserResponse create(UserRequest request) {
@@ -42,18 +45,14 @@ public class UserService {
     }
 
     public UserResponse findById(UUID id) {
+        ensureOwner(id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
         return toResponse(user);
     }
 
-    public List<UserResponse> findAll() {
-        return userRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
-    }
-
     public UserResponse update(UUID id, UserRequest request) {
+        ensureOwner(id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
 
@@ -69,10 +68,17 @@ public class UserService {
 
     @Transactional
     public void delete(UUID id) {
+        ensureOwner(id);
         if (!userRepository.existsById(id)) {
             throw new UserNotFoundException(id);
         }
         userRepository.deleteById(id);
+    }
+
+    private void ensureOwner(UUID id) {
+        if (!userContext.getUserId().equals(id)) {
+            throw new ForbiddenException("Acesso negado");
+        }
     }
 
     private UserResponse toResponse(User user) {
@@ -87,4 +93,3 @@ public class UserService {
                 .build();
     }
 }
-
