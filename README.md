@@ -36,7 +36,7 @@ docker compose up --build
 | Service    | URL                      |
 | ---------- | ------------------------ |
 | Frontend   | http://localhost         |
-| Backend API| http://localhost:8080    |
+| Backend API| http://localhost:8080 (direct) / http://localhost/api (via frontend proxy) |
 | Database   | localhost:5432           |
 
 ### Running Locally (without Docker)

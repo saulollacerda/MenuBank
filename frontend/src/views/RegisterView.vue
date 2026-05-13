@@ -29,7 +29,7 @@ function isValidCnpj(value: string) {
   const calculateCheckDigit = (base: string, weights: number[]) => {
     const sum = base
       .split('')
-      .reduce((total, digit, index) => total + Number(digit) * weights[index], 0)
+      .reduce((total, digit, index) => total + Number(digit) * (weights[index] ?? 0), 0)
     const remainder = sum % 11
     return remainder < 2 ? 0 : 11 - remainder
   }
