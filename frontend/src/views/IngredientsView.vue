@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import type { IngredientRequest, IngredientResponse } from '@/types/Ingredient'
 
@@ -9,6 +9,17 @@ const showModal = ref(false)
 const editing = ref<IngredientResponse | null>(null)
 const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 })
 const confirmDeleteId = ref<string | null>(null)
+
+const autoCalcCost = ref(false)
+const purchasePrice = ref<number | null>(null)
+const purchaseQuantity = ref<number | null>(null)
+
+const computedCostPerUnit = computed(() => {
+  const price = purchasePrice.value ?? 0
+  const qty = purchaseQuantity.value ?? 0
+  if (qty <= 0 || price < 0) return null
+  return price / qty
+})
 
 function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -27,9 +38,16 @@ function statusClass(status: string): string {
   return status === 'ACTIVE' ? 'badge badge-active' : 'badge badge-inactive'
 }
 
+function resetAutoCalcFields() {
+  autoCalcCost.value = false
+  purchasePrice.value = null
+  purchaseQuantity.value = null
+}
+
 function openCreateModal() {
   editing.value = null
   form.value = { name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 }
+  resetAutoCalcFields()
   showModal.value = true
 }
 
@@ -41,6 +59,7 @@ function openEditModal(ingredient: IngredientResponse) {
     costPerUnit: ingredient.costPerUnit,
     defaultQuantity: ingredient.defaultQuantity ?? 0,
   }
+  resetAutoCalcFields()
   showModal.value = true
 }
 
@@ -50,6 +69,10 @@ function closeModal() {
 }
 
 async function handleSubmit() {
+  if (autoCalcCost.value) {
+    if (computedCostPerUnit.value == null) return
+    form.value.costPerUnit = computedCostPerUnit.value
+  }
   try {
     if (editing.value) {
       await store.update(editing.value.id, form.value)
@@ -169,6 +192,17 @@ onMounted(() => {
               />
             </div>
             <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
+                <input
+                  v-model="autoCalcCost"
+                  type="checkbox"
+                  data-testid="ingredient-cost-auto-checkbox"
+                />
+                Calcular custo por unidade automaticamente
+              </label>
+            </div>
+
+            <div v-if="!autoCalcCost" class="form-group">
               <label>Custo por Unidade (R$)</label>
               <input
                 v-model.number="form.costPerUnit"
@@ -180,6 +214,45 @@ onMounted(() => {
                 data-testid="ingredient-cost-per-unit-input"
                 required
               />
+            </div>
+
+            <div v-else>
+              <div class="form-group">
+                <label>Valor da compra (R$)</label>
+                <input
+                  v-model.number="purchasePrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="form-control"
+                  placeholder="195,00"
+                  data-testid="ingredient-purchase-price-input"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Quantidade comprada (na unidade do ingrediente)</label>
+                <input
+                  v-model.number="purchaseQuantity"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  class="form-control"
+                  placeholder="9000"
+                  data-testid="ingredient-purchase-quantity-input"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Custo por unidade calculado</label>
+                <div
+                  class="form-control"
+                  data-testid="ingredient-cost-per-unit-computed"
+                  style="background: #f1f5f9; color: #0f172a"
+                >
+                  {{ computedCostPerUnit != null ? formatCurrency(computedCostPerUnit) : '—' }}
+                </div>
+              </div>
             </div>
             <div class="form-group">
               <label>Quantidade padrão (unidade do ingrediente)</label>

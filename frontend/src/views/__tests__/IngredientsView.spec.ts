@@ -66,4 +66,50 @@ describe('IngredientsView', () => {
       expect(input.attributes('step')).toBe('0.0001')
     })
   })
+
+  it('should compute costPerUnit from purchase price divided by purchase quantity when auto mode is enabled', async () => {
+    const wrapper = mount(IngredientsView)
+
+    await wrapper.get('button.btn.btn-primary').trigger('click')
+
+    await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Açaí GOAT')
+    await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
+
+    await wrapper.get('[data-testid="ingredient-cost-auto-checkbox"]').setValue(true)
+
+    expect(wrapper.find('[data-testid="ingredient-cost-per-unit-input"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="ingredient-purchase-price-input"]').setValue('195')
+    await wrapper.get('[data-testid="ingredient-purchase-quantity-input"]').setValue('9000')
+
+    const computed = wrapper.get('[data-testid="ingredient-cost-per-unit-computed"]')
+    expect(computed.text()).toMatch(/0[,.]0217/)
+
+    await wrapper.get('form').trigger('submit')
+
+    expect(ingredientStoreMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Açaí GOAT',
+        unit: 'g',
+        costPerUnit: expect.closeTo(0.02167, 4),
+      }),
+    )
+  })
+
+  it('should not submit when auto mode is enabled and purchase quantity is zero', async () => {
+    const wrapper = mount(IngredientsView)
+
+    await wrapper.get('button.btn.btn-primary').trigger('click')
+
+    await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Teste')
+    await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
+
+    await wrapper.get('[data-testid="ingredient-cost-auto-checkbox"]').setValue(true)
+    await wrapper.get('[data-testid="ingredient-purchase-price-input"]').setValue('100')
+    await wrapper.get('[data-testid="ingredient-purchase-quantity-input"]').setValue('0')
+
+    await wrapper.get('form').trigger('submit')
+
+    expect(ingredientStoreMock.create).not.toHaveBeenCalled()
+  })
 })
