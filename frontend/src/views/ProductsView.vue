@@ -16,9 +16,12 @@ const recipeForm = ref<RecipeItemRequest>({ ingredientId: '', quantity: 0 })
 const confirmDeleteId = ref<string | null>(null)
 
 function formatCurrency(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-    value ?? 0,
-  )
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value ?? 0)
 }
 
 function statusLabel(status: string): string {

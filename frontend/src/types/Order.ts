@@ -27,11 +27,14 @@ export interface OrderItemResponse {
   productName: string
   quantity: number
   unitPrice: number
+  unitCost: number
+  totalCost: number
   extraIngredients?: OrderItemExtraIngredientResponse[]
 }
 
 export interface OrderRequest {
   customerId: string
+  status?: OrderStatus
   items: OrderItemRequest[]
 }
 
