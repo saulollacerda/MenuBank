@@ -18,5 +18,7 @@ public class ProductResponse {
     private BigDecimal margin;
     private ProductStatus status;
     private BigDecimal cmv;
+    private UUID categoryId;
+    private String categoryName;
 }
 

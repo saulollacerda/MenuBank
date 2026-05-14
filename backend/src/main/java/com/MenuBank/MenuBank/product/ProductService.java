@@ -1,5 +1,8 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.category.Category;
+import com.MenuBank.MenuBank.category.CategoryNotFoundException;
+import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.common.UserContext;
 import org.springframework.stereotype.Service;
 
@@ -11,10 +14,14 @@ import java.util.UUID;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final UserContext userContext;
 
-    public ProductService(ProductRepository productRepository, UserContext userContext) {
+    public ProductService(ProductRepository productRepository,
+                          CategoryRepository categoryRepository,
+                          UserContext userContext) {
         this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
         this.userContext = userContext;
     }
 
@@ -24,6 +31,9 @@ public class ProductService {
         if (productRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
             throw new DuplicateProductException("nome");
         }
+
+        Category category = categoryRepository.findByIdAndOwnerId(request.getCategoryId(), ownerId)
+                .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
 
         BigDecimal price = request.getPrice();
         BigDecimal estimatedCost = BigDecimal.ZERO;
@@ -37,6 +47,7 @@ public class ProductService {
                 .margin(margin)
                 .status(ProductStatus.ACTIVE)
                 .cmv(BigDecimal.ZERO)
+                .category(category)
                 .build();
 
         Product saved = productRepository.save(product);
@@ -62,10 +73,14 @@ public class ProductService {
         Product product = productRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 
+        Category category = categoryRepository.findByIdAndOwnerId(request.getCategoryId(), ownerId)
+                .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
+
         product.setName(request.getName());
         product.setPrice(request.getPrice());
         product.setMargin(request.getPrice().subtract(
                 product.getEstimatedCost() != null ? product.getEstimatedCost() : BigDecimal.ZERO));
+        product.setCategory(category);
 
         Product saved = productRepository.save(product);
         return toResponse(saved);
@@ -80,6 +95,7 @@ public class ProductService {
     }
 
     private ProductResponse toResponse(Product product) {
+        Category category = product.getCategory();
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -88,6 +104,8 @@ public class ProductService {
                 .margin(product.getMargin())
                 .status(product.getStatus())
                 .cmv(product.getCmv())
+                .categoryId(category != null ? category.getId() : null)
+                .categoryName(category != null ? category.getName() : null)
                 .build();
     }
 }

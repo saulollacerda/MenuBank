@@ -26,6 +26,8 @@ describe('productStore', () => {
         margin: 15.0,
         status: 'ACTIVE' as const,
         cmv: 10.0,
+        categoryId: 'cat1',
+        categoryName: 'Lanches',
       },
     ]
     mockedProductService.findAll.mockResolvedValue(mockData)
@@ -47,6 +49,8 @@ describe('productStore', () => {
         margin: 15.0,
         status: 'ACTIVE' as const,
         cmv: 10.0,
+        categoryId: 'cat1',
+        categoryName: 'Lanches',
       },
     ]
     mockedProductService.findAll.mockResolvedValue(mockData)
@@ -68,11 +72,13 @@ describe('productStore', () => {
       margin: null,
       status: 'ACTIVE' as const,
       cmv: null,
+      categoryId: 'cat1',
+      categoryName: 'Lanches',
     }
     mockedProductService.create.mockResolvedValue(created)
 
     const store = useProductStore()
-    await store.create({ name: 'Hambúrguer', price: 25.0 })
+    await store.create({ name: 'Hambúrguer', price: 25.0, categoryId: 'cat1' })
 
     expect(store.items).toContainEqual(created)
   })
@@ -117,6 +123,8 @@ describe('productStore', () => {
       margin: 22.5,
       status: 'ACTIVE' as const,
       cmv: 2.5,
+      categoryId: 'cat1',
+      categoryName: 'Lanches',
     }
     mockedRecipeItemService.add.mockResolvedValue(newRecipeItem)
     mockedProductService.findById.mockResolvedValue(updatedProduct)
@@ -131,6 +139,8 @@ describe('productStore', () => {
         margin: null,
         status: 'ACTIVE',
         cmv: null,
+        categoryId: 'cat1',
+        categoryName: 'Lanches',
       },
     ]
 
@@ -144,8 +154,28 @@ describe('productStore', () => {
   it('remove should filter out the item', async () => {
     const store = useProductStore()
     store.items = [
-      { id: '1', name: 'Hambúrguer', price: 25.0, estimatedCost: null, margin: null, status: 'ACTIVE', cmv: null },
-      { id: '2', name: 'Pizza', price: 35.0, estimatedCost: null, margin: null, status: 'ACTIVE', cmv: null },
+      {
+        id: '1',
+        name: 'Hambúrguer',
+        price: 25.0,
+        estimatedCost: null,
+        margin: null,
+        status: 'ACTIVE',
+        cmv: null,
+        categoryId: 'cat1',
+        categoryName: 'Lanches',
+      },
+      {
+        id: '2',
+        name: 'Pizza',
+        price: 35.0,
+        estimatedCost: null,
+        margin: null,
+        status: 'ACTIVE',
+        cmv: null,
+        categoryId: 'cat1',
+        categoryName: 'Lanches',
+      },
     ]
     mockedProductService.remove.mockResolvedValue()
 
