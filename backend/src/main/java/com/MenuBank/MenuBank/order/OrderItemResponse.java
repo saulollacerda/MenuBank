@@ -17,6 +17,8 @@ public class OrderItemResponse {
     private String productName;
     private Integer quantity;
     private BigDecimal unitPrice;
+    private BigDecimal unitCost;
+    private BigDecimal totalCost;
 
     @Builder.Default
     private List<OrderItemExtraIngredientResponse> extraIngredients = List.of();

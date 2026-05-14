@@ -1,5 +1,8 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.category.Category;
+import com.MenuBank.MenuBank.category.CategoryNotFoundException;
+import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.common.UserContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +27,9 @@ class ProductServiceTest {
     private ProductRepository productRepository;
 
     @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
     private UserContext userContext;
 
     @InjectMocks
@@ -31,6 +37,8 @@ class ProductServiceTest {
 
     private UUID ownerId;
     private UUID productId;
+    private UUID categoryId;
+    private Category category;
     private Product product;
     private ProductRequest productRequest;
 
@@ -38,10 +46,18 @@ class ProductServiceTest {
     void setUp() {
         ownerId = UUID.randomUUID();
         productId = UUID.randomUUID();
+        categoryId = UUID.randomUUID();
+
+        category = Category.builder()
+                .id(categoryId)
+                .ownerId(ownerId)
+                .name("Lanches")
+                .build();
 
         productRequest = ProductRequest.builder()
                 .name("X-Burguer")
                 .price(new BigDecimal("25.90"))
+                .categoryId(categoryId)
                 .build();
 
         product = Product.builder()
@@ -53,6 +69,7 @@ class ProductServiceTest {
                 .margin(new BigDecimal("25.90"))
                 .status(ProductStatus.ACTIVE)
                 .cmv(BigDecimal.ZERO)
+                .category(category)
                 .build();
     }
 
@@ -69,6 +86,7 @@ class ProductServiceTest {
         void shouldCreateProductAndReturnResponse() {
             given(userContext.getUserId()).willReturn(ownerId);
             given(productRepository.existsByNameAndOwnerId(productRequest.getName(), ownerId)).willReturn(false);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -85,6 +103,7 @@ class ProductServiceTest {
         void shouldCreateProductWithActiveStatusByDefault() {
             given(userContext.getUserId()).willReturn(ownerId);
             given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -97,6 +116,7 @@ class ProductServiceTest {
         void shouldCreateProductWithZeroCostAndFullMargin() {
             given(userContext.getUserId()).willReturn(ownerId);
             given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
             ProductResponse result = productService.create(productRequest);
@@ -104,6 +124,35 @@ class ProductServiceTest {
             assertThat(result.getEstimatedCost()).isEqualByComparingTo(BigDecimal.ZERO);
             assertThat(result.getMargin()).isEqualByComparingTo(new BigDecimal("25.90"));
             assertThat(result.getCmv()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("deve atribuir a categoria ao produto e retornar categoryId/categoryName na resposta")
+        void shouldAssignCategoryAndReturnCategoryFieldsInResponse() {
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willReturn(product);
+
+            ProductResponse result = productService.create(productRequest);
+
+            assertThat(result.getCategoryId()).isEqualTo(categoryId);
+            assertThat(result.getCategoryName()).isEqualTo("Lanches");
+            then(productRepository).should().save(argThat(p -> p.getCategory() != null
+                    && categoryId.equals(p.getCategory().getId())));
+        }
+
+        @Test
+        @DisplayName("deve lançar CategoryNotFoundException quando categoria não pertence ao owner")
+        void shouldThrowWhenCategoryNotFoundForOwner() {
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> productService.create(productRequest))
+                    .isInstanceOf(CategoryNotFoundException.class);
+
+            then(productRepository).should(never()).save(any(Product.class));
         }
 
         @Test
@@ -201,6 +250,7 @@ class ProductServiceTest {
             ProductRequest updateRequest = ProductRequest.builder()
                     .name("X-Salada")
                     .price(new BigDecimal("29.90"))
+                    .categoryId(categoryId)
                     .build();
 
             Product updatedProduct = Product.builder()
@@ -212,16 +262,66 @@ class ProductServiceTest {
                     .margin(new BigDecimal("29.90"))
                     .status(ProductStatus.ACTIVE)
                     .cmv(BigDecimal.ZERO)
+                    .category(category)
                     .build();
 
             given(userContext.getUserId()).willReturn(ownerId);
             given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(updatedProduct);
 
             ProductResponse result = productService.update(productId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("X-Salada");
             assertThat(result.getPrice()).isEqualByComparingTo(new BigDecimal("29.90"));
+        }
+
+        @Test
+        @DisplayName("deve permitir trocar a categoria do produto")
+        void shouldAllowChangingCategory() {
+            UUID newCategoryId = UUID.randomUUID();
+            Category newCategory = Category.builder()
+                    .id(newCategoryId)
+                    .ownerId(ownerId)
+                    .name("Bebidas")
+                    .build();
+
+            ProductRequest updateRequest = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .categoryId(newCategoryId)
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndOwnerId(newCategoryId, ownerId)).willReturn(Optional.of(newCategory));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ProductResponse result = productService.update(productId, updateRequest);
+
+            assertThat(result.getCategoryId()).isEqualTo(newCategoryId);
+            assertThat(result.getCategoryName()).isEqualTo("Bebidas");
+            then(productRepository).should().save(argThat(p ->
+                    p.getCategory() != null && newCategoryId.equals(p.getCategory().getId())));
+        }
+
+        @Test
+        @DisplayName("deve lançar CategoryNotFoundException quando categoria no update não pertence ao owner")
+        void shouldThrowWhenCategoryNotFoundOnUpdate() {
+            ProductRequest updateRequest = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .categoryId(categoryId)
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> productService.update(productId, updateRequest))
+                    .isInstanceOf(CategoryNotFoundException.class);
+
+            then(productRepository).should(never()).save(any(Product.class));
         }
 
         @Test

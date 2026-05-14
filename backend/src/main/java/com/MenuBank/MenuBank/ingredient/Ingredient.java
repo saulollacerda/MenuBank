@@ -27,10 +27,10 @@ public class Ingredient {
     @Column(nullable = false)
     private String unit;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal costPerUnit;
 
-    @Column
+    @Column(precision = 19, scale = 4)
     private BigDecimal defaultQuantity;
 
     @Enumerated(EnumType.STRING)

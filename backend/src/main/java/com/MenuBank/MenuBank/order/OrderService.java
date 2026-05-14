@@ -82,6 +82,7 @@ public class OrderService {
                 .toList();
     }
 
+    @Transactional
     public OrderResponse update(UUID id, OrderRequest request) {
         UUID ownerId = userContext.getUserId();
 
@@ -105,7 +106,11 @@ public class OrderService {
             order.setStatus(request.getStatus());
         }
         newItems.forEach(item -> item.setOrder(order));
-        order.setItems(new ArrayList<>(newItems));
+        if (order.getItems() == null) {
+            order.setItems(new ArrayList<>());
+        }
+        order.getItems().clear();
+        order.getItems().addAll(newItems);
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
@@ -236,12 +241,25 @@ public class OrderService {
                 }).toList()
                 : List.of();
 
+        BigDecimal baseUnitCost = item.getProduct().getEstimatedCost() != null
+                ? item.getProduct().getEstimatedCost()
+                : BigDecimal.ZERO;
+        BigDecimal extrasPerUnit = item.getExtraIngredients() != null
+                ? item.getExtraIngredients().stream()
+                        .map(extra -> extra.getQuantity().multiply(extra.getCostPerUnit()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                : BigDecimal.ZERO;
+        BigDecimal unitCost = baseUnitCost.add(extrasPerUnit);
+        BigDecimal totalCost = unitCost.multiply(BigDecimal.valueOf(item.getQuantity()));
+
         return OrderItemResponse.builder()
                 .id(item.getId())
                 .productId(item.getProduct().getId())
                 .productName(item.getProduct().getName())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
+                .unitCost(unitCost)
+                .totalCost(totalCost)
                 .extraIngredients(extraResponses)
                 .build();
     }

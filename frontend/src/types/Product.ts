@@ -3,6 +3,7 @@ export type ProductStatus = 'ACTIVE' | 'INACTIVE'
 export interface ProductRequest {
   name: string
   price: number
+  categoryId: string
 }
 
 export interface ProductResponse {
@@ -13,6 +14,8 @@ export interface ProductResponse {
   margin: number | null
   status: ProductStatus
   cmv: number | null
+  categoryId: string
+  categoryName: string
 }
 
 export interface RecipeItemRequest {
