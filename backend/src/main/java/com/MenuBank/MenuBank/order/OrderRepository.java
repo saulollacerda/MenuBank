@@ -16,7 +16,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             LEFT JOIN FETCH o.customer
             LEFT JOIN FETCH o.items i
             LEFT JOIN FETCH i.product
-            LEFT JOIN FETCH i.extraIngredients
             WHERE o.id = :id AND o.ownerId = :ownerId
             """)
     Optional<Order> findByIdAndOwnerId(@Param("id") UUID id, @Param("ownerId") UUID ownerId);
@@ -26,7 +25,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             LEFT JOIN FETCH o.customer
             LEFT JOIN FETCH o.items i
             LEFT JOIN FETCH i.product
-            LEFT JOIN FETCH i.extraIngredients
             WHERE o.ownerId = :ownerId
             """)
     List<Order> findAllByOwnerId(@Param("ownerId") UUID ownerId);
