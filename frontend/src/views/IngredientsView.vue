@@ -11,9 +11,12 @@ const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaul
 const confirmDeleteId = ref<string | null>(null)
 
 function formatCurrency(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-    value ?? 0,
-  )
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value ?? 0)
 }
 
 function statusLabel(status: string): string {
@@ -170,10 +173,11 @@ onMounted(() => {
               <input
                 v-model.number="form.costPerUnit"
                 type="number"
-                step="0.01"
-                min="0.01"
+                step="0.0001"
+                min="0.0001"
                 class="form-control"
-                placeholder="0,00"
+                placeholder="0,0000"
+                data-testid="ingredient-cost-per-unit-input"
                 required
               />
             </div>

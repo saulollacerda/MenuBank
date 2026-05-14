@@ -43,7 +43,7 @@ public class OrderItemExtraIngredient {
     /**
      * Snapshot of the ingredient cost at the time the order was created/updated.
      */
-    @Column(nullable = false, precision = 19, scale = 6)
+    @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal costPerUnit;
 
     @Column(nullable = false)

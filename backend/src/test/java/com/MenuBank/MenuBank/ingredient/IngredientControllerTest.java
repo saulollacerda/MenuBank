@@ -106,6 +106,48 @@ class IngredientControllerTest {
                             .content(objectMapper.writeValueAsString(buildValidRequest())))
                     .andExpect(status().isConflict());
         }
+
+        @Test
+        @DisplayName("deve aceitar costPerUnit com 4 casas decimais")
+        void shouldAcceptFourDecimalPlacesInCostPerUnit() throws Exception {
+            IngredientResponse fineGrainedResponse = IngredientResponse.builder()
+                    .id(ingredientId)
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("0.0035"))
+                    .status(IngredientStatus.ACTIVE)
+                    .build();
+            given(ingredientService.create(any(IngredientRequest.class))).willReturn(fineGrainedResponse);
+
+            IngredientRequest request = IngredientRequest.builder()
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("0.0035"))
+                    .build();
+
+            mockMvc.perform(post("/api/ingredients")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.costPerUnit").value(0.0035));
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando costPerUnit tem mais de 4 casas decimais")
+        void shouldReturn400WhenCostPerUnitHasMoreThanFourDecimals() throws Exception {
+            IngredientRequest request = IngredientRequest.builder()
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("0.00001"))
+                    .build();
+
+            mockMvc.perform(post("/api/ingredients")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
+        }
     }
 
     // -------------------------------------------------------------------------

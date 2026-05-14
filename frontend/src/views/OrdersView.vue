@@ -20,6 +20,7 @@ const showModal = ref(false)
 const showDetailModal = ref(false)
 const selectedOrder = ref<OrderResponse | null>(null)
 const confirmDeleteId = ref<string | null>(null)
+const editingOrderId = ref<string | null>(null)
 
 const form = ref<OrderRequest>({
   customerId: '',
@@ -32,9 +33,29 @@ function ensureExtrasArray(item: OrderItemRequest): OrderItemExtraIngredientRequ
 }
 
 function formatCurrency(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-    value ?? 0,
-  )
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value ?? 0)
+}
+
+function formatPercent(value: number | null | undefined): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  }).format(value ?? 0)
+}
+
+function orderTotalCost(order: OrderResponse): number {
+  return order.items.reduce((sum, item) => sum + (item.totalCost ?? 0), 0)
+}
+
+function orderMargin(order: OrderResponse): number {
+  if (!order.totalValue) return 0
+  return order.estimatedProfit / order.totalValue
 }
 
 function formatDateTime(dateTime: string): string {
@@ -60,6 +81,7 @@ function statusClass(status: string): string {
 }
 
 function openCreateModal() {
+  editingOrderId.value = null
   form.value = {
     customerId: '',
     items: [{ productId: '', quantity: 1, extraIngredients: [] }],
@@ -67,8 +89,26 @@ function openCreateModal() {
   showModal.value = true
 }
 
+function openEditModal(order: OrderResponse) {
+  editingOrderId.value = order.id
+  form.value = {
+    customerId: order.customerId,
+    status: order.status,
+    items: order.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      extraIngredients: (item.extraIngredients ?? []).map((extra) => ({
+        ingredientId: extra.ingredientId,
+        quantity: extra.quantity,
+      })),
+    })),
+  }
+  showModal.value = true
+}
+
 function closeModal() {
   showModal.value = false
+  editingOrderId.value = null
 }
 
 function addItem() {
@@ -87,6 +127,12 @@ function addExtraIngredient(itemIndex: number) {
   ensureExtrasArray(item).push({ ingredientId: '', quantity: 1 })
 }
 
+function onExtraIngredientChange(extra: OrderItemExtraIngredientRequest, ingredientId: string) {
+  extra.ingredientId = ingredientId
+  const ingredient = ingredientStore.items.find((i) => i.id === ingredientId)
+  extra.quantity = ingredient?.defaultQuantity ?? 1
+}
+
 function removeExtraIngredient(itemIndex: number, extraIndex: number) {
   const item = form.value.items[itemIndex]
   if (!item) return
@@ -96,7 +142,11 @@ function removeExtraIngredient(itemIndex: number, extraIndex: number) {
 
 async function handleSubmit() {
   try {
-    await orderStore.create(form.value)
+    if (editingOrderId.value) {
+      await orderStore.update(editingOrderId.value, form.value)
+    } else {
+      await orderStore.create(form.value)
+    }
     closeModal()
   } catch {
     // Error is handled by the store
@@ -178,10 +228,25 @@ onMounted(() => {
             <td>{{ formatCurrency(order.estimatedProfit) }}</td>
             <td>
               <div class="table-actions">
-                <button class="btn btn-secondary btn-sm" @click="viewDetail(order)">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  :data-testid="`order-${order.id}-detail-button`"
+                  @click="viewDetail(order)"
+                >
                   Detalhes
                 </button>
-                <button class="btn btn-danger btn-sm" @click="confirmDelete(order.id)">
+                <button
+                  class="btn btn-primary btn-sm"
+                  :data-testid="`order-${order.id}-edit-button`"
+                  @click="openEditModal(order)"
+                >
+                  Editar
+                </button>
+                <button
+                  class="btn btn-danger btn-sm"
+                  :data-testid="`order-${order.id}-delete-button`"
+                  @click="confirmDelete(order.id)"
+                >
                   Excluir
                 </button>
               </div>
@@ -195,7 +260,7 @@ onMounted(() => {
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal modal-wide">
         <div class="modal-header">
-          <h2>Novo Pedido</h2>
+          <h2 data-testid="order-form-title">{{ editingOrderId ? 'Editar Pedido' : 'Novo Pedido' }}</h2>
           <button class="modal-close" @click="closeModal">✕</button>
         </div>
         <div class="modal-body">
@@ -281,10 +346,13 @@ onMounted(() => {
                     <div class="form-group" style="flex: 1">
                       <label>Ingrediente</label>
                       <select
-                        v-model="extra.ingredientId"
+                        :value="extra.ingredientId"
                         class="form-control"
                         :data-testid="`order-item-${index}-extra-${extraIndex}-ingredient-select`"
                         required
+                        @change="
+                          onExtraIngredientChange(extra, ($event.target as HTMLSelectElement).value)
+                        "
                       >
                         <option value="" disabled>Selecione...</option>
                         <option
@@ -302,8 +370,8 @@ onMounted(() => {
                       <input
                         v-model.number="extra.quantity"
                         type="number"
-                        step="0.01"
-                        min="0.01"
+                        step="0.0001"
+                        min="0.0001"
                         class="form-control"
                         :data-testid="`order-item-${index}-extra-${extraIndex}-quantity-input`"
                         required
@@ -344,7 +412,7 @@ onMounted(() => {
                 data-testid="order-submit-button"
                 :disabled="orderStore.loading"
               >
-                Criar Pedido
+                {{ editingOrderId ? 'Salvar Alterações' : 'Criar Pedido' }}
               </button>
             </div>
           </form>
@@ -353,7 +421,12 @@ onMounted(() => {
     </div>
 
     <!-- Order Detail Modal -->
-    <div v-if="showDetailModal && selectedOrder" class="modal-overlay" @click.self="closeDetailModal">
+    <div
+      v-if="showDetailModal && selectedOrder"
+      class="modal-overlay"
+      data-testid="order-detail-modal"
+      @click.self="closeDetailModal"
+    >
       <div class="modal modal-wide">
         <div class="modal-header">
           <h2>Detalhes do Pedido</h2>
@@ -377,31 +450,80 @@ onMounted(() => {
               <strong>Valor Total:</strong> {{ formatCurrency(selectedOrder.totalValue) }}
             </div>
             <div>
+              <strong>Total de custos:</strong>
+              <span data-testid="order-detail-total-cost">
+                {{ formatCurrency(orderTotalCost(selectedOrder)) }}
+              </span>
+            </div>
+            <div>
               <strong>Lucro Estimado:</strong>
-              {{ formatCurrency(selectedOrder.estimatedProfit) }}
+              <span data-testid="order-detail-estimated-profit">
+                {{ formatCurrency(selectedOrder.estimatedProfit) }}
+              </span>
+            </div>
+            <div>
+              <strong>Margem:</strong>
+              <span data-testid="order-detail-margin">
+                {{ formatPercent(orderMargin(selectedOrder)) }}
+              </span>
             </div>
           </div>
 
           <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 8px">Itens</h3>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Quantidade</th>
-                  <th>Preço Unitário</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in selectedOrder.items" :key="item.id">
-                  <td>{{ item.productName }}</td>
-                  <td>{{ item.quantity }}</td>
-                  <td>{{ formatCurrency(item.unitPrice) }}</td>
-                  <td>{{ formatCurrency(item.unitPrice * item.quantity) }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="order-detail-items">
+            <div
+              v-for="item in selectedOrder.items"
+              :key="item.id"
+              class="order-detail-item"
+              :data-testid="`order-detail-item-${item.id}`"
+              style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px"
+            >
+              <div
+                style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px"
+              >
+                <div><strong>Produto:</strong> {{ item.productName }}</div>
+                <div><strong>Qtd:</strong> {{ item.quantity }}</div>
+                <div><strong>Preço Unit.:</strong> {{ formatCurrency(item.unitPrice) }}</div>
+                <div><strong>Subtotal:</strong> {{ formatCurrency(item.unitPrice * item.quantity) }}</div>
+              </div>
+              <div
+                style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #475569"
+              >
+                <div><strong>Custo Unit.:</strong> {{ formatCurrency(item.unitCost) }}</div>
+                <div><strong>Custo Total:</strong> {{ formatCurrency(item.totalCost) }}</div>
+                <div>
+                  <strong>Lucro do item:</strong>
+                  {{ formatCurrency(item.unitPrice * item.quantity - item.totalCost) }}
+                </div>
+              </div>
+
+              <div
+                v-if="item.extraIngredients && item.extraIngredients.length"
+                style="margin-top: 10px"
+              >
+                <div style="font-weight: 600; margin-bottom: 4px">Ingredientes extras</div>
+                <table style="width: 100%; font-size: 0.875rem">
+                  <thead>
+                    <tr>
+                      <th style="text-align: left">Ingrediente</th>
+                      <th style="text-align: right">Quantidade</th>
+                      <th style="text-align: right">Custo Unit.</th>
+                      <th style="text-align: right">Custo Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="extra in item.extraIngredients" :key="extra.id">
+                      <td>{{ extra.ingredientName }}</td>
+                      <td style="text-align: right">
+                        {{ extra.quantity }} {{ extra.ingredientUnit }}
+                      </td>
+                      <td style="text-align: right">{{ formatCurrency(extra.costPerUnit) }}</td>
+                      <td style="text-align: right">{{ formatCurrency(extra.totalCost) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           <div class="form-actions">

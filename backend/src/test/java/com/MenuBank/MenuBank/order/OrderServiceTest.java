@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -118,7 +119,7 @@ class OrderServiceTest {
                 .status(OrderStatus.PAID)
                 .totalValue(new BigDecimal("60.00"))
                 .estimatedProfit(new BigDecimal("36.00"))
-                .items(List.of(orderItem))
+                .items(new ArrayList<>(List.of(orderItem)))
                 .build();
     }
 
@@ -310,6 +311,94 @@ class OrderServiceTest {
             // extraCost(per unit) = 50 * 0.10 = 5.00; for 2 units => 10.00
             // estimatedProfit = 60.00 - (24.00 + 10.00) = 26.00
             assertThat(response.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("26.00"));
+        }
+
+        @Test
+        @DisplayName("deve expor unitCost e totalCost por item na resposta")
+        void shouldExposeUnitCostAndTotalCostPerItem() {
+            OrderItemExtraIngredientRequest extra = OrderItemExtraIngredientRequest.builder()
+                    .ingredientId(ingredientId)
+                    .quantity(new BigDecimal("50"))
+                    .build();
+
+            OrderItemRequest itemWithExtra = OrderItemRequest.builder()
+                    .productId(productId)
+                    .quantity(2)
+                    .extraIngredients(List.of(extra))
+                    .build();
+
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(itemWithExtra))
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
+                Order saved = invocation.getArgument(0);
+                saved.setId(orderId);
+                saved.getItems().forEach(i -> i.setId(UUID.randomUUID()));
+                return saved;
+            });
+
+            OrderResponse response = orderService.create(requestWithExtra);
+
+            // unitCost = product.estimatedCost (12) + extras (50 * 0.10 = 5) = 17
+            // totalCost = unitCost * quantity (2) = 34
+            OrderItemResponse itemResponse = response.getItems().get(0);
+            assertThat(itemResponse.getUnitCost()).isEqualByComparingTo(new BigDecimal("17.00"));
+            assertThat(itemResponse.getTotalCost()).isEqualByComparingTo(new BigDecimal("34.00"));
+        }
+
+        @Test
+        @DisplayName("deve suportar costPerUnit com 4 casas decimais sem perder precisão")
+        void shouldSupportFourDecimalCostPerUnit() {
+            Ingredient fineIngredient = Ingredient.builder()
+                    .id(ingredientId)
+                    .ownerId(ownerId)
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("0.0035"))
+                    .status(IngredientStatus.ACTIVE)
+                    .build();
+
+            OrderItemExtraIngredientRequest extra = OrderItemExtraIngredientRequest.builder()
+                    .ingredientId(ingredientId)
+                    .quantity(new BigDecimal("100"))
+                    .build();
+
+            OrderItemRequest itemWithExtra = OrderItemRequest.builder()
+                    .productId(productId)
+                    .quantity(1)
+                    .extraIngredients(List.of(extra))
+                    .build();
+
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(itemWithExtra))
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(fineIngredient));
+            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
+                Order saved = invocation.getArgument(0);
+                saved.setId(orderId);
+                saved.getItems().forEach(i -> i.setId(UUID.randomUUID()));
+                return saved;
+            });
+
+            OrderResponse response = orderService.create(requestWithExtra);
+
+            // totalValue = 1 * 30.00 = 30.00
+            // extraCost = 100 * 0.0035 = 0.3500
+            // baseCost = 1 * 12.00 = 12.00
+            // estimatedProfit = 30.00 - (12 + 0.35) = 17.65
+            assertThat(response.getEstimatedProfit())
+                    .isEqualByComparingTo(new BigDecimal("17.6500"));
         }
 
         @Test
