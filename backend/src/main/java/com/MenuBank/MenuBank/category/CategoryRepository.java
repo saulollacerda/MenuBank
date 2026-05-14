@@ -10,6 +10,8 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     boolean existsByNameAndOwnerId(String name, UUID ownerId);
 
+    Optional<Category> findByNameAndOwnerId(String name, UUID ownerId);
+
     Optional<Category> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<Category> findAllByOwnerId(UUID ownerId);

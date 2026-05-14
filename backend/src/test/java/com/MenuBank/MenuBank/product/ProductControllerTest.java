@@ -34,11 +34,13 @@ class ProductControllerTest {
     private ProductService productService;
 
     private UUID productId;
+    private UUID categoryId;
     private ProductResponse productResponse;
 
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
+        categoryId = UUID.randomUUID();
 
         productResponse = ProductResponse.builder()
                 .id(productId)
@@ -48,6 +50,8 @@ class ProductControllerTest {
                 .margin(new BigDecimal("25.90"))
                 .status(ProductStatus.ACTIVE)
                 .cmv(BigDecimal.ZERO)
+                .categoryId(categoryId)
+                .categoryName("Lanches")
                 .build();
     }
 
@@ -55,6 +59,7 @@ class ProductControllerTest {
         return ProductRequest.builder()
                 .name("X-Burguer")
                 .price(new BigDecimal("25.90"))
+                .categoryId(categoryId)
                 .build();
     }
 
@@ -79,7 +84,9 @@ class ProductControllerTest {
                     .andExpect(jsonPath("$.id").value(productId.toString()))
                     .andExpect(jsonPath("$.name").value("X-Burguer"))
                     .andExpect(jsonPath("$.price").value(25.90))
-                    .andExpect(jsonPath("$.status").value("ACTIVE"));
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.categoryId").value(categoryId.toString()))
+                    .andExpect(jsonPath("$.categoryName").value("Lanches"));
         }
 
         @Test
@@ -89,6 +96,21 @@ class ProductControllerTest {
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(ProductRequest.builder().build())))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando categoryId está ausente")
+        void shouldReturn400WhenCategoryIdMissing() throws Exception {
+            ProductRequest noCategory = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .build();
+
+            mockMvc.perform(post("/api/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(noCategory)))
                     .andExpect(status().isBadRequest());
         }
 

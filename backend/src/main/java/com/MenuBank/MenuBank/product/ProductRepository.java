@@ -17,4 +17,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 
     void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+
+    List<Product> findAllByCategoryIsNull();
 }

@@ -55,8 +55,16 @@ describe('productService', () => {
   })
 
   it('create should POST /products', async () => {
-    const request = { name: 'Hambúrguer', price: 25.0 }
-    const mockData = { id: '1', ...request, estimatedCost: null, margin: null, status: 'ACTIVE', cmv: null }
+    const request = { name: 'Hambúrguer', price: 25.0, categoryId: 'cat1' }
+    const mockData = {
+      id: '1',
+      ...request,
+      estimatedCost: null,
+      margin: null,
+      status: 'ACTIVE',
+      cmv: null,
+      categoryName: 'Lanches',
+    }
     vi.mocked(api.post).mockResolvedValue({ data: mockData })
 
     const result = await productService.create(request)
@@ -66,8 +74,16 @@ describe('productService', () => {
   })
 
   it('update should PUT /products/:id', async () => {
-    const request = { name: 'Hambúrguer Especial', price: 30.0 }
-    const mockData = { id: '1', ...request, estimatedCost: 10.0, margin: 20.0, status: 'ACTIVE', cmv: 10.0 }
+    const request = { name: 'Hambúrguer Especial', price: 30.0, categoryId: 'cat1' }
+    const mockData = {
+      id: '1',
+      ...request,
+      estimatedCost: 10.0,
+      margin: 20.0,
+      status: 'ACTIVE',
+      cmv: 10.0,
+      categoryName: 'Lanches',
+    }
     vi.mocked(api.put).mockResolvedValue({ data: mockData })
 
     const result = await productService.update('1', request)

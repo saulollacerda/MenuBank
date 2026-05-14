@@ -2,16 +2,18 @@
 import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 import type { ProductRequest, ProductResponse, RecipeItemRequest } from '@/types/Product'
 
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
+const categoryStore = useCategoryStore()
 
 const showModal = ref(false)
 const showRecipeModal = ref(false)
 const editing = ref<ProductResponse | null>(null)
 const selectedProduct = ref<ProductResponse | null>(null)
-const form = ref<ProductRequest>({ name: '', price: 0 })
+const form = ref<ProductRequest>({ name: '', price: 0, categoryId: '' })
 const recipeForm = ref<RecipeItemRequest>({ ingredientId: '', quantity: 0 })
 const confirmDeleteId = ref<string | null>(null)
 
@@ -34,13 +36,17 @@ function statusClass(status: string): string {
 
 function openCreateModal() {
   editing.value = null
-  form.value = { name: '', price: 0 }
+  form.value = { name: '', price: 0, categoryId: '' }
   showModal.value = true
 }
 
 function openEditModal(product: ProductResponse) {
   editing.value = product
-  form.value = { name: product.name, price: product.price }
+  form.value = {
+    name: product.name,
+    price: product.price,
+    categoryId: product.categoryId,
+  }
   showModal.value = true
 }
 
@@ -117,6 +123,7 @@ async function handleDelete() {
 onMounted(() => {
   productStore.fetchAll()
   ingredientStore.fetchAll()
+  categoryStore.fetchAll()
 })
 </script>
 
@@ -124,7 +131,13 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Produtos</h1>
-      <button class="btn btn-primary" @click="openCreateModal">+ Novo Produto</button>
+      <button
+        class="btn btn-primary"
+        data-testid="new-product-button"
+        @click="openCreateModal"
+      >
+        + Novo Produto
+      </button>
     </div>
 
     <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
@@ -143,6 +156,7 @@ onMounted(() => {
         <thead>
           <tr>
             <th>Nome</th>
+            <th>Categoria</th>
             <th>Preço</th>
             <th>Custo Estimado</th>
             <th>Margem</th>
@@ -154,6 +168,7 @@ onMounted(() => {
         <tbody>
           <tr v-for="product in productStore.items" :key="product.id">
             <td>{{ product.name }}</td>
+            <td>{{ product.categoryName }}</td>
             <td>{{ formatCurrency(product.price) }}</td>
             <td>{{ formatCurrency(product.estimatedCost) }}</td>
             <td>{{ formatCurrency(product.margin) }}</td>
@@ -168,7 +183,11 @@ onMounted(() => {
                 <button class="btn btn-primary btn-sm" @click="openRecipeModal(product)">
                   Ficha Técnica
                 </button>
-                <button class="btn btn-secondary btn-sm" @click="openEditModal(product)">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  :data-testid="`product-${product.id}-edit-button`"
+                  @click="openEditModal(product)"
+                >
                   Editar
                 </button>
                 <button class="btn btn-danger btn-sm" @click="confirmDelete(product.id)">
@@ -189,7 +208,7 @@ onMounted(() => {
           <button class="modal-close" @click="closeModal">✕</button>
         </div>
         <div class="modal-body">
-          <form @submit.prevent="handleSubmit">
+          <form data-testid="product-form" @submit.prevent="handleSubmit">
             <div class="form-group">
               <label>Nome</label>
               <input
@@ -197,8 +216,27 @@ onMounted(() => {
                 type="text"
                 class="form-control"
                 placeholder="Nome do produto"
+                data-testid="product-name-input"
                 required
               />
+            </div>
+            <div class="form-group">
+              <label>Categoria</label>
+              <select
+                v-model="form.categoryId"
+                class="form-control"
+                data-testid="product-category-select"
+                required
+              >
+                <option value="" disabled>Selecione...</option>
+                <option
+                  v-for="category in categoryStore.items"
+                  :key="category.id"
+                  :value="category.id"
+                >
+                  {{ category.name }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>Preço (R$)</label>
@@ -209,6 +247,7 @@ onMounted(() => {
                 min="0.01"
                 class="form-control"
                 placeholder="0,00"
+                data-testid="product-price-input"
                 required
               />
             </div>
