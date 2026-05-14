@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.order;
 import com.MenuBank.MenuBank.product.Product;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class OrderItem {
     private BigDecimal unitPrice;
 
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 30)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Builder.Default
