@@ -284,6 +284,19 @@ onMounted(() => {
               </select>
             </div>
 
+            <div v-if="editingOrderId" class="form-group">
+              <label>Status</label>
+              <select
+                v-model="form.status"
+                class="form-control"
+                data-testid="order-status-select"
+              >
+                <option value="PENDING">Pendente</option>
+                <option value="PAID">Pago</option>
+                <option value="CANCELLED">Cancelado</option>
+              </select>
+            </div>
+
             <div style="margin-bottom: 16px">
               <label style="font-weight: 600; margin-bottom: 8px; display: block">
                 Itens do Pedido
