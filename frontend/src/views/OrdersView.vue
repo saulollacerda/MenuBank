@@ -4,6 +4,7 @@ import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
+import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
 import type {
   OrderRequest,
   OrderResponse,
@@ -15,6 +16,7 @@ const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
+const paymentMethodStore = usePaymentMethodStore()
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
@@ -94,6 +96,7 @@ function openEditModal(order: OrderResponse) {
   form.value = {
     customerId: order.customerId,
     status: order.status,
+    paymentMethodId: order.paymentMethodId,
     items: order.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -182,6 +185,7 @@ onMounted(() => {
   customerStore.fetchAll()
   productStore.fetchAll()
   ingredientStore.fetchAll()
+  paymentMethodStore.fetchAll()
 })
 </script>
 
@@ -280,6 +284,37 @@ onMounted(() => {
                   :value="customer.id"
                 >
                   {{ customer.name }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="editingOrderId" class="form-group">
+              <label>Status</label>
+              <select
+                v-model="form.status"
+                class="form-control"
+                data-testid="order-status-select"
+              >
+                <option value="PENDING">Pendente</option>
+                <option value="PAID">Pago</option>
+                <option value="CANCELLED">Cancelado</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Forma de Pagamento</label>
+              <select
+                v-model="form.paymentMethodId"
+                class="form-control"
+                data-testid="order-payment-method-select"
+              >
+                <option :value="undefined">Nenhuma</option>
+                <option
+                  v-for="pm in paymentMethodStore.items"
+                  :key="pm.id"
+                  :value="pm.id"
+                >
+                  {{ pm.name }} ({{ pm.feeRate }}%)
                 </option>
               </select>
             </div>
@@ -466,6 +501,10 @@ onMounted(() => {
               <span data-testid="order-detail-margin">
                 {{ formatPercent(orderMargin(selectedOrder)) }}
               </span>
+            </div>
+            <div v-if="selectedOrder.paymentMethodName">
+              <strong>Forma de Pagamento:</strong>
+              {{ selectedOrder.paymentMethodName }} ({{ selectedOrder.feeRate }}%)
             </div>
           </div>
 

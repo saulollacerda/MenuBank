@@ -21,5 +21,7 @@ public class OrderRequest {
     private List<OrderItemRequest> items;
 
     private OrderStatus status;
+
+    private UUID paymentMethodId;
 }
 

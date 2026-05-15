@@ -45,6 +45,11 @@ const router = createRouter({
       name: 'customers',
       component: () => import('@/views/CustomersView.vue'),
     },
+    {
+      path: '/payment-methods',
+      name: 'payment-methods',
+      component: () => import('@/views/PaymentMethodsView.vue'),
+    },
   ],
 })
 

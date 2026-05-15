@@ -10,6 +10,8 @@ import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.product.DuplicateProductException;
 import com.MenuBank.MenuBank.product.ProductNotFoundException;
+import com.MenuBank.MenuBank.payment.DuplicatePaymentMethodException;
+import com.MenuBank.MenuBank.payment.PaymentMethodNotFoundException;
 import com.MenuBank.MenuBank.product.RecipeItemNotFoundException;
 import com.MenuBank.MenuBank.user.DuplicateUserException;
 import com.MenuBank.MenuBank.user.UserNotFoundException;
@@ -127,5 +129,19 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Item da ficha técnica não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(PaymentMethodNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handlePaymentMethodNotFound(PaymentMethodNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Forma de pagamento não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicatePaymentMethodException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicatePaymentMethod(DuplicatePaymentMethodException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 }
