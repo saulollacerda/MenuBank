@@ -41,6 +41,10 @@ function handleLogout() {
         <span class="nav-icon">👤</span>
         <span>Clientes</span>
       </RouterLink>
+      <RouterLink to="/payment-methods">
+        <span class="nav-icon">💳</span>
+        <span>Formas de Pagamento</span>
+      </RouterLink>
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">

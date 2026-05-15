@@ -35,6 +35,7 @@ export interface OrderItemResponse {
 export interface OrderRequest {
   customerId: string
   status?: OrderStatus
+  paymentMethodId?: string
   items: OrderItemRequest[]
 }
 
@@ -46,6 +47,9 @@ export interface OrderResponse {
   status: OrderStatus
   totalValue: number
   estimatedProfit: number
+  paymentMethodId?: string
+  paymentMethodName?: string
+  feeRate?: number
   items: OrderItemResponse[]
 }
 
