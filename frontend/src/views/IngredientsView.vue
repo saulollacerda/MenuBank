@@ -17,7 +17,7 @@ const purchaseQuantity = ref<number | null>(null)
 const computedCostPerUnit = computed(() => {
   const price = purchasePrice.value ?? 0
   const qty = purchaseQuantity.value ?? 0
-  if (qty <= 0 || price < 0) return null
+  if (qty <= 0 || price <= 0) return null
   return price / qty
 })
 
@@ -71,7 +71,7 @@ function closeModal() {
 async function handleSubmit() {
   if (autoCalcCost.value) {
     if (computedCostPerUnit.value == null) return
-    form.value.costPerUnit = computedCostPerUnit.value
+    form.value.costPerUnit = Number(computedCostPerUnit.value.toFixed(4))
   }
   try {
     if (editing.value) {
