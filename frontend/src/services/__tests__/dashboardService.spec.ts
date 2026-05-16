@@ -51,4 +51,29 @@ describe('dashboardService', () => {
     })
     expect(result).toEqual(mockData)
   })
+
+  it('exportDashboard should GET /export/dashboard with responseType blob', async () => {
+    const mockBlob = new Blob(['xlsx'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    vi.mocked(api.get).mockResolvedValue({ data: mockBlob })
+
+    const result = await dashboardService.exportDashboard('2026-03-01', '2026-03-31')
+
+    expect(api.get).toHaveBeenCalledWith('/export/dashboard', {
+      params: { startDate: '2026-03-01', endDate: '2026-03-31' },
+      responseType: 'blob',
+    })
+    expect(result).toBe(mockBlob)
+  })
+
+  it('exportDashboard should GET /export/dashboard without params when no dates provided', async () => {
+    const mockBlob = new Blob(['xlsx'])
+    vi.mocked(api.get).mockResolvedValue({ data: mockBlob })
+
+    await dashboardService.exportDashboard()
+
+    expect(api.get).toHaveBeenCalledWith('/export/dashboard', {
+      params: {},
+      responseType: 'blob',
+    })
+  })
 })

@@ -10,5 +10,14 @@ export const dashboardService = {
     const { data } = await api.get<DashboardResponse>('/dashboard', { params })
     return data
   },
+
+  async exportDashboard(startDate?: string, endDate?: string): Promise<Blob> {
+    const params: Record<string, string> = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+
+    const { data } = await api.get<Blob>('/export/dashboard', { params, responseType: 'blob' })
+    return data
+  },
 }
 
