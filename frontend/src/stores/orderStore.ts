@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { OrderRequest, OrderResponse } from '@/types/Order'
 import { orderService } from '@/services/orderService'
+import { useDashboardStore } from '@/stores/dashboardStore'
 
 export const useOrderStore = defineStore('order', () => {
   const items = ref<OrderResponse[]>([])
@@ -10,6 +11,13 @@ export const useOrderStore = defineStore('order', () => {
   const loaded = ref(false)
 
   let fetchAllInFlight: Promise<void> | null = null
+
+  function refreshDashboard() {
+    const dashboardStore = useDashboardStore()
+    void dashboardStore.fetchDashboard(true).catch(() => {
+      // dashboard refresh is best-effort; errors are surfaced by the dashboard store itself
+    })
+  }
 
   async function fetchAll(force = false) {
     if (!force && loaded.value) return
@@ -42,6 +50,7 @@ export const useOrderStore = defineStore('order', () => {
       const created = await orderService.create(request)
       items.value.push(created)
       loaded.value = true
+      refreshDashboard()
       return created
     } catch (e: unknown) {
       error.value = 'Erro ao criar pedido'
@@ -59,6 +68,7 @@ export const useOrderStore = defineStore('order', () => {
       const index = items.value.findIndex((item) => item.id === id)
       if (index !== -1) items.value[index] = updated
       loaded.value = true
+      refreshDashboard()
       return updated
     } catch (e: unknown) {
       error.value = 'Erro ao atualizar pedido'
@@ -75,6 +85,7 @@ export const useOrderStore = defineStore('order', () => {
       await orderService.remove(id)
       items.value = items.value.filter((item) => item.id !== id)
       loaded.value = true
+      refreshDashboard()
     } catch (e: unknown) {
       error.value = 'Erro ao excluir pedido'
       throw e

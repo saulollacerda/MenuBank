@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { Bar } from 'vue-chartjs'
 import {
@@ -58,8 +58,53 @@ function getChartData() {
 }
 
 function handleFilter() {
-  store.fetchDashboard()
+  store.fetchDashboard(true)
 }
+
+const MONTHS_PT = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+]
+
+const START_YEAR = 2026
+
+const now = new Date()
+const currentYear = now.getFullYear()
+const currentMonth = now.getMonth() + 1
+
+const yearOptions = computed<number[]>(() => {
+  const years: number[] = []
+  const end = Math.max(currentYear, START_YEAR)
+  for (let y = START_YEAR; y <= end; y++) {
+    years.push(y)
+  }
+  return years
+})
+
+const monthOptions = computed<{ value: number; label: string }[]>(() => {
+  const maxMonth = store.selectedYear === currentYear ? currentMonth : 12
+  return MONTHS_PT.slice(0, maxMonth).map((label, idx) => ({ value: idx + 1, label }))
+})
+
+watch(
+  () => store.selectedYear,
+  () => {
+    const maxMonth = store.selectedYear === currentYear ? currentMonth : 12
+    if (store.selectedMonthNumber > maxMonth) {
+      store.selectedMonthNumber = maxMonth
+    }
+  },
+)
 
 onMounted(() => {
   store.fetchDashboard()
@@ -71,11 +116,46 @@ onMounted(() => {
     <div class="page-header">
       <h1>Dashboard</h1>
       <div class="date-filter">
-        <label>De:</label>
-        <input v-model="store.startDate" type="date" />
-        <label>Até:</label>
-        <input v-model="store.endDate" type="date" />
+        <template v-if="store.filterMode === 'month'">
+          <label>Mês:</label>
+          <select v-model.number="store.selectedMonthNumber">
+            <option v-for="m in monthOptions" :key="m.value" :value="m.value">
+              {{ m.label }}
+            </option>
+          </select>
+          <select v-model.number="store.selectedYear">
+            <option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <button class="btn btn-link btn-sm" @click="store.filterMode = 'custom'">
+            Usar período personalizado
+          </button>
+        </template>
+        <template v-else>
+          <label>De:</label>
+          <input v-model="store.startDate" type="date" />
+          <label>Até:</label>
+          <input v-model="store.endDate" type="date" />
+          <button class="btn btn-link btn-sm" @click="store.filterMode = 'month'">
+            Usar seleção por mês
+          </button>
+        </template>
         <button class="btn btn-primary btn-sm" @click="handleFilter">Filtrar</button>
+        <button
+          class="btn btn-secondary btn-sm"
+          :disabled="store.exporting"
+          @click="store.exportDashboard()"
+        >
+          <span v-if="store.exporting">Exportando...</span>
+          <span v-else>Exportar para Excel</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          :disabled="store.exporting"
+          @click="store.exportDayClosing()"
+        >
+          <span v-if="store.exporting">Exportando...</span>
+          <span v-else>Fechamento do Dia</span>
+        </button>
       </div>
     </div>
 
@@ -90,7 +170,7 @@ onMounted(() => {
     <template v-else-if="store.data">
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Total de Vendas</div>
+          <div class="kpi-label">Faturamento</div>
           <div class="kpi-value">{{ formatCurrency(store.data.totalSales) }}</div>
         </div>
         <div class="kpi-card">
@@ -145,4 +225,3 @@ onMounted(() => {
 </template>
 
 <style scoped></style>
-
