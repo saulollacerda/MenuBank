@@ -17,4 +17,9 @@ export interface UserResponse {
   phone: string | null
   status: UserStatus
   createdAt: string
+  anotaAiApiKey?: string | null
+}
+
+export interface AnotaAIKeyRequest {
+  anotaAiApiKey: string | null
 }

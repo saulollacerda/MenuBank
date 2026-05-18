@@ -5,6 +5,7 @@ import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import type {
   OrderRequest,
   OrderResponse,
@@ -17,6 +18,16 @@ const customerStore = useCustomerStore()
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
 const paymentMethodStore = usePaymentMethodStore()
+const anotaAIStore = useAnotaAIStore()
+
+async function handleSyncAnotaAI() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncOrders()
+  } catch {
+    // erro fica em anotaAIStore.error
+  }
+}
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
@@ -193,9 +204,32 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Pedidos</h1>
-      <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
-        + Novo Pedido
-      </button>
+      <div class="page-header-actions">
+        <button
+          class="btn btn-secondary"
+          data-testid="sync-anotaai-orders-button"
+          :disabled="anotaAIStore.syncingOrders"
+          @click="handleSyncAnotaAI"
+        >
+          <span v-if="anotaAIStore.syncingOrders" class="spinner spinner-sm"></span>
+          <span v-else>📥 Importar do Anota.AI</span>
+        </button>
+        <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
+          + Novo Pedido
+        </button>
+      </div>
+    </div>
+
+    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
+    <div
+      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+      class="alert alert-success"
+    >
+      {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
+      {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
+      <span v-if="anotaAIStore.lastResult.errors.length > 0">
+        ({{ anotaAIStore.lastResult.errors.length }} erro(s) ignorado(s))
+      </span>
     </div>
 
     <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
@@ -224,7 +258,10 @@ onMounted(() => {
         <tbody>
           <tr v-for="order in orderStore.items" :key="order.id">
             <td>{{ formatDateTime(order.dateTime) }}</td>
-            <td>{{ order.customerName }}</td>
+            <td>
+              {{ order.customerName }}
+              <span v-if="order.origin === 'ANOTA_AI'" class="badge badge-anotaai">Anota.AI</span>
+            </td>
             <td>
               <span :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span>
             </td>
@@ -591,5 +628,21 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.page-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge-anotaai {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: #ef4444;
+  border-radius: 999px;
+}
+</style>
 

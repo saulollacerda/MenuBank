@@ -4,6 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 let productStoreMock: any
 let ingredientStoreMock: any
 let categoryStoreMock: any
+let anotaAIStoreMock: any
 
 vi.mock('@/stores/productStore', () => ({
   useProductStore: () => productStoreMock,
@@ -15,6 +16,10 @@ vi.mock('@/stores/ingredientStore', () => ({
 
 vi.mock('@/stores/categoryStore', () => ({
   useCategoryStore: () => categoryStoreMock,
+}))
+
+vi.mock('@/stores/anotaAIStore', () => ({
+  useAnotaAIStore: () => anotaAIStoreMock,
 }))
 
 import ProductsView from '@/views/ProductsView.vue'
@@ -71,6 +76,16 @@ describe('ProductsView', () => {
       loading: false,
       error: null,
       fetchAll: vi.fn(),
+    }
+
+    anotaAIStoreMock = {
+      syncingOrders: false,
+      syncingCatalog: false,
+      lastResult: null,
+      error: null,
+      syncOrders: vi.fn(),
+      syncCatalog: vi.fn(),
+      clearResult: vi.fn(),
     }
   })
 

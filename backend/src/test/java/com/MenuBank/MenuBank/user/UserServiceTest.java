@@ -239,6 +239,51 @@ class UserServiceTest {
     }
 
     @Nested
+    @DisplayName("updateAnotaAIKey()")
+    class UpdateAnotaAIKey {
+
+        @Test
+        @DisplayName("deve salvar a chave do Anota.AI no usuário autenticado")
+        void shouldSaveKeyOnCurrentUser() {
+            given(userContext.getUserId()).willReturn(userId);
+            given(userRepository.findById(userId)).willReturn(Optional.of(user));
+            given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+
+            UserResponse result = userService.updateAnotaAIKey(new AnotaAIKeyRequest("my-key"));
+
+            assertThat(result.getAnotaAiApiKey()).isEqualTo("my-key");
+            assertThat(user.getAnotaAiApiKey()).isEqualTo("my-key");
+            then(passwordEncoder).should(never()).encode(anyString());
+        }
+
+        @Test
+        @DisplayName("deve aceitar chave nula (remover a chave)")
+        void shouldAcceptNullKey() {
+            user.setAnotaAiApiKey("old-key");
+            given(userContext.getUserId()).willReturn(userId);
+            given(userRepository.findById(userId)).willReturn(Optional.of(user));
+            given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+
+            UserResponse result = userService.updateAnotaAIKey(new AnotaAIKeyRequest(null));
+
+            assertThat(result.getAnotaAiApiKey()).isNull();
+            assertThat(user.getAnotaAiApiKey()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve lançar UserNotFoundException se usuário autenticado não existir")
+        void shouldThrowIfUserNotFound() {
+            given(userContext.getUserId()).willReturn(userId);
+            given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userService.updateAnotaAIKey(new AnotaAIKeyRequest("k")))
+                    .isInstanceOf(UserNotFoundException.class);
+
+            then(userRepository).should(never()).save(any(User.class));
+        }
+    }
+
+    @Nested
     @DisplayName("delete()")
     class Delete {
 

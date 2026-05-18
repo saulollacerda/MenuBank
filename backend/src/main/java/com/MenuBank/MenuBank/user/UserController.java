@@ -40,5 +40,11 @@ public class UserController {
         userService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/me/anota-ai-key")
+    public ResponseEntity<UserResponse> updateAnotaAIKey(@RequestBody AnotaAIKeyRequest request) {
+        UserResponse response = userService.updateAnotaAIKey(request);
+        return ResponseEntity.ok(response);
+    }
 }
 

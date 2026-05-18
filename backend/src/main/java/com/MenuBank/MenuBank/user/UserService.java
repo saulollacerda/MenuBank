@@ -67,6 +67,16 @@ public class UserService {
         return toResponse(saved);
     }
 
+    public UserResponse updateAnotaAIKey(AnotaAIKeyRequest request) {
+        UUID currentUserId = userContext.getUserId();
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UserNotFoundException(currentUserId));
+
+        user.setAnotaAiApiKey(request.getAnotaAiApiKey());
+        User saved = userRepository.save(user);
+        return toResponse(saved);
+    }
+
     @Transactional
     public void delete(UUID id) {
         ensureOwner(id);

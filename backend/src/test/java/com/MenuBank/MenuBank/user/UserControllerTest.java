@@ -224,4 +224,33 @@ class UserControllerTest {
                     .andExpect(status().isNotFound());
         }
     }
+
+    // -------------------------------------------------------------------------
+    // PUT /api/users/me/anota-ai-key
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("PUT /api/users/me/anota-ai-key")
+    class UpdateAnotaAIKey {
+
+        @Test
+        @DisplayName("deve retornar 200 com UserResponse contendo a nova chave")
+        void shouldReturn200WithUpdatedUser() throws Exception {
+            UserResponse withKey = UserResponse.builder()
+                    .id(userId)
+                    .restaurantName(userResponse.getRestaurantName())
+                    .cnpj(userResponse.getCnpj())
+                    .email(userResponse.getEmail())
+                    .anotaAiApiKey("new-key")
+                    .build();
+            given(userService.updateAnotaAIKey(any(AnotaAIKeyRequest.class))).willReturn(withKey);
+
+            mockMvc.perform(put("/api/users/me/anota-ai-key")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new AnotaAIKeyRequest("new-key"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.anotaAiApiKey").value("new-key"));
+        }
+    }
 }

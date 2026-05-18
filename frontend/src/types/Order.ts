@@ -1,4 +1,5 @@
 export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED'
+export type OrderOrigin = 'MENUBANK' | 'ANOTA_AI'
 
 export interface OrderItemExtraIngredientRequest {
   ingredientId: string
@@ -51,5 +52,6 @@ export interface OrderResponse {
   paymentMethodName?: string
   feeRate?: number
   items: OrderItemResponse[]
+  origin?: OrderOrigin
 }
 

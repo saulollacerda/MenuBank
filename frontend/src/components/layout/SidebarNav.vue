@@ -45,6 +45,10 @@ function handleLogout() {
         <span class="nav-icon">💳</span>
         <span>Formas de Pagamento</span>
       </RouterLink>
+      <RouterLink to="/settings">
+        <span class="nav-icon">⚙️</span>
+        <span>Configurações</span>
+      </RouterLink>
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">

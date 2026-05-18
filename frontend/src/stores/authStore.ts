@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { LoginRequest, LoginResponse } from '@/types/Auth'
-import type { UserRequest } from '@/types/User'
+import type { UserRequest, UserResponse } from '@/types/User'
 import { authService } from '@/services/authService'
+import { userService } from '@/services/userService'
 
 const TOKEN_KEY = 'menubank_token'
 const USER_KEY = 'menubank_user'
@@ -16,6 +17,7 @@ interface StoredUser {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
   const user = ref<StoredUser | null>(loadUser())
+  const currentUser = ref<UserResponse | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -94,11 +96,44 @@ export const useAuthStore = defineStore('auth', () => {
 
   function logout() {
     clearSession()
+    currentUser.value = null
+  }
+
+  async function fetchCurrentUser() {
+    if (!user.value) return null
+    loading.value = true
+    error.value = null
+    try {
+      const response = await userService.getById(user.value.userId)
+      currentUser.value = response
+      return response
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar perfil'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateAnotaAIKey(key: string | null) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await userService.updateAnotaAIKey({ anotaAiApiKey: key })
+      currentUser.value = response
+      return response
+    } catch (e: unknown) {
+      error.value = 'Erro ao salvar a chave do Anota.AI'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
   return {
     token,
     user,
+    currentUser,
     loading,
     error,
     isAuthenticated,
@@ -107,6 +142,8 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     clearSession,
+    fetchCurrentUser,
+    updateAnotaAIKey,
   }
 })
 

@@ -3,11 +3,22 @@ import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import type { ProductRequest, ProductResponse, RecipeItemRequest } from '@/types/Product'
 
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
 const categoryStore = useCategoryStore()
+const anotaAIStore = useAnotaAIStore()
+
+async function handleSyncCatalog() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncCatalog()
+  } catch {
+    // erro fica em anotaAIStore.error
+  }
+}
 
 const showModal = ref(false)
 const showRecipeModal = ref(false)
@@ -131,13 +142,35 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Produtos</h1>
-      <button
-        class="btn btn-primary"
-        data-testid="new-product-button"
-        @click="openCreateModal"
-      >
-        + Novo Produto
-      </button>
+      <div class="page-header-actions">
+        <button
+          class="btn btn-secondary"
+          data-testid="sync-anotaai-catalog-button"
+          :disabled="anotaAIStore.syncingCatalog"
+          @click="handleSyncCatalog"
+        >
+          <span v-if="anotaAIStore.syncingCatalog" class="spinner spinner-sm"></span>
+          <span v-else>🔄 Sincronizar Cardápio</span>
+        </button>
+        <button
+          class="btn btn-primary"
+          data-testid="new-product-button"
+          @click="openCreateModal"
+        >
+          + Novo Produto
+        </button>
+      </div>
+    </div>
+
+    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
+    <div
+      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+      class="alert alert-success"
+    >
+      Categorias: {{ anotaAIStore.lastResult.categoriesCreated }} criada(s),
+      {{ anotaAIStore.lastResult.categoriesUpdated }} atualizada(s).
+      Produtos: {{ anotaAIStore.lastResult.productsCreated }} criado(s),
+      {{ anotaAIStore.lastResult.productsUpdated }} atualizado(s).
     </div>
 
     <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
@@ -369,4 +402,9 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.page-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+</style>
