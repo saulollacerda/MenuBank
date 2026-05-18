@@ -19,5 +19,7 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 
     void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+
+    Optional<Category> findByExternalIdAndOwnerId(String externalId, UUID ownerId);
 }
 

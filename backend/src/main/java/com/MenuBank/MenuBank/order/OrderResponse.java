@@ -24,5 +24,6 @@ public class OrderResponse {
     private String paymentMethodName;
     private BigDecimal feeRate;
     private List<OrderItemResponse> items;
+    private OrderOrigin origin;
 }
 

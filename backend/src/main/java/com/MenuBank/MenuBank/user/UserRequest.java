@@ -36,4 +36,6 @@ public class UserRequest {
     @Size(max = 20, message = "Telefone não pode ter mais de 20 caracteres")
     @Pattern(regexp = "^[0-9+\\-() ]*$", message = "Telefone contém caracteres inválidos")
     private String phone;
+
+    private String anotaAiApiKey;
 }

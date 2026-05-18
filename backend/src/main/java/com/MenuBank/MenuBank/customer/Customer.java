@@ -26,5 +26,8 @@ public class Customer {
     private String phone;
 
     private String email;
+
+    @Column(name = "external_id")
+    private String externalId;
 }
 

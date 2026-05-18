@@ -19,4 +19,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     void deleteByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<Product> findAllByCategoryIsNull();
+
+    Optional<Product> findByExternalIdAndOwnerId(String externalId, UUID ownerId);
 }

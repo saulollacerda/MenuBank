@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
+import com.MenuBank.MenuBank.integration.anotaai.AnotaAIIntegrationException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
@@ -143,5 +144,12 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(AnotaAIIntegrationException.class)
+    public ResponseEntity<ProblemDetail> handleAnotaAIIntegration(AnotaAIIntegrationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Erro na integração com Anota.AI");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 }

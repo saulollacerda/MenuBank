@@ -15,5 +15,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 	boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 
 	void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+
+	Optional<Customer> findByPhoneAndOwnerId(String phone, UUID ownerId);
 }
 

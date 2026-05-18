@@ -46,6 +46,13 @@ public class Order {
     @Column(nullable = false)
     private BigDecimal estimatedProfit;
 
+    @Column(name = "external_order_id")
+    private String externalOrderId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin")
+    private OrderOrigin origin;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

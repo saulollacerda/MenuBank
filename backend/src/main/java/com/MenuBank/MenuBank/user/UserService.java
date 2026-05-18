@@ -61,6 +61,7 @@ public class UserService {
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
+        user.setAnotaAiApiKey(request.getAnotaAiApiKey());
 
         User saved = userRepository.save(user);
         return toResponse(saved);
@@ -90,6 +91,7 @@ public class UserService {
                 .phone(user.getPhone())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())
+                .anotaAiApiKey(user.getAnotaAiApiKey())
                 .build();
     }
 }

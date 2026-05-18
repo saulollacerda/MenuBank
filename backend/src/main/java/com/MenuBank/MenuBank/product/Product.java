@@ -24,6 +24,9 @@ public class Product {
     @Column(name = "owner_id")
     private UUID ownerId;
 
+    @Column(name = "external_id")
+    private String externalId;
+
     @Column(nullable = false)
     private String name;
 

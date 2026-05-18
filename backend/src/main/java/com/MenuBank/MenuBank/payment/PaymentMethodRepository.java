@@ -17,4 +17,6 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, UU
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 
     void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+
+    Optional<PaymentMethod> findByNameIgnoreCaseAndOwnerId(String name, UUID ownerId);
 }

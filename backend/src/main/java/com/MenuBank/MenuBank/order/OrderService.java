@@ -67,6 +67,7 @@ public class OrderService {
                 .status(OrderStatus.PAID)
                 .totalValue(totalValue)
                 .estimatedProfit(estimatedProfit)
+                .origin(OrderOrigin.MENUBANK)
                 .items(items)
                 .build();
 
@@ -253,6 +254,7 @@ public class OrderService {
                 .paymentMethodName(pm != null ? pm.getName() : null)
                 .feeRate(pm != null ? pm.getFeeRate() : null)
                 .items(itemResponses)
+                .origin(order.getOrigin())
                 .build();
     }
 

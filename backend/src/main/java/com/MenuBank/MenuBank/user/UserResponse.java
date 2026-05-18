@@ -18,5 +18,6 @@ public class UserResponse {
     private String phone;
     private UserStatus status;
     private LocalDateTime createdAt;
+    private String anotaAiApiKey;
 }
 

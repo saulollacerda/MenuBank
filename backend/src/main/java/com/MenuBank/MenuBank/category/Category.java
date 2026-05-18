@@ -22,5 +22,8 @@ public class Category {
 
     @Column(nullable = false)
     private String name;
+
+    @Column(name = "external_id")
+    private String externalId;
 }
 
