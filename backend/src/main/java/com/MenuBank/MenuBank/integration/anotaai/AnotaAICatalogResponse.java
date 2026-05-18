@@ -14,6 +14,8 @@ public class AnotaAICatalogResponse {
 
     private boolean success;
     private String message;
+
+    @JsonProperty("data")
     private List<AnotaAICategory> categories;
 
     @Data
@@ -34,10 +36,35 @@ public class AnotaAICatalogResponse {
     public static class AnotaAIItem {
         private String id;
         private String title;
-        private double price;
         private boolean out;
+
+        @JsonProperty("week_prices")
+        private List<WeekPrice> weekPrices;
 
         @JsonProperty("external_id")
         private String externalId;
+
+        public double getPrice() {
+            if (weekPrices == null || weekPrices.isEmpty()) {
+                return 0.0;
+            }
+            return weekPrices.get(0).getPrice();
+        }
+
+        public void setPrice(double price) {
+            WeekPrice wp = new WeekPrice();
+            wp.setPrice(price);
+            this.weekPrices = java.util.List.of(wp);
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WeekPrice {
+        private double price;
+
+        @JsonProperty("short_name")
+        private String shortName;
     }
 }

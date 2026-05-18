@@ -109,6 +109,13 @@ public class AnotaAISyncService {
                     product.setPrice(price);
                     product.setStatus(status);
                     product.setCategory(category);
+                    BigDecimal currentCost = product.getEstimatedCost();
+                    if (currentCost == null || currentCost.signum() == 0) {
+                        product.setEstimatedCost(BigDecimal.ZERO);
+                        product.setMargin(price);
+                    } else {
+                        product.setMargin(price.subtract(currentCost));
+                    }
                     productRepository.save(product);
                     productsUpdated++;
                 } else {
@@ -119,6 +126,8 @@ public class AnotaAISyncService {
                             .status(status)
                             .externalId(remoteItem.getId())
                             .category(category)
+                            .estimatedCost(BigDecimal.ZERO)
+                            .margin(price)
                             .build();
                     productRepository.save(product);
                     productsCreated++;

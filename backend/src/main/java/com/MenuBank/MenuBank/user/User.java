@@ -39,7 +39,7 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "anota_ai_api_key")
+    @Column(name = "anota_ai_api_key", columnDefinition = "TEXT")
     private String anotaAiApiKey;
 }
 

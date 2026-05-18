@@ -21,10 +21,12 @@ public class AnotaAIOrderDetailResponse {
     public static class OrderDetail {
         @JsonProperty("_id")
         private String id;
+        private List<Double> additionalFees;
         private int check;
         private String createdAt;
         private AnotaAICustomer customer;
         private double deliveryFee;
+        private List<Double> discounts;
         private String observation;
         private List<AnotaAIOrderItem> items;
         private List<AnotaAIPayment> payments;
@@ -41,6 +43,7 @@ public class AnotaAIOrderDetailResponse {
         private String id;
         private String name;
         private String phone;
+        private String taxPayerIdentificationNumber;
     }
 
     @Data
