@@ -1,9 +1,10 @@
 package com.MenuBank.MenuBank.payment;
 
 import com.MenuBank.MenuBank.common.UserContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,11 +42,11 @@ public class PaymentMethodService {
         return toResponse(paymentMethod);
     }
 
-    public List<PaymentMethodResponse> findAll() {
+    public Page<PaymentMethodResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return paymentMethodRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return paymentMethodRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     public PaymentMethodResponse update(UUID id, PaymentMethodRequest request) {

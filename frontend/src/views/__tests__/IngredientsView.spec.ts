@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 let ingredientStoreMock: any
+let ingredientCategoryStoreMock: any
 
 vi.mock('@/stores/ingredientStore', () => ({
   useIngredientStore: () => ingredientStoreMock,
+}))
+
+vi.mock('@/stores/ingredientCategoryStore', () => ({
+  useIngredientCategoryStore: () => ingredientCategoryStoreMock,
 }))
 
 import IngredientsView from '@/views/IngredientsView.vue'
@@ -15,10 +20,22 @@ describe('IngredientsView', () => {
       items: [],
       loading: false,
       error: null,
+      search: '',
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
       fetchAll: vi.fn(),
+      fetchPage: vi.fn(),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn(),
       remove: vi.fn(),
+    }
+    ingredientCategoryStoreMock = {
+      items: [],
+      loading: false,
+      error: null,
+      fetchAll: vi.fn(),
     }
   })
 
@@ -39,6 +56,7 @@ describe('IngredientsView', () => {
       unit: 'g',
       costPerUnit: 0.02,
       defaultQuantity: 20,
+      ingredientCategoryId: null,
     })
   })
 

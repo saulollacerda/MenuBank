@@ -4,6 +4,7 @@ import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import PageControls from '@/components/PageControls.vue'
 import type { ProductRequest, ProductResponse, RecipeItemRequest } from '@/types/Product'
 
 const productStore = useProductStore()
@@ -131,8 +132,16 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  productStore.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  productStore.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  productStore.fetchAll()
+  productStore.fetchPage({ page: 0, search: '' })
   ingredientStore.fetchAll()
   categoryStore.fetchAll()
 })
@@ -175,13 +184,28 @@ onMounted(() => {
 
     <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
 
+    <PageControls
+      v-if="!showRecipeModal"
+      v-model="productStore.search"
+      :page="productStore.page"
+      :total-pages="productStore.totalPages"
+      :total-elements="productStore.totalElements"
+      :loading="productStore.loading"
+      placeholder="Buscar produto por nome..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
+
     <div v-if="productStore.loading && !showRecipeModal" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="productStore.items.length === 0 && !showRecipeModal" class="empty-state">
-      <p>Nenhum produto cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">Criar primeiro produto</button>
+      <p v-if="productStore.search">Nenhum produto encontrado para "{{ productStore.search }}".</p>
+      <template v-else>
+        <p>Nenhum produto cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro produto</button>
+      </template>
     </div>
 
     <div v-else-if="!showRecipeModal" class="table-container">
@@ -191,9 +215,6 @@ onMounted(() => {
             <th>Nome</th>
             <th>Categoria</th>
             <th>Preço</th>
-            <th>Custo Estimado</th>
-            <th>Margem</th>
-            <th>CMV</th>
             <th>Status</th>
             <th style="width: 220px">Ações</th>
           </tr>
@@ -203,9 +224,6 @@ onMounted(() => {
             <td>{{ product.name }}</td>
             <td>{{ product.categoryName }}</td>
             <td>{{ formatCurrency(product.price) }}</td>
-            <td>{{ formatCurrency(product.estimatedCost) }}</td>
-            <td>{{ formatCurrency(product.margin) }}</td>
-            <td>{{ formatCurrency(product.cmv) }}</td>
             <td>
               <span :class="statusClass(product.status)">
                 {{ statusLabel(product.status) }}

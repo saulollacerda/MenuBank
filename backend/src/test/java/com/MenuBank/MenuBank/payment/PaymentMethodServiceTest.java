@@ -150,30 +150,39 @@ class PaymentMethodServiceTest {
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todas as formas de pagamento")
-        void shouldReturnList() {
+        @DisplayName("deve retornar página de formas de pagamento filtrada por nome (contains, case-insensitive)")
+        void shouldReturnPagedFilteredByName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(paymentMethodRepository.findAllByOwnerId(ownerId)).willReturn(List.of(paymentMethod));
+            given(paymentMethodRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "cred", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(paymentMethod), pageable, 1));
 
-            List<PaymentMethodResponse> result = paymentMethodService.findAll();
+            org.springframework.data.domain.Page<PaymentMethodResponse> result =
+                    paymentMethodService.findAll("cred", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getName()).isEqualTo("Crédito");
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getName()).isEqualTo("Crédito");
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há formas de pagamento")
-        void shouldReturnEmptyList() {
+        @DisplayName("deve tratar search nulo como string vazia")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(paymentMethodRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+            given(paymentMethodRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
-            List<PaymentMethodResponse> result = paymentMethodService.findAll();
+            org.springframework.data.domain.Page<PaymentMethodResponse> result =
+                    paymentMethodService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).isEmpty();
         }
     }
 

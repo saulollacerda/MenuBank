@@ -174,26 +174,34 @@ class CustomerControllerTest {
     class GetAllCustomers {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de clientes")
-        void shouldReturn200WithCustomerList() throws Exception {
-            given(customerService.findAll()).willReturn(List.of(customerResponse));
+        @DisplayName("deve retornar 200 com página de clientes")
+        void shouldReturn200WithCustomerPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(customerService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(customerResponse), pageable, 1));
 
             mockMvc.perform(get("/api/customers"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(customerId.toString()))
-                    .andExpect(jsonPath("$[0].name").value("João Silva"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(customerId.toString()))
+                    .andExpect(jsonPath("$.content[0].name").value("João Silva"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há clientes")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(customerService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(customerService.findAll(eq("joão"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(customerResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/customers"))
+            mockMvc.perform(get("/api/customers").param("search", "joão"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].name").value("João Silva"));
         }
     }
 

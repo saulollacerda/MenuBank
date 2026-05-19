@@ -1,10 +1,11 @@
 package com.MenuBank.MenuBank.customer;
 
 import com.MenuBank.MenuBank.common.UserContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -39,11 +40,11 @@ public class CustomerService {
         return toResponse(customer);
     }
 
-    public List<CustomerResponse> findAll() {
+    public Page<CustomerResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return customerRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return customerRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     public CustomerResponse update(UUID id, CustomerRequest request) {

@@ -141,31 +141,39 @@ class CustomerServiceTest {
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todos os clientes")
-        void shouldReturnListOfAllCustomers() {
+        @DisplayName("deve retornar página de clientes filtrada por nome (contains, case-insensitive)")
+        void shouldReturnPagedCustomersFilteredByName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findAllByOwnerId(ownerId)).willReturn(List.of(customer));
+            given(customerRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "joão", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(customer), pageable, 1));
 
-            List<CustomerResponse> result = customerService.findAll();
+            org.springframework.data.domain.Page<CustomerResponse> result =
+                    customerService.findAll("joão", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(customerId);
-            assertThat(result.get(0).getName()).isEqualTo("João Silva");
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getName()).isEqualTo("João Silva");
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há clientes")
-        void shouldReturnEmptyList() {
+        @DisplayName("deve tratar search nulo como string vazia")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+            given(customerRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
-            List<CustomerResponse> result = customerService.findAll();
+            org.springframework.data.domain.Page<CustomerResponse> result =
+                    customerService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).isEmpty();
         }
     }
 

@@ -46,27 +46,8 @@ public class RecipeItemService {
                 .build();
 
         RecipeItem saved = recipeItemRepository.save(recipeItem);
-        recalculateEstimatedCost(productId);
 
         return toResponse(saved);
-    }
-
-    private void recalculateEstimatedCost(UUID productId) {
-        UUID ownerId = userContext.getUserId();
-
-        Product product = productRepository.findByIdAndOwnerId(productId, ownerId)
-                .orElseThrow(() -> new ProductNotFoundException(productId));
-
-        List<RecipeItem> items = recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId);
-
-        BigDecimal estimatedCost = items.stream()
-                .map(i -> i.getQuantity().multiply(i.getIngredient().getCostPerUnit()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        product.setEstimatedCost(estimatedCost);
-        BigDecimal price = product.getPrice() != null ? product.getPrice() : BigDecimal.ZERO;
-        product.setMargin(price.subtract(estimatedCost));
-        productRepository.save(product);
     }
 
     public List<RecipeItemResponse> findByProductId(UUID productId) {
@@ -94,7 +75,6 @@ public class RecipeItemService {
         recipeItem.setQuantity(request.getQuantity());
 
         RecipeItem saved = recipeItemRepository.save(recipeItem);
-        recalculateEstimatedCost(productId);
 
         return toResponse(saved);
     }
@@ -107,8 +87,6 @@ public class RecipeItemService {
             throw new RecipeItemNotFoundException(recipeItemId);
         }
         recipeItemRepository.deleteByIdAndProductIdAndProductOwnerId(recipeItemId, productId, ownerId);
-        recalculateEstimatedCost(productId);
-
     }
 
     private RecipeItemResponse toResponse(RecipeItem recipeItem) {

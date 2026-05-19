@@ -1,12 +1,14 @@
 package com.MenuBank.MenuBank.ingredient;
 
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,9 +34,10 @@ public class IngredientController {
     }
 
     @GetMapping
-    public ResponseEntity<List<IngredientResponse>> findAll() {
-        List<IngredientResponse> responses = ingredientService.findAll();
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<Page<IngredientResponse>> findAll(
+            @RequestParam(required = false, defaultValue = "") String search,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ingredientService.findAll(search, pageable));
     }
 
     @PutMapping("/{id}")

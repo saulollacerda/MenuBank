@@ -148,30 +148,39 @@ class IngredientServiceTest {
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todos os ingredientes")
-        void shouldReturnListOfAllIngredients() {
+        @DisplayName("deve retornar página de ingredientes filtrada por nome (contains, case-insensitive)")
+        void shouldReturnPagedIngredientsFilteredByName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of(ingredient));
+            given(ingredientRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "bac", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(ingredient), pageable, 1));
 
-            List<IngredientResponse> result = ingredientService.findAll();
+            org.springframework.data.domain.Page<IngredientResponse> result =
+                    ingredientService.findAll("bac", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(ingredientId);
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getId()).isEqualTo(ingredientId);
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há ingredientes")
-        void shouldReturnEmptyList() {
+        @DisplayName("deve tratar search nulo como string vazia")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+            given(ingredientRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
-            List<IngredientResponse> result = ingredientService.findAll();
+            org.springframework.data.domain.Page<IngredientResponse> result =
+                    ingredientService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).isEmpty();
         }
     }
 

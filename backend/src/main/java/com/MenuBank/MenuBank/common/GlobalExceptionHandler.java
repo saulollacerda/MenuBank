@@ -6,7 +6,9 @@ import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAIIntegrationException;
+import com.MenuBank.MenuBank.ingredient.DuplicateIngredientCategoryException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
+import com.MenuBank.MenuBank.ingredient.IngredientCategoryNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.product.DuplicateProductException;
@@ -85,6 +87,20 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateIngredientException.class)
     public ResponseEntity<ProblemDetail> handleDuplicateIngredient(DuplicateIngredientException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(IngredientCategoryNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleIngredientCategoryNotFound(IngredientCategoryNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Categoria de ingrediente não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicateIngredientCategoryException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateIngredientCategory(DuplicateIngredientCategoryException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);

@@ -16,14 +16,25 @@ describe('customerService', () => {
     vi.clearAllMocks()
   })
 
-  it('findAll should GET /customers', async () => {
-    const mockData = [{ id: '1', name: 'João', phone: '11999', email: 'j@test.com' }]
-    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+  it('findAll should GET /customers with pagination params', async () => {
+    const mockPage = {
+      content: [{ id: '1', name: 'João', phone: '11999', email: 'j@test.com' }],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    }
+    vi.mocked(api.get).mockResolvedValue({ data: mockPage })
 
     const result = await customerService.findAll()
 
-    expect(api.get).toHaveBeenCalledWith('/customers')
-    expect(result).toEqual(mockData)
+    expect(api.get).toHaveBeenCalledWith('/customers', {
+      params: { search: '', page: 0, size: 20 },
+    })
+    expect(result).toEqual(mockPage)
   })
 
   it('findById should GET /customers/:id', async () => {

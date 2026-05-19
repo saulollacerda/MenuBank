@@ -38,6 +38,13 @@ public class OrderItem {
     @Column(nullable = false)
     private BigDecimal unitPrice;
 
+    /**
+     * Custo estimado unitário do produto (snapshot no momento do pedido).
+     * Calculado a partir da soma dos ingredientes da receita atual quando o pedido é criado.
+     */
+    @Column(name = "unit_cost", precision = 19, scale = 4)
+    private BigDecimal unitCost;
+
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 30)
     @ToString.Exclude

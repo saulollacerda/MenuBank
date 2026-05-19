@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
+import PageControls from '@/components/PageControls.vue'
 import type { PaymentMethodRequest, PaymentMethodResponse } from '@/types/PaymentMethod'
 
 const store = usePaymentMethodStore()
@@ -54,8 +55,16 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  store.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  store.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  store.fetchAll()
+  store.fetchPage({ page: 0, search: '' })
 })
 </script>
 
@@ -68,15 +77,29 @@ onMounted(() => {
 
     <div v-if="store.error" class="alert alert-error">{{ store.error }}</div>
 
+    <PageControls
+      v-model="store.search"
+      :page="store.page"
+      :total-pages="store.totalPages"
+      :total-elements="store.totalElements"
+      :loading="store.loading"
+      placeholder="Buscar forma de pagamento por nome..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
+
     <div v-if="store.loading" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="store.items.length === 0" class="empty-state">
-      <p>Nenhuma forma de pagamento cadastrada.</p>
-      <button class="btn btn-primary" @click="openCreateModal">
-        Cadastrar primeira forma de pagamento
-      </button>
+      <p v-if="store.search">Nenhuma forma de pagamento encontrada para "{{ store.search }}".</p>
+      <template v-else>
+        <p>Nenhuma forma de pagamento cadastrada.</p>
+        <button class="btn btn-primary" @click="openCreateModal">
+          Cadastrar primeira forma de pagamento
+        </button>
+      </template>
     </div>
 
     <div v-else class="table-container">

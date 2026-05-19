@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useIngredientStore } from '@/stores/ingredientStore'
+import { useIngredientCategoryStore } from '@/stores/ingredientCategoryStore'
+import PageControls from '@/components/PageControls.vue'
 import type { IngredientRequest, IngredientResponse } from '@/types/Ingredient'
 
 const store = useIngredientStore()
+const categoryStore = useIngredientCategoryStore()
 
 const showModal = ref(false)
 const editing = ref<IngredientResponse | null>(null)
-const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 })
+const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0, ingredientCategoryId: null })
 const confirmDeleteId = ref<string | null>(null)
 
 const autoCalcCost = ref(false)
@@ -46,7 +49,7 @@ function resetAutoCalcFields() {
 
 function openCreateModal() {
   editing.value = null
-  form.value = { name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 }
+  form.value = { name: '', unit: '', costPerUnit: 0, defaultQuantity: 0, ingredientCategoryId: null }
   resetAutoCalcFields()
   showModal.value = true
 }
@@ -58,6 +61,7 @@ function openEditModal(ingredient: IngredientResponse) {
     unit: ingredient.unit,
     costPerUnit: ingredient.costPerUnit,
     defaultQuantity: ingredient.defaultQuantity ?? 0,
+    ingredientCategoryId: ingredient.ingredientCategoryId,
   }
   resetAutoCalcFields()
   showModal.value = true
@@ -99,8 +103,17 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  store.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  store.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  store.fetchAll()
+  store.fetchPage({ page: 0, search: '' })
+  categoryStore.fetchAll()
 })
 </script>
 
@@ -113,15 +126,29 @@ onMounted(() => {
 
     <div v-if="store.error" class="alert alert-error">{{ store.error }}</div>
 
+    <PageControls
+      v-model="store.search"
+      :page="store.page"
+      :total-pages="store.totalPages"
+      :total-elements="store.totalElements"
+      :loading="store.loading"
+      placeholder="Buscar ingrediente por nome..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
+
     <div v-if="store.loading" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="store.items.length === 0" class="empty-state">
-      <p>Nenhum ingrediente cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">
-        Cadastrar primeiro ingrediente
-      </button>
+      <p v-if="store.search">Nenhum ingrediente encontrado para "{{ store.search }}".</p>
+      <template v-else>
+        <p>Nenhum ingrediente cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">
+          Cadastrar primeiro ingrediente
+        </button>
+      </template>
     </div>
 
     <div v-else class="table-container">
@@ -129,6 +156,7 @@ onMounted(() => {
         <thead>
           <tr>
             <th>Nome</th>
+            <th>Categoria</th>
             <th>Unidade</th>
             <th>Custo/Unidade</th>
             <th>Qtd. Padrão</th>
@@ -139,6 +167,7 @@ onMounted(() => {
         <tbody>
           <tr v-for="ingredient in store.items" :key="ingredient.id">
             <td>{{ ingredient.name }}</td>
+            <td>{{ ingredient.ingredientCategoryName ?? '—' }}</td>
             <td>{{ ingredient.unit }}</td>
             <td>{{ formatCurrency(ingredient.costPerUnit) }}</td>
             <td>{{ ingredient.defaultQuantity ?? '-' }}</td>
@@ -253,6 +282,19 @@ onMounted(() => {
                   {{ computedCostPerUnit != null ? formatCurrency(computedCostPerUnit) : '—' }}
                 </div>
               </div>
+            </div>
+            <div class="form-group">
+              <label>Categoria</label>
+              <select v-model="form.ingredientCategoryId" class="form-control">
+                <option :value="null">— Sem categoria —</option>
+                <option
+                  v-for="cat in categoryStore.items"
+                  :key="cat.id"
+                  :value="cat.id"
+                >
+                  {{ cat.name }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>Quantidade padrão (unidade do ingrediente)</label>

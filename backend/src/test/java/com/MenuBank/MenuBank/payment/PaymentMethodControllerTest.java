@@ -152,25 +152,34 @@ class PaymentMethodControllerTest {
     class GetAll {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de formas de pagamento")
-        void shouldReturn200WithList() throws Exception {
-            given(paymentMethodService.findAll()).willReturn(List.of(paymentMethodResponse));
+        @DisplayName("deve retornar 200 com página de formas de pagamento")
+        void shouldReturn200WithPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(paymentMethodService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(paymentMethodResponse), pageable, 1));
 
             mockMvc.perform(get("/api/payment-methods"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(paymentMethodId.toString()))
-                    .andExpect(jsonPath("$[0].name").value("Crédito"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(paymentMethodId.toString()))
+                    .andExpect(jsonPath("$.content[0].name").value("Crédito"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(paymentMethodService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(paymentMethodService.findAll(eq("cred"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(paymentMethodResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/payment-methods"))
+            mockMvc.perform(get("/api/payment-methods").param("search", "cred"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].name").value("Crédito"));
         }
     }
 

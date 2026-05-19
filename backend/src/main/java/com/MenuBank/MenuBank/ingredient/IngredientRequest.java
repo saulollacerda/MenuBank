@@ -26,4 +26,6 @@ public class IngredientRequest {
 
     @DecimalMin(value = "0.0", inclusive = true, message = "Quantidade padrão deve ser maior ou igual a zero")
     private BigDecimal defaultQuantity;
+
+    private java.util.UUID ingredientCategoryId;
 }

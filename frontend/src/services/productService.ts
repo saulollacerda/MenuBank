@@ -1,9 +1,17 @@
 import api from './api'
 import type { ProductRequest, ProductResponse } from '@/types/Product'
+import type { Page, PageParams } from '@/types/Page'
+import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 
 export const productService = {
-  async findAll(): Promise<ProductResponse[]> {
-    const { data } = await api.get<ProductResponse[]>('/products')
+  async findAll(params: PageParams = {}): Promise<Page<ProductResponse>> {
+    const { data } = await api.get<Page<ProductResponse>>('/products', {
+      params: {
+        search: params.search ?? '',
+        page: params.page ?? 0,
+        size: params.size ?? DEFAULT_PAGE_SIZE,
+      },
+    })
     return data
   },
 
@@ -26,4 +34,3 @@ export const productService = {
     await api.delete(`/products/${id}`)
   },
 }
-

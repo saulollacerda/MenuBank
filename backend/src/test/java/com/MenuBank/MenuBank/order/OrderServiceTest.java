@@ -7,9 +7,12 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
+import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
+import com.MenuBank.MenuBank.product.RecipeItem;
+import com.MenuBank.MenuBank.product.RecipeItemRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OrderService")
@@ -42,6 +46,12 @@ class OrderServiceTest {
 
     @Mock
     private IngredientRepository ingredientRepository;
+
+    @Mock
+    private PaymentMethodRepository paymentMethodRepository;
+
+    @Mock
+    private RecipeItemRepository recipeItemRepository;
 
     @Mock
     private UserContext userContext;
@@ -81,7 +91,6 @@ class OrderServiceTest {
                 .ownerId(ownerId)
                 .name("Hambúrguer")
                 .price(new BigDecimal("30.00"))
-                .estimatedCost(new BigDecimal("12.00"))
                 .status(ProductStatus.ACTIVE)
                 .build();
 
@@ -93,6 +102,18 @@ class OrderServiceTest {
                 .costPerUnit(new BigDecimal("0.10"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
+
+        // Mock receita do produto: 1 ingrediente × custo 12.00 = unitCost 12.00
+        // (substitui o antigo product.estimatedCost = 12)
+        Ingredient costIngredient = Ingredient.builder()
+                .id(UUID.randomUUID()).ownerId(ownerId).name("CustoBase")
+                .unit("un").costPerUnit(new BigDecimal("12.00"))
+                .status(IngredientStatus.ACTIVE).build();
+        RecipeItem defaultRecipe = RecipeItem.builder()
+                .product(product).ingredient(costIngredient)
+                .quantity(BigDecimal.ONE).build();
+        lenient().when(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId))
+                .thenReturn(List.of(defaultRecipe));
 
         OrderItemRequest itemRequest = OrderItemRequest.builder()
                 .productId(productId)
@@ -109,6 +130,7 @@ class OrderServiceTest {
                 .product(product)
                 .quantity(2)
                 .unitPrice(new BigDecimal("30.00"))
+                .unitCost(new BigDecimal("12.00"))
                 .build();
 
         order = Order.builder()
@@ -464,6 +486,37 @@ class OrderServiceTest {
             assertThatThrownBy(() -> orderService.findById(orderId))
                     .isInstanceOf(OrderNotFoundException.class);
         }
+
+        @Test
+        @DisplayName("deve calcular estimatedProfit a partir do unitCost dos itens, ignorando valor armazenado")
+        void shouldComputeEstimatedProfitFromItemCosts() {
+            OrderItem itemWithZeroCost = OrderItem.builder()
+                    .id(UUID.randomUUID())
+                    .product(product)
+                    .quantity(1)
+                    .unitPrice(new BigDecimal("22.49"))
+                    .unitCost(BigDecimal.ZERO)
+                    .build();
+            Order orderWithStaleProfit = Order.builder()
+                    .id(orderId)
+                    .ownerId(ownerId)
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PENDING)
+                    .totalValue(new BigDecimal("22.49"))
+                    .estimatedProfit(new BigDecimal("-42.01"))
+                    .items(new ArrayList<>(List.of(itemWithZeroCost)))
+                    .build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(orderRepository.findByIdAndOwnerId(orderId, ownerId))
+                    .willReturn(Optional.of(orderWithStaleProfit));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            // 22.49 - (unitCost=0 × qty=1) - fee=0 = 22.49
+            assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("22.49"));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -471,30 +524,39 @@ class OrderServiceTest {
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todos os pedidos")
-        void shouldReturnListOfAllOrders() {
+        @DisplayName("deve retornar página de pedidos filtrada por nome do cliente (contains, case-insensitive)")
+        void shouldReturnPagedOrdersFilteredByCustomerName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findAllByOwnerId(ownerId)).willReturn(List.of(order));
+            given(orderRepository.findPageByOwnerIdAndCustomerNameContaining(ownerId, "client", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
 
-            List<OrderResponse> result = orderService.findAll();
+            org.springframework.data.domain.Page<OrderResponse> result =
+                    orderService.findAll("client", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(orderId);
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getId()).isEqualTo(orderId);
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há pedidos")
-        void shouldReturnEmptyList() {
+        @DisplayName("deve tratar search nulo como string vazia")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+            given(orderRepository.findPageByOwnerIdAndCustomerNameContaining(ownerId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
-            List<OrderResponse> result = orderService.findAll();
+            org.springframework.data.domain.Page<OrderResponse> result =
+                    orderService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).isEmpty();
         }
     }
 
@@ -515,7 +577,6 @@ class OrderServiceTest {
                     .ownerId(ownerId)
                     .name("Pizza")
                     .price(new BigDecimal("45.00"))
-                    .estimatedCost(new BigDecimal("18.00"))
                     .status(ProductStatus.ACTIVE)
                     .build();
 
@@ -534,6 +595,7 @@ class OrderServiceTest {
                     .product(newProduct)
                     .quantity(3)
                     .unitPrice(new BigDecimal("45.00"))
+                    .unitCost(new BigDecimal("18.00"))
                     .build();
 
             Order updatedOrder = Order.builder()

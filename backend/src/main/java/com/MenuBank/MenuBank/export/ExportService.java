@@ -270,8 +270,8 @@ public class ExportService {
     }
 
     private BigDecimal calculateItemCost(OrderItem item) {
-        BigDecimal baseUnitCost = (item.getProduct() != null && item.getProduct().getEstimatedCost() != null)
-                ? item.getProduct().getEstimatedCost()
+        BigDecimal baseUnitCost = item.getUnitCost() != null
+                ? item.getUnitCost()
                 : BigDecimal.ZERO;
         BigDecimal extrasUnitCost = calculateExtrasUnitCost(item);
         return baseUnitCost.add(extrasUnitCost).multiply(BigDecimal.valueOf(item.getQuantity()));

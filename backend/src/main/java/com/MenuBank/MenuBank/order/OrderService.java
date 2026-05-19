@@ -9,12 +9,15 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.payment.PaymentMethod;
 import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
 import com.MenuBank.MenuBank.product.Product;
+import com.MenuBank.MenuBank.product.ProductCostCalculator;
 import com.MenuBank.MenuBank.product.ProductRepository;
+import com.MenuBank.MenuBank.product.RecipeItemRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +31,7 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final IngredientRepository ingredientRepository;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final RecipeItemRepository recipeItemRepository;
     private final UserContext userContext;
 
     public OrderService(OrderRepository orderRepository,
@@ -35,12 +39,14 @@ public class OrderService {
                         ProductRepository productRepository,
                         IngredientRepository ingredientRepository,
                         PaymentMethodRepository paymentMethodRepository,
+                        RecipeItemRepository recipeItemRepository,
                         UserContext userContext) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.ingredientRepository = ingredientRepository;
         this.paymentMethodRepository = paymentMethodRepository;
+        this.recipeItemRepository = recipeItemRepository;
         this.userContext = userContext;
     }
 
@@ -56,8 +62,8 @@ public class OrderService {
         List<OrderItem> items = buildItems(request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(items);
-        BigDecimal totalCost = calculateTotalCost(items);
-        BigDecimal estimatedProfit = calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
+        BigDecimal totalCost = OrderCalculations.calculateTotalCost(items);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
 
         Order order = Order.builder()
                 .ownerId(ownerId)
@@ -85,11 +91,12 @@ public class OrderService {
         return toResponse(order);
     }
 
-    public List<OrderResponse> findAll() {
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return orderRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return orderRepository.findPageByOwnerIdAndCustomerNameContaining(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     @Transactional
@@ -108,8 +115,8 @@ public class OrderService {
         List<OrderItem> newItems = buildItems(request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(newItems);
-        BigDecimal totalCost = calculateTotalCost(newItems);
-        BigDecimal estimatedProfit = calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
+        BigDecimal totalCost = OrderCalculations.calculateTotalCost(newItems);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
 
         order.setCustomer(customer);
         order.setPaymentMethod(paymentMethod);
@@ -146,10 +153,14 @@ public class OrderService {
                     .orElseThrow(() -> new OrderNotFoundException(
                             "Produto com ID " + itemRequest.getProductId() + " não encontrado"));
 
+            BigDecimal unitCost = ProductCostCalculator.computeUnitCost(
+                    recipeItemRepository.findByProductIdAndProductOwnerId(product.getId(), ownerId));
+
             OrderItem item = OrderItem.builder()
                     .product(product)
                     .quantity(itemRequest.getQuantity())
                     .unitPrice(product.getPrice())
+                    .unitCost(unitCost)
                     .build();
 
             List<OrderItemExtraIngredient> extraIngredients = buildExtraIngredients(itemRequest);
@@ -193,54 +204,20 @@ public class OrderService {
                         "Forma de pagamento com ID " + paymentMethodId + " não encontrada"));
     }
 
-    private BigDecimal calculateEstimatedProfit(BigDecimal totalValue, BigDecimal totalCost,
-                                                 PaymentMethod paymentMethod) {
-        BigDecimal feeAmount = BigDecimal.ZERO;
-        if (paymentMethod != null && paymentMethod.getFeeRate().compareTo(BigDecimal.ZERO) > 0) {
-            feeAmount = totalValue.multiply(paymentMethod.getFeeRate())
-                    .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-        }
-        return totalValue.subtract(totalCost).subtract(feeAmount);
-    }
-
     private BigDecimal calculateTotalValue(List<OrderItem> items) {
         return items.stream()
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal calculateTotalCost(List<OrderItem> items) {
-        return items.stream()
-                .map(item -> {
-                    BigDecimal cost = item.getProduct().getEstimatedCost();
-                    if (cost == null) {
-                        cost = BigDecimal.ZERO;
-                    }
-                    BigDecimal baseCost = cost.multiply(BigDecimal.valueOf(item.getQuantity()));
-                    BigDecimal extraCost = calculateExtraIngredientsCost(item);
-                    return baseCost.add(extraCost);
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal calculateExtraIngredientsCost(OrderItem item) {
-        if (item.getExtraIngredients() == null || item.getExtraIngredients().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal perUnitExtraCost = item.getExtraIngredients().stream()
-                .map(extra -> extra.getQuantity().multiply(extra.getCostPerUnit()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        return perUnitExtraCost.multiply(BigDecimal.valueOf(item.getQuantity()));
-    }
-
     private OrderResponse toResponse(Order order) {
-        List<OrderItemResponse> itemResponses = order.getItems() != null
-                ? order.getItems().stream().map(this::toItemResponse).toList()
-                : List.of();
+        List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
+        List<OrderItemResponse> itemResponses = items.stream().map(this::toItemResponse).toList();
 
         PaymentMethod pm = order.getPaymentMethod();
+        BigDecimal totalCost = OrderCalculations.calculateTotalCost(items);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
+                order.getTotalValue(), totalCost, pm);
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -249,7 +226,7 @@ public class OrderService {
                 .customerName(order.getCustomer().getName())
                 .status(order.getStatus())
                 .totalValue(order.getTotalValue())
-                .estimatedProfit(order.getEstimatedProfit())
+                .estimatedProfit(estimatedProfit)
                 .paymentMethodId(pm != null ? pm.getId() : null)
                 .paymentMethodName(pm != null ? pm.getName() : null)
                 .feeRate(pm != null ? pm.getFeeRate() : null)
@@ -277,8 +254,8 @@ public class OrderService {
                 }).toList()
                 : List.of();
 
-        BigDecimal baseUnitCost = item.getProduct().getEstimatedCost() != null
-                ? item.getProduct().getEstimatedCost()
+        BigDecimal baseUnitCost = item.getUnitCost() != null
+                ? item.getUnitCost()
                 : BigDecimal.ZERO;
         BigDecimal extrasPerUnit = item.getExtraIngredients() != null
                 ? item.getExtraIngredients().stream()

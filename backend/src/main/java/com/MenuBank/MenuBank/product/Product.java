@@ -33,15 +33,9 @@ public class Product {
     @Column(nullable = false)
     private BigDecimal price;
 
-    private BigDecimal estimatedCost;
-
-    private BigDecimal margin;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status;
-
-    private BigDecimal cmv;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")

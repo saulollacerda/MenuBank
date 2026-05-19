@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.product;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -13,6 +15,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<Product> findAllByOwnerId(UUID ownerId);
+
+    Page<Product> findAllByOwnerIdAndNameContainingIgnoreCase(UUID ownerId, String name, Pageable pageable);
 
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 

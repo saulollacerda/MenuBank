@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.category;
 
 import com.MenuBank.MenuBank.common.UserContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -40,11 +42,11 @@ public class CategoryService {
         return toResponse(category);
     }
 
-    public List<CategoryResponse> findAll() {
+    public Page<CategoryResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return categoryRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return categoryRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     public CategoryResponse update(UUID id, CategoryRequest request) {
@@ -58,6 +60,7 @@ public class CategoryService {
         return toResponse(saved);
     }
 
+    @Transactional
     public void delete(UUID id) {
         UUID ownerId = userContext.getUserId();
         if (!categoryRepository.existsByIdAndOwnerId(id, ownerId)) {

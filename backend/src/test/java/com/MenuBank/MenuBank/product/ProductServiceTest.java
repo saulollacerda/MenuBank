@@ -65,10 +65,7 @@ class ProductServiceTest {
                 .ownerId(ownerId)
                 .name("X-Burguer")
                 .price(new BigDecimal("25.90"))
-                .estimatedCost(BigDecimal.ZERO)
-                .margin(new BigDecimal("25.90"))
                 .status(ProductStatus.ACTIVE)
-                .cmv(BigDecimal.ZERO)
                 .category(category)
                 .build();
     }
@@ -121,9 +118,6 @@ class ProductServiceTest {
 
             ProductResponse result = productService.create(productRequest);
 
-            assertThat(result.getEstimatedCost()).isEqualByComparingTo(BigDecimal.ZERO);
-            assertThat(result.getMargin()).isEqualByComparingTo(new BigDecimal("25.90"));
-            assertThat(result.getCmv()).isEqualByComparingTo(BigDecimal.ZERO);
         }
 
         @Test
@@ -208,31 +202,39 @@ class ProductServiceTest {
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todos os produtos")
-        void shouldReturnListOfAllProducts() {
+        @DisplayName("deve retornar página de produtos filtrada por nome (contains, case-insensitive)")
+        void shouldReturnPagedProductsFilteredByName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(productRepository.findAllByOwnerId(ownerId)).willReturn(List.of(product));
+            given(productRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "burg", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(product), pageable, 1));
 
-            List<ProductResponse> result = productService.findAll();
+            org.springframework.data.domain.Page<ProductResponse> result =
+                    productService.findAll("burg", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(productId);
-            assertThat(result.get(0).getName()).isEqualTo("X-Burguer");
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getName()).isEqualTo("X-Burguer");
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há produtos")
-        void shouldReturnEmptyList() {
+        @DisplayName("deve tratar search nulo como string vazia (retorna tudo)")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
             given(userContext.getUserId()).willReturn(ownerId);
-            given(productRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+            given(productRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(product), pageable, 1));
 
-            List<ProductResponse> result = productService.findAll();
+            org.springframework.data.domain.Page<ProductResponse> result =
+                    productService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).hasSize(1);
         }
     }
 
@@ -258,10 +260,7 @@ class ProductServiceTest {
                     .ownerId(ownerId)
                     .name("X-Salada")
                     .price(new BigDecimal("29.90"))
-                    .estimatedCost(BigDecimal.ZERO)
-                    .margin(new BigDecimal("29.90"))
                     .status(ProductStatus.ACTIVE)
-                    .cmv(BigDecimal.ZERO)
                     .category(category)
                     .build();
 

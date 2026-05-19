@@ -6,6 +6,7 @@ import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import PageControls from '@/components/PageControls.vue'
 import type {
   OrderRequest,
   OrderResponse,
@@ -191,8 +192,16 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  orderStore.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  orderStore.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  orderStore.fetchAll()
+  orderStore.fetchPage({ page: 0, search: '' })
   customerStore.fetchAll()
   productStore.fetchAll()
   ingredientStore.fetchAll()
@@ -234,13 +243,27 @@ onMounted(() => {
 
     <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
 
+    <PageControls
+      v-model="orderStore.search"
+      :page="orderStore.page"
+      :total-pages="orderStore.totalPages"
+      :total-elements="orderStore.totalElements"
+      :loading="orderStore.loading"
+      placeholder="Buscar pedido pelo nome do cliente..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
+
     <div v-if="orderStore.loading" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="orderStore.items.length === 0" class="empty-state">
-      <p>Nenhum pedido cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">Criar primeiro pedido</button>
+      <p v-if="orderStore.search">Nenhum pedido encontrado para "{{ orderStore.search }}".</p>
+      <template v-else>
+        <p>Nenhum pedido cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro pedido</button>
+      </template>
     </div>
 
     <div v-else class="table-container">

@@ -7,42 +7,59 @@ vi.mock('@/services/ingredientService')
 
 const mockedService = vi.mocked(ingredientService)
 
+function asPage<T>(content: T[], size = 20) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: content.length === 0 ? 0 : 1,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: content.length === 0,
+  }
+}
+
 describe('ingredientStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchAll should populate items', async () => {
+  it('fetchPage should populate items and pagination state', async () => {
     const mockData = [
-      { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' as const },
+      {
+        id: '1',
+        name: 'Farinha',
+        unit: 'kg',
+        costPerUnit: 5.0,
+        status: 'ACTIVE' as const,
+        ingredientCategoryId: null,
+        ingredientCategoryName: null,
+      },
     ]
-    mockedService.findAll.mockResolvedValue(mockData)
+    mockedService.findAll.mockResolvedValue(asPage(mockData))
 
     const store = useIngredientStore()
-    await store.fetchAll()
+    await store.fetchPage({ search: 'farinha' })
 
     expect(store.items).toEqual(mockData)
+    expect(store.search).toBe('farinha')
     expect(store.loading).toBe(false)
   })
 
-  it('fetchAll should not call service again when data is already loaded', async () => {
-    const mockData = [
-      { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' as const },
-    ]
-    mockedService.findAll.mockResolvedValue(mockData)
-
-    const store = useIngredientStore()
-    await store.fetchAll()
-    await store.fetchAll()
-
-    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
-    expect(store.items).toEqual(mockData)
-  })
-
-  it('create should add item to the list', async () => {
-    const created = { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' as const }
+  it('create should refetch the current page', async () => {
+    const created = {
+      id: '1',
+      name: 'Farinha',
+      unit: 'kg',
+      costPerUnit: 5.0,
+      status: 'ACTIVE' as const,
+      ingredientCategoryId: null,
+      ingredientCategoryName: null,
+    }
     mockedService.create.mockResolvedValue(created)
+    mockedService.findAll.mockResolvedValue(asPage([created]))
 
     const store = useIngredientStore()
     await store.create({ name: 'Farinha', unit: 'kg', costPerUnit: 5.0 })
@@ -50,18 +67,23 @@ describe('ingredientStore', () => {
     expect(store.items).toContainEqual(created)
   })
 
-  it('remove should filter out the item', async () => {
-    const store = useIngredientStore()
-    store.items = [
-      { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' },
-      { id: '2', name: 'Açúcar', unit: 'kg', costPerUnit: 3.0, status: 'ACTIVE' },
-    ]
+  it('remove should call service and refetch the current page', async () => {
+    const remaining = {
+      id: '2',
+      name: 'Açúcar',
+      unit: 'kg',
+      costPerUnit: 3.0,
+      status: 'ACTIVE' as const,
+      ingredientCategoryId: null,
+      ingredientCategoryName: null,
+    }
     mockedService.remove.mockResolvedValue()
+    mockedService.findAll.mockResolvedValue(asPage([remaining]))
 
+    const store = useIngredientStore()
     await store.remove('1')
 
-    expect(store.items).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    expect(store.items[0]!.id).toBe('2')
+    expect(mockedService.remove).toHaveBeenCalledWith('1')
+    expect(store.items).toEqual([remaining])
   })
 })

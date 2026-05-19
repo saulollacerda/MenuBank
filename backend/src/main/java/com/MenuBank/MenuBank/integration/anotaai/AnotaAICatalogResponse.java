@@ -44,6 +44,9 @@ public class AnotaAICatalogResponse {
         @JsonProperty("external_id")
         private String externalId;
 
+        @JsonProperty("next_steps")
+        private List<NextStep> nextSteps;
+
         public double getPrice() {
             if (weekPrices == null || weekPrices.isEmpty()) {
                 return 0.0;
@@ -66,5 +69,19 @@ public class AnotaAICatalogResponse {
 
         @JsonProperty("short_name")
         private String shortName;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class NextStep {
+        @JsonProperty("category_id")
+        private String categoryId;
+
+        @JsonProperty("category_title")
+        private String categoryTitle;
+
+        private int min;
+        private int max;
     }
 }

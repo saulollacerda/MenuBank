@@ -7,71 +7,53 @@ vi.mock('@/services/categoryService')
 
 const mockedService = vi.mocked(categoryService)
 
+function asPage<T>(content: T[], size = 20) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: content.length === 0 ? 0 : 1,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: content.length === 0,
+  }
+}
+
 describe('categoryStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchAll should populate items', async () => {
+  it('fetchPage should populate items and pagination state', async () => {
     const mockData = [{ id: '1', name: 'Bebidas' }]
-    mockedService.findAll.mockResolvedValue(mockData)
+    mockedService.findAll.mockResolvedValue(asPage(mockData))
 
     const store = useCategoryStore()
-    await store.fetchAll()
+    await store.fetchPage({ search: 'beb' })
 
     expect(store.items).toEqual(mockData)
+    expect(store.totalElements).toBe(1)
+    expect(store.search).toBe('beb')
     expect(store.loading).toBe(false)
     expect(store.error).toBeNull()
   })
 
-  it('fetchAll should not call service again when data is already loaded', async () => {
-    const mockData = [{ id: '1', name: 'Bebidas' }]
-    mockedService.findAll.mockResolvedValue(mockData)
-
-    const store = useCategoryStore()
-    await store.fetchAll()
-    await store.fetchAll()
-
-    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
-    expect(store.items).toEqual(mockData)
-  })
-
-  it('fetchAll should deduplicate concurrent calls', async () => {
-    const mockData = [{ id: '1', name: 'Bebidas' }]
-
-    let resolvePromise!: (value: typeof mockData) => void
-    const deferred = new Promise<typeof mockData>((resolve) => {
-      resolvePromise = resolve
-    })
-    mockedService.findAll.mockReturnValue(deferred)
-
-    const store = useCategoryStore()
-
-    const p1 = store.fetchAll()
-    const p2 = store.fetchAll()
-
-    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
-
-    resolvePromise(mockData)
-    await Promise.all([p1, p2])
-
-    expect(store.items).toEqual(mockData)
-  })
-
-  it('fetchAll should set error on failure', async () => {
+  it('fetchPage should set error on failure', async () => {
     mockedService.findAll.mockRejectedValue(new Error('Network error'))
 
     const store = useCategoryStore()
 
-    await expect(store.fetchAll()).rejects.toThrow()
+    await expect(store.fetchPage()).rejects.toThrow()
     expect(store.error).toBe('Erro ao carregar categorias')
     expect(store.loading).toBe(false)
   })
 
-  it('create should add item to the list', async () => {
+  it('create should refetch the current page', async () => {
     const created = { id: '1', name: 'Bebidas' }
     mockedService.create.mockResolvedValue(created)
+    mockedService.findAll.mockResolvedValue(asPage([created]))
 
     const store = useCategoryStore()
     const result = await store.create({ name: 'Bebidas' })
@@ -92,21 +74,15 @@ describe('categoryStore', () => {
     expect(store.items[0]).toEqual(updated)
   })
 
-  it('remove should filter out the item', async () => {
-    const store = useCategoryStore()
-    store.items = [
-      { id: '1', name: 'Bebidas' },
-      { id: '2', name: 'Lanches' },
-    ]
+  it('remove should call service and refetch the current page', async () => {
+    const remaining = { id: '2', name: 'Lanches' }
     mockedService.remove.mockResolvedValue()
+    mockedService.findAll.mockResolvedValue(asPage([remaining]))
 
+    const store = useCategoryStore()
     await store.remove('1')
 
-    expect(store.items).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    expect(store.items[0]!.id).toBe('2')
+    expect(mockedService.remove).toHaveBeenCalledWith('1')
+    expect(store.items).toEqual([remaining])
   })
 })
-
-
-

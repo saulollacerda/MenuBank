@@ -10,10 +10,7 @@ export interface ProductResponse {
   id: string
   name: string
   price: number
-  estimatedCost: number | null
-  margin: number | null
   status: ProductStatus
-  cmv: number | null
   categoryId: string
   categoryName: string
 }

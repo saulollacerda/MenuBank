@@ -46,10 +46,7 @@ class ProductControllerTest {
                 .id(productId)
                 .name("X-Burguer")
                 .price(new BigDecimal("25.90"))
-                .estimatedCost(BigDecimal.ZERO)
-                .margin(new BigDecimal("25.90"))
                 .status(ProductStatus.ACTIVE)
-                .cmv(BigDecimal.ZERO)
                 .categoryId(categoryId)
                 .categoryName("Lanches")
                 .build();
@@ -179,26 +176,34 @@ class ProductControllerTest {
     class GetAllProducts {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de produtos")
-        void shouldReturn200WithProductList() throws Exception {
-            given(productService.findAll()).willReturn(List.of(productResponse));
+        @DisplayName("deve retornar 200 com página de produtos")
+        void shouldReturn200WithProductPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(productService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(productResponse), pageable, 1));
 
             mockMvc.perform(get("/api/products"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(productId.toString()))
-                    .andExpect(jsonPath("$[0].name").value("X-Burguer"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(productId.toString()))
+                    .andExpect(jsonPath("$.content[0].name").value("X-Burguer"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há produtos")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(productService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(productService.findAll(eq("burg"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(productResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/products"))
+            mockMvc.perform(get("/api/products").param("search", "burg"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].name").value("X-Burguer"));
         }
     }
 

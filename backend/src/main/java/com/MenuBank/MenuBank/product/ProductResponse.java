@@ -14,10 +14,7 @@ public class ProductResponse {
     private UUID id;
     private String name;
     private BigDecimal price;
-    private BigDecimal estimatedCost;
-    private BigDecimal margin;
     private ProductStatus status;
-    private BigDecimal cmv;
     private UUID categoryId;
     private String categoryName;
 }

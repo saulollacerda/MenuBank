@@ -16,14 +16,25 @@ describe('categoryService', () => {
     vi.clearAllMocks()
   })
 
-  it('findAll should GET /categories', async () => {
-    const mockData = [{ id: '1', name: 'Bebidas' }]
-    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+  it('findAll should GET /categories with pagination params', async () => {
+    const mockPage = {
+      content: [{ id: '1', name: 'Bebidas' }],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    }
+    vi.mocked(api.get).mockResolvedValue({ data: mockPage })
 
     const result = await categoryService.findAll()
 
-    expect(api.get).toHaveBeenCalledWith('/categories')
-    expect(result).toEqual(mockData)
+    expect(api.get).toHaveBeenCalledWith('/categories', {
+      params: { search: '', page: 0, size: 20 },
+    })
+    expect(result).toEqual(mockPage)
   })
 
   it('findById should GET /categories/:id', async () => {

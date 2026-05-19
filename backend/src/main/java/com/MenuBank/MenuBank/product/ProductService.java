@@ -4,10 +4,10 @@ import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.common.UserContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -35,18 +35,11 @@ public class ProductService {
         Category category = categoryRepository.findByIdAndOwnerId(request.getCategoryId(), ownerId)
                 .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
 
-        BigDecimal price = request.getPrice();
-        BigDecimal estimatedCost = BigDecimal.ZERO;
-        BigDecimal margin = price.subtract(estimatedCost);
-
         Product product = Product.builder()
                 .ownerId(ownerId)
                 .name(request.getName())
-                .price(price)
-                .estimatedCost(estimatedCost)
-                .margin(margin)
+                .price(request.getPrice())
                 .status(ProductStatus.ACTIVE)
-                .cmv(BigDecimal.ZERO)
                 .category(category)
                 .build();
 
@@ -61,11 +54,11 @@ public class ProductService {
         return toResponse(product);
     }
 
-    public List<ProductResponse> findAll() {
+    public Page<ProductResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return productRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return productRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     public ProductResponse update(UUID id, ProductRequest request) {
@@ -78,8 +71,6 @@ public class ProductService {
 
         product.setName(request.getName());
         product.setPrice(request.getPrice());
-        product.setMargin(request.getPrice().subtract(
-                product.getEstimatedCost() != null ? product.getEstimatedCost() : BigDecimal.ZERO));
         product.setCategory(category);
 
         Product saved = productRepository.save(product);
@@ -100,10 +91,7 @@ public class ProductService {
                 .id(product.getId())
                 .name(product.getName())
                 .price(product.getPrice())
-                .estimatedCost(product.getEstimatedCost())
-                .margin(product.getMargin())
                 .status(product.getStatus())
-                .cmv(product.getCmv())
                 .categoryId(category != null ? category.getId() : null)
                 .categoryName(category != null ? category.getName() : null)
                 .build();

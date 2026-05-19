@@ -1,9 +1,17 @@
 import api from './api'
 import type { PaymentMethodRequest, PaymentMethodResponse } from '@/types/PaymentMethod'
+import type { Page, PageParams } from '@/types/Page'
+import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 
 export const paymentMethodService = {
-  async findAll(): Promise<PaymentMethodResponse[]> {
-    const { data } = await api.get<PaymentMethodResponse[]>('/payment-methods')
+  async findAll(params: PageParams = {}): Promise<Page<PaymentMethodResponse>> {
+    const { data } = await api.get<Page<PaymentMethodResponse>>('/payment-methods', {
+      params: {
+        search: params.search ?? '',
+        page: params.page ?? 0,
+        size: params.size ?? DEFAULT_PAGE_SIZE,
+      },
+    })
     return data
   },
 

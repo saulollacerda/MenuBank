@@ -16,24 +16,47 @@ describe('productService', () => {
     vi.clearAllMocks()
   })
 
-  it('findAll should GET /products', async () => {
-    const mockData = [
-      {
-        id: '1',
-        name: 'Hambúrguer',
-        price: 25.0,
-        estimatedCost: 10.0,
-        margin: 15.0,
-        status: 'ACTIVE',
-        cmv: 10.0,
-      },
-    ]
-    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+  it('findAll should GET /products with pagination params', async () => {
+    const mockPage = {
+      content: [
+        {
+          id: '1',
+          name: 'Hambúrguer',
+          price: 25.0,
+          estimatedCost: 10.0,
+          margin: 15.0,
+          status: 'ACTIVE',
+          cmv: 10.0,
+        },
+      ],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    }
+    vi.mocked(api.get).mockResolvedValue({ data: mockPage })
 
-    const result = await productService.findAll()
+    const result = await productService.findAll({ search: 'hamb', page: 0, size: 20 })
 
-    expect(api.get).toHaveBeenCalledWith('/products')
-    expect(result).toEqual(mockData)
+    expect(api.get).toHaveBeenCalledWith('/products', {
+      params: { search: 'hamb', page: 0, size: 20 },
+    })
+    expect(result).toEqual(mockPage)
+  })
+
+  it('findAll should default search to empty string and page/size to defaults', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20, first: true, last: true, empty: true },
+    })
+
+    await productService.findAll()
+
+    expect(api.get).toHaveBeenCalledWith('/products', {
+      params: { search: '', page: 0, size: 20 },
+    })
   })
 
   it('findById should GET /products/:id', async () => {

@@ -160,6 +160,150 @@ All data can be **filtered by date range** (default: today).
 
 ---
 
+## Anota.AI Integration
+
+MenuBank integrates with the **Anota.AI** platform to import orders and sync the product catalog.
+Authentication uses a partner token sent as a header (`Authorization: Bearer <token>`), configured per merchant in the settings.
+
+### Base URLs
+
+| Purpose         | Base URL                                      |
+| --------------- | --------------------------------------------- |
+| Orders (PDV)    | `https://api-parceiros.anota.ai/partnerauth`  |
+| Menu / Catalog  | `https://api-menu.anota.ai/partnerauth`       |
+
+### Endpoints
+
+#### List orders — `GET /ping/list`
+
+Returns a paginated list of pending orders.
+
+```json
+{
+  "success": true,
+  "info": {
+    "docs": [
+      { "_id": "string", "check": 0, "from": "string", "salesChannel": "string", "updatedAt": "string" }
+    ],
+    "count": 0, "limit": 0, "currentpage": 0
+  }
+}
+```
+
+#### Get order detail — `GET /ping/get/{orderId}`
+
+Returns full order data. Key fields:
+
+```json
+{
+  "success": true,
+  "info": {
+    "_id": "66b6258e890ffb00126c4233",
+    "check": 1,
+    "type": "LOCAL",
+    "salesChannel": "anotaai",
+    "total": 10,
+    "deliveryFee": 0,
+    "customer": { "id": "...", "name": "Teste", "phone": "43123456789" },
+    "items": [
+      {
+        "name": "Refrigerante 1L", "quantity": 1, "price": 10, "total": 10,
+        "externalId": "|3|", "internalId": "65d4a428f784bb001956f919",
+        "subItems": []
+      }
+    ],
+    "payments": [
+      { "name": "money", "code": "money", "value": "10", "prepaid": false }
+    ],
+    "merchant": { "name": "Beto", "id": "...", "unit": "..." },
+    "createdAt": "2024-08-09T14:19:58.182Z",
+    "shortReference": 1553
+  }
+}
+```
+
+#### Export catalog — `GET /v2/nm-category/rest/simple-item/export/v2`
+
+Returns the full menu grouped by category. Each category contains items with day-of-week pricing (`week_prices`). `is_additional: true` marks complement/add-on categories.
+
+Key fields per category:
+
+| Field                    | Description                                   |
+| ------------------------ | --------------------------------------------- |
+| `id`                     | Anota.AI category ID                          |
+| `title`                  | Category name                                 |
+| `is_additional`          | `true` = complement group, `false` = product  |
+| `itens[].id`             | Anota.AI item ID                              |
+| `itens[].title`          | Item name                                     |
+| `itens[].week_prices`    | Array of `{ price, short_name }` (sun–sat)    |
+| `itens[].next_steps`     | Linked complement categories                  |
+| `itens[].out`            | `true` = item is out of stock                 |
+
+Abbreviated response example:
+
+```json
+{
+  "success": true,
+  "message": "Menu exportado com sucesso.",
+  "data": [
+    {
+      "title": "Bebidas", "id": "6a0afa28...", "is_additional": false,
+      "itens": [
+        {
+          "id": "6a0afa28...", "title": "Refrigerante 600 ml",
+          "week_prices": [{ "price": 5, "short_name": "mon" }, "..."],
+          "next_steps": [], "out": false
+        }
+      ]
+    },
+    {
+      "title": "Turbine seu lanche", "id": "6a0afa28...", "is_additional": true,
+      "itens": [
+        {
+          "id": "6a0afa28...", "title": "Bacon",
+          "week_prices": [{ "price": 4, "short_name": "mon" }, "..."],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Catalog Structure — Flat Array with ID Lookup
+
+The catalog export returns a **single flat `data[]` array** containing all categories — both products (`is_additional: false`) and complement groups (`is_additional: true`). There is no nesting in the response; relationships are expressed via IDs.
+
+To resolve the complements of an item, look up `next_steps[i].category_id` in the same `data[]` array:
+
+```
+data[]  ← flat array, all categories mixed together
+  ├── { id: "AAA", is_additional: false, itens: [ { next_steps: [{ category_id: "BBB", min: 1, max: 3 }] } ] }
+  └── { id: "BBB", is_additional: true,  itens: [ { title: "Creme de Ninho", week_prices: [...] } ] }
+```
+
+Resolution flow:
+
+```
+item.next_steps[i].category_id
+        ↓
+data.find(cat => cat.id === category_id)
+        ↓
+cat.itens[j].week_prices  ← complement prices
+```
+
+The full catalog should be loaded once and held in memory as a map (`categoryId → category`) to resolve all relationships locally without additional API calls.
+
+### Integration Notes
+
+- `check` field in orders: `0` = pending, `1` = acknowledged/imported.
+- Item price is determined by the current day-of-week from `week_prices`.
+- `internalId` on order items maps to the MenuBank product ID; `externalId` is the Anota.AI reference.
+- The sync flow: poll `/ping/list` → fetch each order via `/ping/get/{id}` → persist locally → mark as checked.
+- Order total = base item price (`week_prices`) + sum of selected complement prices (`subItems[].week_prices`). The `/ping/get/{id}` response already contains resolved `subItems` with calculated prices — no need to re-resolve `next_steps` at import time.
+
+---
+
 ## Coding Guidelines
 
 1. **All code in English** — class names, variables, methods, endpoints, comments, commit messages.

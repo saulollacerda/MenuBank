@@ -1,19 +1,25 @@
 package com.MenuBank.MenuBank.ingredient;
 
 import com.MenuBank.MenuBank.common.UserContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
 public class IngredientService {
 
     private final IngredientRepository ingredientRepository;
+    private final IngredientCategoryRepository ingredientCategoryRepository;
     private final UserContext userContext;
 
-    public IngredientService(IngredientRepository ingredientRepository, UserContext userContext) {
+    public IngredientService(IngredientRepository ingredientRepository,
+                             IngredientCategoryRepository ingredientCategoryRepository,
+                             UserContext userContext) {
         this.ingredientRepository = ingredientRepository;
+        this.ingredientCategoryRepository = ingredientCategoryRepository;
         this.userContext = userContext;
     }
 
@@ -24,6 +30,8 @@ public class IngredientService {
             throw new DuplicateIngredientException("nome");
         }
 
+        IngredientCategory category = resolveCategory(request.getIngredientCategoryId(), ownerId);
+
         Ingredient ingredient = Ingredient.builder()
                 .ownerId(ownerId)
                 .name(request.getName())
@@ -31,10 +39,10 @@ public class IngredientService {
                 .costPerUnit(request.getCostPerUnit())
                 .defaultQuantity(request.getDefaultQuantity())
                 .status(IngredientStatus.ACTIVE)
+                .category(category)
                 .build();
 
-        Ingredient saved = ingredientRepository.save(ingredient);
-        return toResponse(saved);
+        return toResponse(ingredientRepository.save(ingredient));
     }
 
     public IngredientResponse findById(UUID id) {
@@ -44,11 +52,11 @@ public class IngredientService {
         return toResponse(ingredient);
     }
 
-    public List<IngredientResponse> findAll() {
+    public Page<IngredientResponse> findAll(String search, Pageable pageable) {
         UUID ownerId = userContext.getUserId();
-        return ingredientRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+        String term = search == null ? "" : search;
+        return ingredientRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+                .map(this::toResponse);
     }
 
     public IngredientResponse update(UUID id, IngredientRequest request) {
@@ -56,15 +64,18 @@ public class IngredientService {
         Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
+        IngredientCategory category = resolveCategory(request.getIngredientCategoryId(), ownerId);
+
         ingredient.setName(request.getName());
         ingredient.setUnit(request.getUnit());
         ingredient.setCostPerUnit(request.getCostPerUnit());
         ingredient.setDefaultQuantity(request.getDefaultQuantity());
+        ingredient.setCategory(category);
 
-        Ingredient saved = ingredientRepository.save(ingredient);
-        return toResponse(saved);
+        return toResponse(ingredientRepository.save(ingredient));
     }
 
+    @Transactional
     public void delete(UUID id) {
         UUID ownerId = userContext.getUserId();
         if (!ingredientRepository.existsByIdAndOwnerId(id, ownerId)) {
@@ -73,7 +84,16 @@ public class IngredientService {
         ingredientRepository.deleteByIdAndOwnerId(id, ownerId);
     }
 
+    private IngredientCategory resolveCategory(UUID categoryId, UUID ownerId) {
+        if (categoryId == null) {
+            return null;
+        }
+        return ingredientCategoryRepository.findByIdAndOwnerId(categoryId, ownerId)
+                .orElseThrow(() -> new IngredientCategoryNotFoundException(categoryId));
+    }
+
     private IngredientResponse toResponse(Ingredient ingredient) {
+        IngredientCategory cat = ingredient.getCategory();
         return IngredientResponse.builder()
                 .id(ingredient.getId())
                 .name(ingredient.getName())
@@ -81,6 +101,8 @@ public class IngredientService {
                 .costPerUnit(ingredient.getCostPerUnit())
                 .defaultQuantity(ingredient.getDefaultQuantity())
                 .status(ingredient.getStatus())
+                .ingredientCategoryId(cat != null ? cat.getId() : null)
+                .ingredientCategoryName(cat != null ? cat.getName() : null)
                 .build();
     }
 }

@@ -17,4 +17,6 @@ public class IngredientResponse {
     private BigDecimal costPerUnit;
     private BigDecimal defaultQuantity;
     private IngredientStatus status;
+    private UUID ingredientCategoryId;
+    private String ingredientCategoryName;
 }

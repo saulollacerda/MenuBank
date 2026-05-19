@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.payment;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -13,6 +15,8 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, UU
     Optional<PaymentMethod> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<PaymentMethod> findAllByOwnerId(UUID ownerId);
+
+    Page<PaymentMethod> findAllByOwnerIdAndNameContainingIgnoreCase(UUID ownerId, String name, Pageable pageable);
 
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 

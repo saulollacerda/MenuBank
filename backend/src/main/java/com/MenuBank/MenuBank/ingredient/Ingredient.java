@@ -36,4 +36,11 @@ public class Ingredient {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private IngredientStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ingredient_category_id")
+    private IngredientCategory category;
+
+    @Column(name = "external_id")
+    private String externalId;
 }

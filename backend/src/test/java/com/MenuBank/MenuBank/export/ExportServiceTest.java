@@ -83,7 +83,6 @@ class ExportServiceTest {
                 .ownerId(ownerId)
                 .name("X-Burguer")
                 .price(new BigDecimal("25.00"))
-                .estimatedCost(new BigDecimal("10.00"))
                 .status(ProductStatus.ACTIVE)
                 .category(category)
                 .build();
@@ -406,6 +405,7 @@ class ExportServiceTest {
                     .product(product)
                     .quantity(2)
                     .unitPrice(new BigDecimal("25.00"))
+                    .unitCost(new BigDecimal("10.00"))
                     .extraIngredients(new ArrayList<>(List.of(extra)))
                     .build();
 
