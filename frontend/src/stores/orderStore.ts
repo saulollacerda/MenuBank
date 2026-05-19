@@ -50,9 +50,21 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
+  // Legacy entry point: fills `items` without touching pagination state.
   async function fetchAll(force = false) {
     if (!force && loaded.value) return
-    await fetchPage({ search: '', page: 0, size: 1000 })
+    loading.value = true
+    error.value = null
+    try {
+      const result = await orderService.findAll({ search: '', page: 0, size: 1000 })
+      items.value = result.content
+      loaded.value = true
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar pedidos'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
   async function create(request: OrderRequest) {

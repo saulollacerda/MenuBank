@@ -46,10 +46,22 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  // legacy entry point used by forms/dropdowns that need the full list
+  // Legacy entry point: fills `items` for forms/dropdowns without touching
+  // pagination state (so a later list view starts with default size).
   async function fetchAll(force = false) {
     if (!force && loaded.value) return
-    await fetchPage({ search: '', page: 0, size: 1000 })
+    loading.value = true
+    error.value = null
+    try {
+      const result = await productService.findAll({ search: '', page: 0, size: 1000 })
+      items.value = result.content
+      loaded.value = true
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar produtos'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
   async function create(request: ProductRequest) {

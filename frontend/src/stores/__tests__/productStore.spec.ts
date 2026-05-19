@@ -63,6 +63,19 @@ describe('productStore', () => {
     expect(mockedProductService.findAll).toHaveBeenCalledWith({ search: '', page: 0, size: 1000 })
   })
 
+  it('fetchAll should NOT pollute pagination state (size stays at default)', async () => {
+    mockedProductService.findAll.mockResolvedValue(asPage([], 1000))
+
+    const store = useProductStore()
+    await store.fetchAll()
+
+    // size in store state should remain at default (20), not 1000,
+    // so a subsequent fetchPage from a list view starts paginated correctly
+    expect(store.size).toBe(20)
+    expect(store.page).toBe(0)
+    expect(store.search).toBe('')
+  })
+
   it('create should refetch the current page', async () => {
     const created = {
       id: '1',
