@@ -11,8 +11,8 @@ import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
-import com.MenuBank.MenuBank.product.RecipeItem;
-import com.MenuBank.MenuBank.product.RecipeItemRepository;
+import com.MenuBank.MenuBank.product.ProductIngredient;
+import com.MenuBank.MenuBank.product.ProductIngredientRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -51,7 +51,10 @@ class OrderServiceTest {
     private PaymentMethodRepository paymentMethodRepository;
 
     @Mock
-    private RecipeItemRepository recipeItemRepository;
+    private ProductIngredientRepository productIngredientRepository;
+
+    @Mock
+    private com.MenuBank.MenuBank.product.OrderCostCalculatorService orderCostCalculatorService;
 
     @Mock
     private UserContext userContext;
@@ -109,11 +112,16 @@ class OrderServiceTest {
                 .id(UUID.randomUUID()).ownerId(ownerId).name("CustoBase")
                 .unit("un").costPerUnit(new BigDecimal("12.00"))
                 .status(IngredientStatus.ACTIVE).build();
-        RecipeItem defaultRecipe = RecipeItem.builder()
+        ProductIngredient defaultRecipe = ProductIngredient.builder()
                 .product(product).ingredient(costIngredient)
-                .quantity(BigDecimal.ONE).build();
-        lenient().when(recipeItemRepository.findByProductIdAndProductOwnerId(productId, ownerId))
+                .grammage(BigDecimal.ONE).build();
+        lenient().when(productIngredientRepository.findByProductIdAndProductOwnerId(productId, ownerId))
                 .thenReturn(List.of(defaultRecipe));
+
+        // Cálculo padrão dos testes simples: 2 items × 12.00 base = 24.00.
+        // Testes com extras sobrescrevem este mock.
+        lenient().when(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
+                .thenReturn(new BigDecimal("24.00"));
 
         OrderItemRequest itemRequest = OrderItemRequest.builder()
                 .productId(productId)
@@ -317,6 +325,9 @@ class OrderServiceTest {
             given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
             given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            // Sobrescreve cálculo padrão com o valor esperado para este caso: base (24) + extras (10) = 34
+            given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
+                    .willReturn(new BigDecimal("34.00"));
 
             // return a saved copy so OrderResponse uses the calculated values
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
@@ -329,9 +340,8 @@ class OrderServiceTest {
             OrderResponse response = orderService.create(requestWithExtra);
 
             // totalValue = 2 * 30.00 = 60.00
-            // baseCost = 2 * 12.00 = 24.00
-            // extraCost(per unit) = 50 * 0.10 = 5.00; for 2 units => 10.00
-            // estimatedProfit = 60.00 - (24.00 + 10.00) = 26.00
+            // totalCost (mockado pelo OrderCostCalculatorService) = 34.00
+            // estimatedProfit = 60.00 - 34.00 = 26.00
             assertThat(response.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("26.00"));
         }
 
@@ -406,6 +416,9 @@ class OrderServiceTest {
             given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
             given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
             given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(fineIngredient));
+            // totalCost esperado: base (12.00) + extra (100 * 0.0035 = 0.35) = 12.35
+            given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
+                    .willReturn(new BigDecimal("12.3500"));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
                 Order saved = invocation.getArgument(0);
                 saved.setId(orderId);
@@ -415,10 +428,7 @@ class OrderServiceTest {
 
             OrderResponse response = orderService.create(requestWithExtra);
 
-            // totalValue = 1 * 30.00 = 30.00
-            // extraCost = 100 * 0.0035 = 0.3500
-            // baseCost = 1 * 12.00 = 12.00
-            // estimatedProfit = 30.00 - (12 + 0.35) = 17.65
+            // totalValue = 30.00; totalCost = 12.35; estimatedProfit = 17.65
             assertThat(response.getEstimatedProfit())
                     .isEqualByComparingTo(new BigDecimal("17.6500"));
         }

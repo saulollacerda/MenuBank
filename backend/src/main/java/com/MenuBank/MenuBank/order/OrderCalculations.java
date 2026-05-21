@@ -40,11 +40,25 @@ public final class OrderCalculations {
     public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
                                                       BigDecimal totalCost,
                                                       PaymentMethod paymentMethod) {
+        return calculateEstimatedProfit(totalValue, totalCost, paymentMethod, BigDecimal.ZERO);
+    }
+
+    /**
+     * Calcula o lucro estimado descontando a taxa de entrega da receita efetiva.
+     * O {@code deliveryFee} é repassado ao entregador/plataforma e não compõe receita do restaurante.
+     * A taxa do meio de pagamento incide sobre o {@code totalValue} (o valor que efetivamente passa pela maquininha/PSP).
+     */
+    public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
+                                                      BigDecimal totalCost,
+                                                      PaymentMethod paymentMethod,
+                                                      BigDecimal deliveryFee) {
         BigDecimal feeAmount = BigDecimal.ZERO;
         if (paymentMethod != null && paymentMethod.getFeeRate().compareTo(BigDecimal.ZERO) > 0) {
             feeAmount = totalValue.multiply(paymentMethod.getFeeRate())
                     .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
         }
-        return totalValue.subtract(totalCost).subtract(feeAmount);
+        BigDecimal delivery = deliveryFee != null ? deliveryFee : BigDecimal.ZERO;
+        BigDecimal effectiveRevenue = totalValue.subtract(delivery);
+        return effectiveRevenue.subtract(totalCost).subtract(feeAmount);
     }
 }

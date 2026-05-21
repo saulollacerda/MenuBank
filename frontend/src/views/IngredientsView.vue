@@ -158,7 +158,8 @@ onMounted(() => {
             <th>Nome</th>
             <th>Categoria</th>
             <th>Unidade</th>
-            <th>Custo/Unidade</th>
+            <th title="Custo: o que você paga pelo ingrediente">Custo/Unidade</th>
+            <th title="Preço de venda no cardápio Anota.AI (informativo)">Preço Venda</th>
             <th>Qtd. Padrão</th>
             <th>Status</th>
             <th style="width: 150px">Ações</th>
@@ -169,7 +170,24 @@ onMounted(() => {
             <td>{{ ingredient.name }}</td>
             <td>{{ ingredient.ingredientCategoryName ?? '—' }}</td>
             <td>{{ ingredient.unit }}</td>
-            <td>{{ formatCurrency(ingredient.costPerUnit) }}</td>
+            <td>
+              <span
+                v-if="Number(ingredient.costPerUnit) === 0"
+                class="badge badge-warning"
+                title="Custo não configurado — cadastre o valor que você paga"
+              >
+                ⚠ R$ 0,00
+              </span>
+              <template v-else>{{ formatCurrency(ingredient.costPerUnit) }}</template>
+            </td>
+            <td>
+              <template v-if="ingredient.salePrice != null && ingredient.externalId">
+                <span title="Preço de venda vindo do cardápio Anota.AI">
+                  🛒 {{ formatCurrency(ingredient.salePrice) }}
+                </span>
+              </template>
+              <template v-else>—</template>
+            </td>
             <td>{{ ingredient.defaultQuantity ?? '-' }}</td>
             <td>
               <span :class="statusClass(ingredient.status)">

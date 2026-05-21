@@ -1,19 +1,18 @@
 package com.MenuBank.MenuBank.product;
 
-import com.MenuBank.MenuBank.ingredient.Ingredient;
+import com.MenuBank.MenuBank.ingredient.IngredientCategory;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
-@Table(name = "recipe_items")
+@Table(name = "product_complement_groups")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RecipeItem {
+public class ProductComplementGroup {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -26,10 +25,12 @@ public class RecipeItem {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ingredient_id", nullable = false)
-    private Ingredient ingredient;
+    @JoinColumn(name = "ingredient_category_id", nullable = false)
+    private IngredientCategory ingredientCategory;
 
     @Column(nullable = false)
-    private BigDecimal quantity;
-}
+    private int minRequired;
 
+    @Column(nullable = false)
+    private int maxAllowed;
+}

@@ -40,7 +40,8 @@ describe('ProductsView', () => {
           categoryName: 'Bebidas',
         },
       ],
-      recipeItems: [],
+      productIngredients: [],
+      recipeItems: [], // alias mantido para compat
       loading: false,
       error: null,
       search: '',
@@ -53,9 +54,15 @@ describe('ProductsView', () => {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
       remove: vi.fn(),
+      fetchProductIngredients: vi.fn(),
+      addProductIngredient: vi.fn().mockResolvedValue({}),
+      batchAddProductIngredients: vi.fn().mockResolvedValue([]),
+      removeProductIngredient: vi.fn(),
       fetchRecipeItems: vi.fn(),
       addRecipeItem: vi.fn().mockResolvedValue({}),
+      batchAddRecipeItems: vi.fn().mockResolvedValue([]),
       removeRecipeItem: vi.fn(),
+      clearRecipe: vi.fn(),
     }
 
     ingredientStoreMock = {
@@ -67,11 +74,13 @@ describe('ProductsView', () => {
           costPerUnit: 0.02,
           defaultQuantity: 20,
           status: 'ACTIVE',
+          ingredientCategoryId: null,
         },
       ],
       loading: false,
       error: null,
       fetchAll: vi.fn(),
+      fetchPage: vi.fn(),
     }
 
     categoryStoreMock = {

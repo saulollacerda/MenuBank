@@ -1,15 +1,19 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ProductRequest, ProductResponse, RecipeItemResponse } from '@/types/Product'
-import type { RecipeItemRequest } from '@/types/Product'
+import type {
+  ProductRequest,
+  ProductResponse,
+  ProductIngredientRequest,
+  ProductIngredientResponse,
+} from '@/types/Product'
 import type { PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 import { productService } from '@/services/productService'
-import { recipeItemService } from '@/services/recipeItemService'
+import { productIngredientService } from '@/services/productIngredientService'
 
 export const useProductStore = defineStore('product', () => {
   const items = ref<ProductResponse[]>([])
-  const recipeItems = ref<RecipeItemResponse[]>([])
+  const productIngredients = ref<ProductIngredientResponse[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
@@ -46,8 +50,6 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  // Legacy entry point: fills `items` for forms/dropdowns without touching
-  // pagination state (so a later list view starts with default size).
   async function fetchAll(force = false) {
     if (!force && loaded.value) return
     loading.value = true
@@ -109,11 +111,11 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function fetchRecipeItems(productId: string) {
+  async function fetchProductIngredients(productId: string) {
     loading.value = true
     error.value = null
     try {
-      recipeItems.value = await recipeItemService.findByProductId(productId)
+      productIngredients.value = await productIngredientService.findByProductId(productId)
     } catch (e: unknown) {
       error.value = 'Erro ao carregar ficha técnica'
       throw e
@@ -122,12 +124,12 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function addRecipeItem(productId: string, request: RecipeItemRequest) {
+  async function addProductIngredient(productId: string, request: ProductIngredientRequest) {
     loading.value = true
     error.value = null
     try {
-      const created = await recipeItemService.add(productId, request)
-      recipeItems.value.push(created)
+      const created = await productIngredientService.add(productId, request)
+      productIngredients.value.push(created)
       return created
     } catch (e: unknown) {
       error.value = 'Erro ao adicionar ingrediente à ficha técnica'
@@ -137,12 +139,45 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function removeRecipeItem(productId: string, recipeItemId: string) {
+  async function batchAddProductIngredients(
+    productId: string,
+    requests: ProductIngredientRequest[],
+  ) {
     loading.value = true
     error.value = null
     try {
-      await recipeItemService.remove(productId, recipeItemId)
-      recipeItems.value = recipeItems.value.filter((item) => item.id !== recipeItemId)
+      const created = await productIngredientService.batchAdd(productId, requests)
+      productIngredients.value.push(...created)
+      return created
+    } catch (e: unknown) {
+      error.value = 'Erro ao salvar ingredientes em lote'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function clearRecipe(productId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      const deleted = await productIngredientService.clear(productId)
+      productIngredients.value = []
+      return deleted
+    } catch (e: unknown) {
+      error.value = 'Erro ao limpar ficha técnica'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function removeProductIngredient(productId: string, productIngredientId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await productIngredientService.remove(productId, productIngredientId)
+      productIngredients.value = productIngredients.value.filter((item) => item.id !== productIngredientId)
     } catch (e: unknown) {
       error.value = 'Erro ao remover ingrediente da ficha técnica'
       throw e
@@ -153,7 +188,9 @@ export const useProductStore = defineStore('product', () => {
 
   return {
     items,
-    recipeItems,
+    productIngredients,
+    // alias para minimizar churn em chamadores ainda usando o nome antigo
+    recipeItems: productIngredients,
     loading,
     error,
     search,
@@ -166,8 +203,15 @@ export const useProductStore = defineStore('product', () => {
     create,
     update,
     remove,
-    fetchRecipeItems,
-    addRecipeItem,
-    removeRecipeItem,
+    fetchProductIngredients,
+    addProductIngredient,
+    batchAddProductIngredients,
+    removeProductIngredient,
+    // aliases para compat com chamadores antigos
+    fetchRecipeItems: fetchProductIngredients,
+    addRecipeItem: addProductIngredient,
+    batchAddRecipeItems: batchAddProductIngredients,
+    removeRecipeItem: removeProductIngredient,
+    clearRecipe,
   }
 })

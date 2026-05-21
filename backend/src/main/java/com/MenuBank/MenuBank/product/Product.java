@@ -47,5 +47,5 @@ public class Product {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Builder.Default
-    private List<RecipeItem> recipeItems = List.of();
+    private List<ProductIngredient> productIngredients = List.of();
 }

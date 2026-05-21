@@ -47,6 +47,9 @@ describe('OrdersView', () => {
       totalPages: 0,
       fetchAll: vi.fn(),
       fetchPage: vi.fn(),
+      findById: vi.fn(async (id: string) =>
+        orderStoreMock.items.find((o: { id: string }) => o.id === id),
+      ),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn(),
       remove: vi.fn(),

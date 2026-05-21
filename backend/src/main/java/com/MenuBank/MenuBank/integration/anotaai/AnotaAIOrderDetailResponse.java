@@ -21,12 +21,14 @@ public class AnotaAIOrderDetailResponse {
     public static class OrderDetail {
         @JsonProperty("_id")
         private String id;
-        private List<Double> additionalFees;
+        // NOTA: campos `additionalFees` e `discounts` vêm da Anota.AI como arrays de objetos
+        // ({amount, tag, target}). Não usamos eles ainda, então ficam ignorados pelo
+        // @JsonIgnoreProperties(ignoreUnknown=true). Se precisar usar futuramente,
+        // criar classes Discount/AdditionalFee em vez de List<Double>.
         private int check;
         private String createdAt;
         private AnotaAICustomer customer;
         private double deliveryFee;
-        private List<Double> discounts;
         private String observation;
         private List<AnotaAIOrderItem> items;
         private List<AnotaAIPayment> payments;
@@ -58,6 +60,18 @@ public class AnotaAIOrderDetailResponse {
         private String externalId;
         private double price;
         private double total;
+        private List<AnotaAISubItem> subItems;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AnotaAISubItem {
+        private String name;
+        private int quantity;
+        private double price;
+        private String internalId;
+        private String externalId;
     }
 
     @Data

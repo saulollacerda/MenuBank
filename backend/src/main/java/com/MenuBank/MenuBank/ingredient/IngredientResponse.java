@@ -15,8 +15,10 @@ public class IngredientResponse {
     private String name;
     private String unit;
     private BigDecimal costPerUnit;
+    private BigDecimal salePrice;
     private BigDecimal defaultQuantity;
     private IngredientStatus status;
     private UUID ingredientCategoryId;
     private String ingredientCategoryName;
+    private String externalId;
 }

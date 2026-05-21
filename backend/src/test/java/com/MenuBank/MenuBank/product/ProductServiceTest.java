@@ -4,8 +4,10 @@ import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.ingredient.IngredientCategory;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +30,9 @@ class ProductServiceTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private ProductComplementGroupRepository complementGroupRepository;
 
     @Mock
     private UserContext userContext;
@@ -194,6 +199,28 @@ class ProductServiceTest {
 
             assertThatThrownBy(() -> productService.findById(productId))
                     .isInstanceOf(ProductNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("deve incluir complementGroups na response")
+        void shouldIncludeComplementGroupsInResponse() {
+            IngredientCategory ingCat = IngredientCategory.builder()
+                    .id(UUID.randomUUID()).ownerId(ownerId).name("Adicionais").build();
+            ProductComplementGroup group = ProductComplementGroup.builder()
+                    .id(UUID.randomUUID()).product(product).ingredientCategory(ingCat)
+                    .minRequired(1).maxAllowed(3).build();
+
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(complementGroupRepository.findByProductId(productId)).willReturn(List.of(group));
+
+            ProductResponse result = productService.findById(productId);
+
+            assertThat(result.getComplementGroups()).hasSize(1);
+            assertThat(result.getComplementGroups().get(0).getIngredientCategoryId()).isEqualTo(ingCat.getId());
+            assertThat(result.getComplementGroups().get(0).getIngredientCategoryName()).isEqualTo("Adicionais");
+            assertThat(result.getComplementGroups().get(0).getMinRequired()).isEqualTo(1);
+            assertThat(result.getComplementGroups().get(0).getMaxAllowed()).isEqualTo(3);
         }
     }
 

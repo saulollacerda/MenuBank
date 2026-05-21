@@ -46,6 +46,16 @@ public class IngredientController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Atualização atômica dos campos relacionados ao custo manual do ingrediente.
+     * Não toca em {@code salePrice} (sincronizado do Anota.AI).
+     */
+    @PutMapping("/{id}/cost")
+    public ResponseEntity<IngredientResponse> updateCost(@PathVariable UUID id, @Valid @RequestBody IngredientCostRequest request) {
+        IngredientResponse response = ingredientService.updateCost(id, request);
+        return ResponseEntity.ok(response);
+    }
+
     @Transactional
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {

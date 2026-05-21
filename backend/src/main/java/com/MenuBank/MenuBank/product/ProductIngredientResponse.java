@@ -9,15 +9,16 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RecipeItemResponse {
+public class ProductIngredientResponse {
 
     private UUID id;
     private UUID productId;
     private UUID ingredientId;
     private String ingredientName;
     private String ingredientUnit;
-    private BigDecimal quantity;
+    private UUID ingredientCategoryId;
+    private BigDecimal grammage;
+    private boolean isOptional;
     private BigDecimal costPerUnit;
     private BigDecimal totalCost;
 }
-

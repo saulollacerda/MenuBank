@@ -438,7 +438,8 @@ select.form-control {
   color: var(--color-danger);
 }
 
-.badge-pending {
+.badge-pending,
+.badge-warning {
   background: var(--color-warning-light);
   color: var(--color-warning);
 }

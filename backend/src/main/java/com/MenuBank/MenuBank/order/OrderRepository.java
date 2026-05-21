@@ -59,4 +59,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByOwnerIdAndDateTimeBetweenAndStatus(UUID ownerId, LocalDateTime start, LocalDateTime end, OrderStatus status);
 
     boolean existsByExternalOrderIdAndOwnerId(String externalOrderId, UUID ownerId);
+
+    Optional<Order> findByExternalOrderIdAndOwnerId(String externalOrderId, UUID ownerId);
 }

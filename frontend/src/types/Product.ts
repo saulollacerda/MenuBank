@@ -6,6 +6,14 @@ export interface ProductRequest {
   categoryId: string
 }
 
+export interface ProductComplementGroupResponse {
+  id: string
+  ingredientCategoryId: string
+  ingredientCategoryName: string
+  minRequired: number
+  maxAllowed: number
+}
+
 export interface ProductResponse {
   id: string
   name: string
@@ -13,21 +21,31 @@ export interface ProductResponse {
   status: ProductStatus
   categoryId: string
   categoryName: string
+  complementGroups?: ProductComplementGroupResponse[]
 }
 
-export interface RecipeItemRequest {
+export interface ProductIngredientRequest {
   ingredientId: string
-  quantity: number
+  grammage: number
+  isOptional?: boolean
 }
 
-export interface RecipeItemResponse {
+export interface ProductIngredientResponse {
   id: string
   productId: string
   ingredientId: string
   ingredientName: string
   ingredientUnit: string
-  quantity: number
+  ingredientCategoryId?: string | null
+  grammage: number
+  isOptional: boolean
   costPerUnit: number
   totalCost: number
 }
+
+/** @deprecated use ProductIngredientRequest */
+export type RecipeItemRequest = ProductIngredientRequest
+
+/** @deprecated use ProductIngredientResponse */
+export type RecipeItemResponse = ProductIngredientResponse
 

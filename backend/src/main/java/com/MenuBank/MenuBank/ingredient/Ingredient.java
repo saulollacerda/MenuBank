@@ -27,8 +27,16 @@ public class Ingredient {
     @Column(nullable = false)
     private String unit;
 
+    /** Custo unitário (R$/unidade) cadastrado manualmente pelo restaurante. */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal costPerUnit;
+
+    /**
+     * Preço de venda do complemento no cardápio Anota.AI (informativo).
+     * Sincronizado a partir do {@code price} retornado pela API; NÃO substitui {@link #costPerUnit}.
+     */
+    @Column(name = "sale_price", precision = 19, scale = 4)
+    private BigDecimal salePrice;
 
     @Column(precision = 19, scale = 4)
     private BigDecimal defaultQuantity;

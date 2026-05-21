@@ -20,6 +20,8 @@ public class OrderResponse {
     private OrderStatus status;
     private BigDecimal totalValue;
     private BigDecimal estimatedProfit;
+    private BigDecimal deliveryFee;
+    private BigDecimal totalCost;
     private UUID paymentMethodId;
     private String paymentMethodName;
     private BigDecimal feeRate;

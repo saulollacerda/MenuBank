@@ -115,6 +115,15 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
+  async function findById(id: string): Promise<OrderResponse> {
+    try {
+      return await orderService.findById(id)
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar detalhes do pedido'
+      throw e
+    }
+  }
+
   return {
     items,
     loading,
@@ -129,5 +138,6 @@ export const useOrderStore = defineStore('order', () => {
     create,
     update,
     remove,
+    findById,
   }
 })

@@ -13,8 +13,16 @@ export interface IngredientResponse {
   name: string
   unit: string
   costPerUnit: number
+  salePrice?: number | null
   defaultQuantity?: number
   status: IngredientStatus
   ingredientCategoryId: string | null
   ingredientCategoryName: string | null
+  externalId?: string | null
+}
+
+export interface IngredientCostRequest {
+  costPerUnit: number
+  defaultQuantity?: number
+  unit?: string
 }

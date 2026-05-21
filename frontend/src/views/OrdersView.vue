@@ -12,6 +12,7 @@ import type {
   OrderResponse,
   OrderItemRequest,
   OrderItemExtraIngredientRequest,
+  OrderOrigin,
 } from '@/types/Order'
 
 const orderStore = useOrderStore()
@@ -32,6 +33,7 @@ async function handleSyncAnotaAI() {
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
+const loadingDetail = ref(false)
 const selectedOrder = ref<OrderResponse | null>(null)
 const confirmDeleteId = ref<string | null>(null)
 const editingOrderId = ref<string | null>(null)
@@ -83,6 +85,24 @@ function statusLabel(status: string): string {
     CANCELLED: 'Cancelado',
   }
   return map[status] ?? status
+}
+
+function originLabel(origin: OrderOrigin | undefined): string {
+  const map: Record<OrderOrigin, string> = {
+    MENUBANK: 'MenuBank',
+    ANOTA_AI: 'Anota.AI',
+    IFOOD: 'iFood',
+  }
+  return map[origin ?? 'MENUBANK']
+}
+
+function originClass(origin: OrderOrigin | undefined): string {
+  const map: Record<OrderOrigin, string> = {
+    MENUBANK: 'badge badge-origin badge-origin-menubank',
+    ANOTA_AI: 'badge badge-origin badge-origin-anotaai',
+    IFOOD: 'badge badge-origin badge-origin-ifood',
+  }
+  return map[origin ?? 'MENUBANK']
 }
 
 function statusClass(status: string): string {
@@ -168,9 +188,17 @@ async function handleSubmit() {
   }
 }
 
-function viewDetail(order: OrderResponse) {
-  selectedOrder.value = order
+async function viewDetail(order: OrderResponse) {
   showDetailModal.value = true
+  loadingDetail.value = true
+  selectedOrder.value = null
+  try {
+    selectedOrder.value = await orderStore.findById(order.id)
+  } catch {
+    showDetailModal.value = false
+  } finally {
+    loadingDetail.value = false
+  }
 }
 
 function closeDetailModal() {
@@ -283,7 +311,9 @@ onMounted(() => {
             <td>{{ formatDateTime(order.dateTime) }}</td>
             <td>
               {{ order.customerName }}
-              <span v-if="order.origin === 'ANOTA_AI'" class="badge badge-anotaai">Anota.AI</span>
+              <span :class="originClass(order.origin)" :data-testid="`order-${order.id}-origin-badge`">
+                {{ originLabel(order.origin) }}
+              </span>
             </td>
             <td>
               <span :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span>
@@ -517,7 +547,7 @@ onMounted(() => {
 
     <!-- Order Detail Modal -->
     <div
-      v-if="showDetailModal && selectedOrder"
+      v-if="showDetailModal"
       class="modal-overlay"
       data-testid="order-detail-modal"
       @click.self="closeDetailModal"
@@ -528,6 +558,10 @@ onMounted(() => {
           <button class="modal-close" @click="closeDetailModal">✕</button>
         </div>
         <div class="modal-body">
+          <div v-if="loadingDetail" class="loading-container">
+            <div class="spinner" />
+          </div>
+          <template v-else-if="selectedOrder">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px">
             <div>
               <strong>Cliente:</strong> {{ selectedOrder.customerName }}
@@ -544,11 +578,23 @@ onMounted(() => {
             <div>
               <strong>Valor Total:</strong> {{ formatCurrency(selectedOrder.totalValue) }}
             </div>
+            <div v-if="selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0">
+              <strong>Taxa de Entrega:</strong>
+              <span
+                data-testid="order-detail-delivery-fee"
+                title="Repassada ao entregador/plataforma — descontada da receita no cálculo do lucro"
+              >
+                {{ formatCurrency(selectedOrder.deliveryFee) }}
+              </span>
+            </div>
             <div>
               <strong>Total de custos:</strong>
               <span data-testid="order-detail-total-cost">
-                {{ formatCurrency(orderTotalCost(selectedOrder)) }}
+                {{ formatCurrency(selectedOrder.totalCost ?? orderTotalCost(selectedOrder)) }}
               </span>
+              <small v-if="selectedOrder.totalCost != null" style="color: #64748b; margin-left: 4px">
+                (snapshot)
+              </small>
             </div>
             <div>
               <strong>Lucro Estimado:</strong>
@@ -628,6 +674,7 @@ onMounted(() => {
           <div class="form-actions">
             <button class="btn btn-secondary" @click="closeDetailModal">Fechar</button>
           </div>
+          </template>
         </div>
       </div>
     </div>
@@ -657,15 +704,26 @@ onMounted(() => {
   gap: 0.5rem;
 }
 
-.badge-anotaai {
+.badge-origin {
   display: inline-block;
   margin-left: 0.5rem;
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: #fff;
-  background: #ef4444;
   border-radius: 999px;
+}
+
+.badge-origin-anotaai {
+  background: #2563eb; /* azul */
+}
+
+.badge-origin-ifood {
+  background: #ef4444; /* vermelho */
+}
+
+.badge-origin-menubank {
+  background: #8b5cf6; /* roxo */
 }
 </style>
 

@@ -19,6 +19,6 @@ public class AnotaAISyncResult {
     private int ingredientCategoriesUpdated;
     private int ingredientsCreated;
     private int ingredientsUpdated;
-    private int recipeItemsCreated;
+    private int productIngredientsCreated;
     private List<String> errors;
 }

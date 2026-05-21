@@ -60,7 +60,8 @@ class AnotaAIControllerTest {
     @Test
     @DisplayName("POST /api/integrations/anotaai/catalog deve retornar 200 com resultado")
     void shouldSyncCatalog() throws Exception {
-        given(syncService.syncCatalog(any(UUID.class))).willReturn(AnotaAISyncResult.builder()
+        given(syncService.syncCatalog(any(UUID.class), org.mockito.ArgumentMatchers.anyBoolean()))
+                .willReturn(AnotaAISyncResult.builder()
                 .categoriesCreated(3)
                 .categoriesUpdated(1)
                 .productsCreated(10)

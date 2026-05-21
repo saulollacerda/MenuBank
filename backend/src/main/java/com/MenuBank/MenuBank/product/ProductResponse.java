@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.product;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -17,5 +18,7 @@ public class ProductResponse {
     private ProductStatus status;
     private UUID categoryId;
     private String categoryName;
+    @Builder.Default
+    private List<ProductComplementGroupResponse> complementGroups = List.of();
 }
 

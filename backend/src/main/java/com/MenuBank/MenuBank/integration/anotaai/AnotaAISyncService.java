@@ -12,17 +12,21 @@ import com.MenuBank.MenuBank.ingredient.IngredientStatus;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderCalculations;
 import com.MenuBank.MenuBank.order.OrderItem;
+import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.order.OrderStatus;
 import com.MenuBank.MenuBank.payment.PaymentMethod;
 import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
+import com.MenuBank.MenuBank.product.OrderCostCalculatorService;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductCostCalculator;
+import com.MenuBank.MenuBank.product.ProductComplementGroup;
+import com.MenuBank.MenuBank.product.ProductComplementGroupRepository;
+import com.MenuBank.MenuBank.product.ProductIngredient;
+import com.MenuBank.MenuBank.product.ProductIngredientRepository;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
-import com.MenuBank.MenuBank.product.RecipeItem;
-import com.MenuBank.MenuBank.product.RecipeItemRepository;
 import com.MenuBank.MenuBank.user.User;
 import com.MenuBank.MenuBank.user.UserRepository;
 import org.slf4j.Logger;
@@ -51,7 +55,9 @@ public class AnotaAISyncService {
     private final OrderRepository orderRepository;
     private final IngredientCategoryRepository ingredientCategoryRepository;
     private final IngredientRepository ingredientRepository;
-    private final RecipeItemRepository recipeItemRepository;
+    private final ProductIngredientRepository productIngredientRepository;
+    private final ProductComplementGroupRepository complementGroupRepository;
+    private final OrderCostCalculatorService orderCostCalculatorService;
 
     public AnotaAISyncService(AnotaAIClient anotaAIClient,
                                UserRepository userRepository,
@@ -62,7 +68,9 @@ public class AnotaAISyncService {
                                OrderRepository orderRepository,
                                IngredientCategoryRepository ingredientCategoryRepository,
                                IngredientRepository ingredientRepository,
-                               RecipeItemRepository recipeItemRepository) {
+                               ProductIngredientRepository productIngredientRepository,
+                               ProductComplementGroupRepository complementGroupRepository,
+                               OrderCostCalculatorService orderCostCalculatorService) {
         this.anotaAIClient = anotaAIClient;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -72,11 +80,18 @@ public class AnotaAISyncService {
         this.orderRepository = orderRepository;
         this.ingredientCategoryRepository = ingredientCategoryRepository;
         this.ingredientRepository = ingredientRepository;
-        this.recipeItemRepository = recipeItemRepository;
+        this.productIngredientRepository = productIngredientRepository;
+        this.complementGroupRepository = complementGroupRepository;
+        this.orderCostCalculatorService = orderCostCalculatorService;
     }
 
     @Transactional
     public AnotaAISyncResult syncCatalog(UUID ownerId) {
+        return syncCatalog(ownerId, false);
+    }
+
+    @Transactional
+    public AnotaAISyncResult syncCatalog(UUID ownerId, boolean clearRecipes) {
         String apiKey = resolveApiKey(ownerId);
         AnotaAICatalogResponse catalog = anotaAIClient.getCatalog(apiKey);
 
@@ -134,19 +149,23 @@ public class AnotaAISyncService {
                     Optional<Ingredient> existingIngOpt = ingredientRepository
                             .findByExternalIdAndOwnerId(remoteItem.getId(), ownerId);
 
+                    BigDecimal salePrice = BigDecimal.valueOf(remoteItem.getPrice());
                     if (existingIngOpt.isPresent()) {
                         Ingredient ingredient = existingIngOpt.get();
                         ingredient.setName(remoteItem.getTitle());
                         ingredient.setCategory(ingCategory);
+                        // Atualiza salePrice (cardápio pode ter mudado), mas NÃO toca em costPerUnit
+                        // (cadastrado manualmente pelo restaurante)
+                        ingredient.setSalePrice(salePrice);
                         ingredientRepository.save(ingredient);
                         ingredientsUpdated++;
                     } else {
-                        BigDecimal cost = BigDecimal.valueOf(remoteItem.getPrice());
                         Ingredient ingredient = Ingredient.builder()
                                 .ownerId(ownerId)
                                 .name(remoteItem.getTitle())
                                 .unit("un")
-                                .costPerUnit(cost)
+                                .costPerUnit(BigDecimal.ZERO)  // usuário cadastra depois
+                                .salePrice(salePrice)          // do Anota.AI
                                 .status(IngredientStatus.ACTIVE)
                                 .externalId(remoteItem.getId())
                                 .category(ingCategory)
@@ -197,13 +216,17 @@ public class AnotaAISyncService {
                 BigDecimal price = BigDecimal.valueOf(remoteItem.getPrice());
                 ProductStatus status = remoteItem.isOut() ? ProductStatus.INACTIVE : ProductStatus.ACTIVE;
 
+                Product savedProduct;
                 if (existingProductOpt.isPresent()) {
                     Product product = existingProductOpt.get();
+                    if (clearRecipes) {
+                        productIngredientRepository.deleteAllByProductIdAndProductOwnerId(product.getId(), ownerId);
+                    }
                     product.setName(remoteItem.getTitle());
                     product.setPrice(price);
                     product.setStatus(status);
                     product.setCategory(category);
-                    productRepository.save(product);
+                    savedProduct = productRepository.save(product);
                     productsUpdated++;
                 } else {
                     Product product = Product.builder()
@@ -214,9 +237,11 @@ public class AnotaAISyncService {
                             .externalId(remoteItem.getId())
                             .category(category)
                             .build();
-                    productRepository.save(product);
+                    savedProduct = productRepository.save(product);
                     productsCreated++;
                 }
+
+                syncComplementGroups(remoteItem, savedProduct, ownerId);
             }
         }
 
@@ -245,10 +270,30 @@ public class AnotaAISyncService {
             return AnotaAISyncResult.builder().errors(errors).build();
         }
 
+        log.info("[Anota.AI] /ping/list retornou {} pedidos", list.getInfo().getDocs().size());
+
         for (AnotaAIOrderListResponse.OrderSummary summary : list.getInfo().getDocs()) {
             String externalOrderId = summary.getId();
+            OrderOrigin origin = resolveOrigin(summary.getSalesChannel());
+
+            log.info("[Anota.AI] pedido={} from='{}' salesChannel='{}' → origin={}",
+                    externalOrderId, summary.getFrom(), summary.getSalesChannel(), origin);
 
             if (orderRepository.existsByExternalOrderIdAndOwnerId(externalOrderId, ownerId)) {
+                // Pedido já importado — reclassifica origin se mudou (backfill para pedidos
+                // antigos importados antes da feature de salesChannel)
+                orderRepository.findByExternalOrderIdAndOwnerId(externalOrderId, ownerId)
+                        .ifPresent(existing -> {
+                            if (existing.getOrigin() != origin) {
+                                log.info("[Anota.AI] reclassificando pedido {} de {} → {}",
+                                        externalOrderId, existing.getOrigin(), origin);
+                                existing.setOrigin(origin);
+                                orderRepository.save(existing);
+                            } else {
+                                log.debug("[Anota.AI] pedido {} já está com origin correta ({})",
+                                        externalOrderId, origin);
+                            }
+                        });
                 ordersSkipped++;
                 continue;
             }
@@ -257,12 +302,16 @@ public class AnotaAISyncService {
                 AnotaAIOrderDetailResponse detailResponse = anotaAIClient
                         .getOrderDetail(apiKey, externalOrderId);
                 if (detailResponse == null || detailResponse.getInfo() == null) {
+                    log.warn("[Anota.AI] pedido {} sem dados de detalhe", externalOrderId);
                     errors.add("Pedido " + externalOrderId + " sem dados de detalhe");
                     continue;
                 }
-                importOrder(detailResponse.getInfo(), ownerId);
+                importOrder(detailResponse.getInfo(), ownerId, origin);
                 ordersImported++;
+                log.info("[Anota.AI] pedido {} importado com origin={}", externalOrderId, origin);
             } catch (RuntimeException e) {
+                log.error("[Anota.AI] ERRO ao importar pedido {} (origin esperado={}): {}",
+                        externalOrderId, origin, e.getMessage(), e);
                 errors.add("Pedido " + externalOrderId + ": " + e.getMessage());
             }
         }
@@ -274,7 +323,14 @@ public class AnotaAISyncService {
                 .build();
     }
 
-    private void importOrder(AnotaAIOrderDetailResponse.OrderDetail detail, UUID ownerId) {
+    private OrderOrigin resolveOrigin(String salesChannel) {
+        if (salesChannel != null && salesChannel.equalsIgnoreCase("ifood")) {
+            return OrderOrigin.IFOOD;
+        }
+        return OrderOrigin.ANOTA_AI;
+    }
+
+    private void importOrder(AnotaAIOrderDetailResponse.OrderDetail detail, UUID ownerId, OrderOrigin origin) {
         Customer customer = resolveCustomer(detail.getCustomer(), ownerId);
         PaymentMethod paymentMethod = resolvePaymentMethod(detail.getPayments(), ownerId);
 
@@ -286,20 +342,22 @@ public class AnotaAISyncService {
                 if (productOpt.isEmpty()) continue;
                 Product product = productOpt.get();
                 BigDecimal unitCost = ProductCostCalculator.computeUnitCost(
-                        recipeItemRepository.findByProductIdAndProductOwnerId(product.getId(), ownerId));
+                        productIngredientRepository.findByProductIdAndProductOwnerId(product.getId(), ownerId));
                 OrderItem item = OrderItem.builder()
                         .product(product)
                         .quantity(remoteItem.getQuantity())
                         .unitPrice(BigDecimal.valueOf(remoteItem.getPrice()))
                         .unitCost(unitCost)
                         .build();
+                List<OrderItemExtraIngredient> extras = buildExtraIngredients(remoteItem.getSubItems(), ownerId);
+                extras.forEach(extra -> extra.setOrderItem(item));
+                item.setExtraIngredients(extras);
                 items.add(item);
             }
         }
 
         BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal());
-        BigDecimal totalCost = OrderCalculations.calculateTotalCost(items);
-        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
+        BigDecimal deliveryFee = BigDecimal.valueOf(detail.getDeliveryFee());
 
         Order order = Order.builder()
                 .ownerId(ownerId)
@@ -308,14 +366,62 @@ public class AnotaAISyncService {
                 .paymentMethod(paymentMethod)
                 .status(OrderStatus.PENDING)
                 .totalValue(totalValue)
-                .estimatedProfit(estimatedProfit)
-                .origin(OrderOrigin.ANOTA_AI)
+                .deliveryFee(deliveryFee)
+                .origin(origin)
                 .externalOrderId(detail.getId())
                 .items(items)
                 .build();
 
         items.forEach(item -> item.setOrder(order));
+
+        // Cálculo via service (requer order.items setado)
+        BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
+                totalValue, totalCost, paymentMethod, deliveryFee);
+        order.setTotalCost(totalCost);
+        order.setEstimatedProfit(estimatedProfit);
+
         orderRepository.save(order);
+    }
+
+    private void syncComplementGroups(AnotaAICatalogResponse.AnotaAIItem remoteItem,
+                                      Product product, UUID ownerId) {
+        if (remoteItem.getNextSteps() == null || remoteItem.getNextSteps().isEmpty()) return;
+        complementGroupRepository.deleteByProductId(product.getId());
+        for (AnotaAICatalogResponse.NextStep nextStep : remoteItem.getNextSteps()) {
+            ingredientCategoryRepository
+                    .findByExternalIdAndOwnerId(nextStep.getCategoryId(), ownerId)
+                    .ifPresent(ingCat -> complementGroupRepository.save(
+                            ProductComplementGroup.builder()
+                                    .product(product)
+                                    .ingredientCategory(ingCat)
+                                    .minRequired(nextStep.getMin())
+                                    .maxAllowed(nextStep.getMax())
+                                    .build()));
+        }
+    }
+
+    private List<OrderItemExtraIngredient> buildExtraIngredients(
+            List<AnotaAIOrderDetailResponse.AnotaAISubItem> subItems, UUID ownerId) {
+        if (subItems == null || subItems.isEmpty()) return new ArrayList<>();
+        List<OrderItemExtraIngredient> extras = new ArrayList<>();
+        for (AnotaAIOrderDetailResponse.AnotaAISubItem subItem : subItems) {
+            if (subItem.getInternalId() == null || subItem.getInternalId().isBlank()) continue;
+            ingredientRepository.findByExternalIdAndOwnerId(subItem.getInternalId(), ownerId)
+                    .ifPresent(ingredient -> {
+                        BigDecimal qty = ingredient.getDefaultQuantity() != null
+                                ? ingredient.getDefaultQuantity()
+                                : BigDecimal.ONE;
+                        extras.add(OrderItemExtraIngredient.builder()
+                                .ingredient(ingredient)
+                                .quantity(qty)
+                                .costPerUnit(ingredient.getCostPerUnit())
+                                .ingredientName(ingredient.getName())
+                                .ingredientUnit(ingredient.getUnit())
+                                .build());
+                    });
+        }
+        return extras;
     }
 
     private Customer resolveCustomer(AnotaAIOrderDetailResponse.AnotaAICustomer remoteCustomer, UUID ownerId) {

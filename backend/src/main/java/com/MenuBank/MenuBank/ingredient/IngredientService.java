@@ -76,6 +76,24 @@ public class IngredientService {
     }
 
     @Transactional
+    public IngredientResponse updateCost(UUID id, IngredientCostRequest request) {
+        UUID ownerId = userContext.getUserId();
+        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(() -> new IngredientNotFoundException(id));
+
+        ingredient.setCostPerUnit(request.getCostPerUnit());
+        if (request.getDefaultQuantity() != null) {
+            ingredient.setDefaultQuantity(request.getDefaultQuantity());
+        }
+        if (request.getUnit() != null && !request.getUnit().isBlank()) {
+            ingredient.setUnit(request.getUnit());
+        }
+        // NÃO toca em salePrice — esse campo é gerenciado pelo sync do Anota.AI
+
+        return toResponse(ingredientRepository.save(ingredient));
+    }
+
+    @Transactional
     public void delete(UUID id) {
         UUID ownerId = userContext.getUserId();
         if (!ingredientRepository.existsByIdAndOwnerId(id, ownerId)) {
@@ -99,10 +117,12 @@ public class IngredientService {
                 .name(ingredient.getName())
                 .unit(ingredient.getUnit())
                 .costPerUnit(ingredient.getCostPerUnit())
+                .salePrice(ingredient.getSalePrice())
                 .defaultQuantity(ingredient.getDefaultQuantity())
                 .status(ingredient.getStatus())
                 .ingredientCategoryId(cat != null ? cat.getId() : null)
                 .ingredientCategoryName(cat != null ? cat.getName() : null)
+                .externalId(ingredient.getExternalId())
                 .build();
     }
 }

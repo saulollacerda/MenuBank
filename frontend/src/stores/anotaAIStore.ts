@@ -30,11 +30,11 @@ export const useAnotaAIStore = defineStore('anotaAI', () => {
     }
   }
 
-  async function syncCatalog() {
+  async function syncCatalog(options: { clearRecipes?: boolean } = {}) {
     syncingCatalog.value = true
     error.value = null
     try {
-      const result = await anotaAIService.syncCatalog()
+      const result = await anotaAIService.syncCatalog(options)
       lastResult.value = result
       const productStore = useProductStore()
       const categoryStore = useCategoryStore()

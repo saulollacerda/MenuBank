@@ -297,4 +297,62 @@ class IngredientControllerTest {
                     .andExpect(status().isNotFound());
         }
     }
+
+    // -------------------------------------------------------------------------
+    // PUT /api/ingredients/{id}/cost
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("PUT /api/ingredients/{id}/cost")
+    class UpdateIngredientCost {
+
+        private IngredientCostRequest buildValidCostRequest() {
+            return IngredientCostRequest.builder()
+                    .costPerUnit(new BigDecimal("0.08"))
+                    .defaultQuantity(new BigDecimal("1"))
+                    .unit("g")
+                    .build();
+        }
+
+        @Test
+        @DisplayName("deve retornar 200 com ingrediente atualizado")
+        void shouldReturn200WithUpdatedIngredient() throws Exception {
+            given(ingredientService.updateCost(eq(ingredientId), any(IngredientCostRequest.class)))
+                    .willReturn(ingredientResponse);
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(buildValidCostRequest())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(ingredientId.toString()));
+        }
+
+        @Test
+        @DisplayName("deve retornar 404 quando ingrediente não existe")
+        void shouldReturn404WhenIngredientNotFound() throws Exception {
+            given(ingredientService.updateCost(eq(ingredientId), any(IngredientCostRequest.class)))
+                    .willThrow(new IngredientNotFoundException(ingredientId));
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(buildValidCostRequest())))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando costPerUnit é negativo")
+        void shouldReturn400WhenCostPerUnitIsNegative() throws Exception {
+            IngredientCostRequest invalid = IngredientCostRequest.builder()
+                    .costPerUnit(new BigDecimal("-1"))
+                    .build();
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalid)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
 }

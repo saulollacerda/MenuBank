@@ -46,6 +46,12 @@ public class Order {
     @Column(nullable = false)
     private BigDecimal estimatedProfit;
 
+    @Column(name = "delivery_fee", precision = 19, scale = 4)
+    private BigDecimal deliveryFee;
+
+    @Column(name = "total_cost", precision = 19, scale = 4)
+    private BigDecimal totalCost;
+
     @Column(name = "external_order_id")
     private String externalOrderId;
 

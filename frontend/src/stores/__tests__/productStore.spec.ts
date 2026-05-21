@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useProductStore } from '@/stores/productStore'
 import { productService } from '@/services/productService'
-import { recipeItemService } from '@/services/recipeItemService'
+import { productIngredientService } from '@/services/productIngredientService'
 
 vi.mock('@/services/productService')
-vi.mock('@/services/recipeItemService')
+vi.mock('@/services/productIngredientService')
 
 const mockedProductService = vi.mocked(productService)
-const mockedRecipeItemService = vi.mocked(recipeItemService)
+const mockedProductIngredientService = vi.mocked(productIngredientService)
 
 function asPage<T>(content: T[], size = 20) {
   return {
@@ -98,51 +98,41 @@ describe('productStore', () => {
     expect(store.items).toContainEqual(created)
   })
 
-  it('fetchRecipeItems should populate recipeItems', async () => {
-    const mockRecipeItems = [
+  it('fetchProductIngredients should populate productIngredients', async () => {
+    const mockProductIngredients = [
       {
         id: 'r1',
         productId: 'p1',
         ingredientId: 'i1',
         ingredientName: 'Farinha',
         ingredientUnit: 'kg',
-        quantity: 0.5,
+        grammage: 0.5,
+        isOptional: false,
         costPerUnit: 5.0,
         totalCost: 2.5,
       },
     ]
-    mockedRecipeItemService.findByProductId.mockResolvedValue(mockRecipeItems)
+    mockedProductIngredientService.findByProductId.mockResolvedValue(mockProductIngredients)
 
     const store = useProductStore()
-    await store.fetchRecipeItems('p1')
+    await store.fetchProductIngredients('p1')
 
-    expect(store.recipeItems).toEqual(mockRecipeItems)
+    expect(store.productIngredients).toEqual(mockProductIngredients)
   })
 
-  it('addRecipeItem should add to recipeItems and refresh product', async () => {
-    const newRecipeItem = {
+  it('addProductIngredient should add to productIngredients', async () => {
+    const newPI = {
       id: 'r1',
       productId: 'p1',
       ingredientId: 'i1',
       ingredientName: 'Farinha',
       ingredientUnit: 'kg',
-      quantity: 0.5,
+      grammage: 0.5,
+      isOptional: false,
       costPerUnit: 5.0,
       totalCost: 2.5,
     }
-    const updatedProduct = {
-      id: 'p1',
-      name: 'Hambúrguer',
-      price: 25.0,
-      estimatedCost: 2.5,
-      margin: 22.5,
-      status: 'ACTIVE' as const,
-      cmv: 2.5,
-      categoryId: 'cat1',
-      categoryName: 'Lanches',
-    }
-    mockedRecipeItemService.add.mockResolvedValue(newRecipeItem)
-    mockedProductService.findById.mockResolvedValue(updatedProduct)
+    mockedProductIngredientService.add.mockResolvedValue(newPI)
 
     const store = useProductStore()
     store.items = [
@@ -156,9 +146,9 @@ describe('productStore', () => {
       },
     ]
 
-    await store.addRecipeItem('p1', { ingredientId: 'i1', quantity: 0.5 })
+    await store.addProductIngredient('p1', { ingredientId: 'i1', grammage: 0.5, isOptional: false })
 
-    expect(store.recipeItems).toContainEqual(newRecipeItem)
+    expect(store.productIngredients).toContainEqual(newPI)
   })
 
   it('remove should call service and refetch the current page', async () => {

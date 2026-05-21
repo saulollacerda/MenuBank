@@ -9,9 +9,10 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.payment.PaymentMethod;
 import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
 import com.MenuBank.MenuBank.product.Product;
+import com.MenuBank.MenuBank.product.OrderCostCalculatorService;
 import com.MenuBank.MenuBank.product.ProductCostCalculator;
 import com.MenuBank.MenuBank.product.ProductRepository;
-import com.MenuBank.MenuBank.product.RecipeItemRepository;
+import com.MenuBank.MenuBank.product.ProductIngredientRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,7 +32,8 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final IngredientRepository ingredientRepository;
     private final PaymentMethodRepository paymentMethodRepository;
-    private final RecipeItemRepository recipeItemRepository;
+    private final ProductIngredientRepository productIngredientRepository;
+    private final OrderCostCalculatorService orderCostCalculatorService;
     private final UserContext userContext;
 
     public OrderService(OrderRepository orderRepository,
@@ -39,14 +41,16 @@ public class OrderService {
                         ProductRepository productRepository,
                         IngredientRepository ingredientRepository,
                         PaymentMethodRepository paymentMethodRepository,
-                        RecipeItemRepository recipeItemRepository,
+                        ProductIngredientRepository productIngredientRepository,
+                        OrderCostCalculatorService orderCostCalculatorService,
                         UserContext userContext) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.ingredientRepository = ingredientRepository;
         this.paymentMethodRepository = paymentMethodRepository;
-        this.recipeItemRepository = recipeItemRepository;
+        this.productIngredientRepository = productIngredientRepository;
+        this.orderCostCalculatorService = orderCostCalculatorService;
         this.userContext = userContext;
     }
 
@@ -62,8 +66,6 @@ public class OrderService {
         List<OrderItem> items = buildItems(request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(items);
-        BigDecimal totalCost = OrderCalculations.calculateTotalCost(items);
-        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
 
         Order order = Order.builder()
                 .ownerId(ownerId)
@@ -72,12 +74,18 @@ public class OrderService {
                 .paymentMethod(paymentMethod)
                 .status(OrderStatus.PAID)
                 .totalValue(totalValue)
-                .estimatedProfit(estimatedProfit)
                 .origin(OrderOrigin.MENUBANK)
                 .items(items)
                 .build();
 
         items.forEach(item -> item.setOrder(order));
+
+        // Cálculo via service (requer order.items setado)
+        BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
+                totalValue, totalCost, paymentMethod);
+        order.setTotalCost(totalCost);
+        order.setEstimatedProfit(estimatedProfit);
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
@@ -115,13 +123,10 @@ public class OrderService {
         List<OrderItem> newItems = buildItems(request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(newItems);
-        BigDecimal totalCost = OrderCalculations.calculateTotalCost(newItems);
-        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(totalValue, totalCost, paymentMethod);
 
         order.setCustomer(customer);
         order.setPaymentMethod(paymentMethod);
         order.setTotalValue(totalValue);
-        order.setEstimatedProfit(estimatedProfit);
         if (request.getStatus() != null) {
             order.setStatus(request.getStatus());
         }
@@ -131,6 +136,13 @@ public class OrderService {
         }
         order.getItems().clear();
         order.getItems().addAll(newItems);
+
+        // Cálculo via service (requer order.items atualizado)
+        BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
+        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
+                totalValue, totalCost, paymentMethod);
+        order.setTotalCost(totalCost);
+        order.setEstimatedProfit(estimatedProfit);
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
@@ -154,7 +166,7 @@ public class OrderService {
                             "Produto com ID " + itemRequest.getProductId() + " não encontrado"));
 
             BigDecimal unitCost = ProductCostCalculator.computeUnitCost(
-                    recipeItemRepository.findByProductIdAndProductOwnerId(product.getId(), ownerId));
+                    productIngredientRepository.findByProductIdAndProductOwnerId(product.getId(), ownerId));
 
             OrderItem item = OrderItem.builder()
                     .product(product)
@@ -215,9 +227,12 @@ public class OrderService {
         List<OrderItemResponse> itemResponses = items.stream().map(this::toItemResponse).toList();
 
         PaymentMethod pm = order.getPaymentMethod();
-        BigDecimal totalCost = OrderCalculations.calculateTotalCost(items);
+        // totalCost: snapshot persistido tem prioridade; pedidos antigos (null) caem no fallback legado
+        BigDecimal totalCost = order.getTotalCost() != null
+                ? order.getTotalCost()
+                : OrderCalculations.calculateTotalCost(items);
         BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                order.getTotalValue(), totalCost, pm);
+                order.getTotalValue(), totalCost, pm, order.getDeliveryFee());
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -227,6 +242,8 @@ public class OrderService {
                 .status(order.getStatus())
                 .totalValue(order.getTotalValue())
                 .estimatedProfit(estimatedProfit)
+                .deliveryFee(order.getDeliveryFee())
+                .totalCost(totalCost)
                 .paymentMethodId(pm != null ? pm.getId() : null)
                 .paymentMethodName(pm != null ? pm.getName() : null)
                 .feeRate(pm != null ? pm.getFeeRate() : null)

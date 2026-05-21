@@ -7,8 +7,10 @@ export const anotaAIService = {
     return data
   },
 
-  async syncCatalog(): Promise<AnotaAISyncResult> {
-    const { data } = await api.post<AnotaAISyncResult>('/integrations/anotaai/catalog')
+  async syncCatalog(options: { clearRecipes?: boolean } = {}): Promise<AnotaAISyncResult> {
+    const { data } = await api.post<AnotaAISyncResult>('/integrations/anotaai/catalog', null, {
+      params: options.clearRecipes ? { clearRecipes: true } : undefined,
+    })
     return data
   },
 }

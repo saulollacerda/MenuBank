@@ -31,7 +31,9 @@ public class AnotaAIOrderListResponse {
         private String id;
         private int check;
         private String from;
+        @JsonProperty("salesChannel")
         private String salesChannel;
+        @JsonProperty("updatedAt")
         private String updatedAt;
     }
 }
