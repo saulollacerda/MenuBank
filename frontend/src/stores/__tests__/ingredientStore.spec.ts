@@ -34,8 +34,6 @@ describe('ingredientStore', () => {
         unit: 'kg',
         costPerUnit: 5.0,
         status: 'ACTIVE' as const,
-        ingredientCategoryId: null,
-        ingredientCategoryName: null,
       },
     ]
     mockedService.findAll.mockResolvedValue(asPage(mockData))
@@ -55,8 +53,6 @@ describe('ingredientStore', () => {
       unit: 'kg',
       costPerUnit: 5.0,
       status: 'ACTIVE' as const,
-      ingredientCategoryId: null,
-      ingredientCategoryName: null,
     }
     mockedService.create.mockResolvedValue(created)
     mockedService.findAll.mockResolvedValue(asPage([created]))
@@ -74,8 +70,6 @@ describe('ingredientStore', () => {
       unit: 'kg',
       costPerUnit: 3.0,
       status: 'ACTIVE' as const,
-      ingredientCategoryId: null,
-      ingredientCategoryName: null,
     }
     mockedService.remove.mockResolvedValue()
     mockedService.findAll.mockResolvedValue(asPage([remaining]))

@@ -4,10 +4,8 @@ import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.common.UserContext;
-import com.MenuBank.MenuBank.ingredient.IngredientCategory;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,9 +28,6 @@ class ProductServiceTest {
 
     @Mock
     private CategoryRepository categoryRepository;
-
-    @Mock
-    private ProductComplementGroupRepository complementGroupRepository;
 
     @Mock
     private UserContext userContext;
@@ -75,10 +70,6 @@ class ProductServiceTest {
                 .build();
     }
 
-    // -------------------------------------------------------------------------
-    // create()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("create()")
     class Create {
@@ -111,18 +102,6 @@ class ProductServiceTest {
             ProductResponse result = productService.create(productRequest);
 
             assertThat(result.getStatus()).isEqualTo(ProductStatus.ACTIVE);
-        }
-
-        @Test
-        @DisplayName("deve criar produto com estimatedCost zero e margin igual ao preço")
-        void shouldCreateProductWithZeroCostAndFullMargin() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(productRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
-            given(categoryRepository.findByIdAndOwnerId(categoryId, ownerId)).willReturn(Optional.of(category));
-            given(productRepository.save(any(Product.class))).willReturn(product);
-
-            ProductResponse result = productService.create(productRequest);
-
         }
 
         @Test
@@ -168,10 +147,6 @@ class ProductServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // findById()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("findById()")
     class FindById {
@@ -200,33 +175,7 @@ class ProductServiceTest {
             assertThatThrownBy(() -> productService.findById(productId))
                     .isInstanceOf(ProductNotFoundException.class);
         }
-
-        @Test
-        @DisplayName("deve incluir complementGroups na response")
-        void shouldIncludeComplementGroupsInResponse() {
-            IngredientCategory ingCat = IngredientCategory.builder()
-                    .id(UUID.randomUUID()).ownerId(ownerId).name("Adicionais").build();
-            ProductComplementGroup group = ProductComplementGroup.builder()
-                    .id(UUID.randomUUID()).product(product).ingredientCategory(ingCat)
-                    .minRequired(1).maxAllowed(3).build();
-
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
-            given(complementGroupRepository.findByProductId(productId)).willReturn(List.of(group));
-
-            ProductResponse result = productService.findById(productId);
-
-            assertThat(result.getComplementGroups()).hasSize(1);
-            assertThat(result.getComplementGroups().get(0).getIngredientCategoryId()).isEqualTo(ingCat.getId());
-            assertThat(result.getComplementGroups().get(0).getIngredientCategoryName()).isEqualTo("Adicionais");
-            assertThat(result.getComplementGroups().get(0).getMinRequired()).isEqualTo(1);
-            assertThat(result.getComplementGroups().get(0).getMaxAllowed()).isEqualTo(3);
-        }
     }
-
-    // -------------------------------------------------------------------------
-    // findAll()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("findAll(search, pageable)")
@@ -264,10 +213,6 @@ class ProductServiceTest {
             assertThat(result.getContent()).hasSize(1);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // update()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("update()")
@@ -363,10 +308,6 @@ class ProductServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // delete()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("delete()")
     class Delete {
@@ -396,4 +337,3 @@ class ProductServiceTest {
         }
     }
 }
-

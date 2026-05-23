@@ -1,9 +1,8 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { OrderRequest, OrderResponse } from '@/types/Order'
-import type { PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
-import { orderService } from '@/services/orderService'
+import { orderService, type OrderFilterParams } from '@/services/orderService'
 import { useDashboardStore } from '@/stores/dashboardStore'
 
 export const useOrderStore = defineStore('order', () => {
@@ -17,6 +16,7 @@ export const useOrderStore = defineStore('order', () => {
   const size = ref(DEFAULT_PAGE_SIZE)
   const totalElements = ref(0)
   const totalPages = ref(0)
+  const sort = ref<string>('dateTime,desc')
 
   function refreshDashboard() {
     const dashboardStore = useDashboardStore()
@@ -25,17 +25,20 @@ export const useOrderStore = defineStore('order', () => {
     })
   }
 
-  async function fetchPage(params: PageParams = {}) {
+  async function fetchPage(params: OrderFilterParams = {}) {
     loading.value = true
     error.value = null
     try {
+      const effectiveSort = params.sort ?? sort.value
       const result = await orderService.findAll({
         search: params.search ?? search.value,
         page: params.page ?? page.value,
         size: params.size ?? size.value,
+        sort: effectiveSort,
       })
       items.value = result.content
       search.value = params.search ?? search.value
+      sort.value = effectiveSort
       page.value = result.number
       size.value = result.size
       totalElements.value = result.totalElements
@@ -133,6 +136,7 @@ export const useOrderStore = defineStore('order', () => {
     size,
     totalElements,
     totalPages,
+    sort,
     fetchPage,
     fetchAll,
     create,

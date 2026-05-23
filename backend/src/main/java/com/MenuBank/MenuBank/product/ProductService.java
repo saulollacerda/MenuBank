@@ -8,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -16,16 +15,13 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
-    private final ProductComplementGroupRepository complementGroupRepository;
     private final UserContext userContext;
 
     public ProductService(ProductRepository productRepository,
                           CategoryRepository categoryRepository,
-                          ProductComplementGroupRepository complementGroupRepository,
                           UserContext userContext) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
-        this.complementGroupRepository = complementGroupRepository;
         this.userContext = userContext;
     }
 
@@ -91,16 +87,6 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         Category category = product.getCategory();
-        List<ProductComplementGroupResponse> groupResponses = complementGroupRepository
-                .findByProductId(product.getId()).stream()
-                .map(g -> ProductComplementGroupResponse.builder()
-                        .id(g.getId())
-                        .ingredientCategoryId(g.getIngredientCategory().getId())
-                        .ingredientCategoryName(g.getIngredientCategory().getName())
-                        .minRequired(g.getMinRequired())
-                        .maxAllowed(g.getMaxAllowed())
-                        .build())
-                .toList();
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -108,7 +94,6 @@ public class ProductService {
                 .status(product.getStatus())
                 .categoryId(category != null ? category.getId() : null)
                 .categoryName(category != null ? category.getName() : null)
-                .complementGroups(groupResponses)
                 .build();
     }
 }

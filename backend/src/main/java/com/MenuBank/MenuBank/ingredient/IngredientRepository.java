@@ -22,7 +22,5 @@ public interface IngredientRepository extends JpaRepository<Ingredient, UUID> {
 
     void deleteByIdAndOwnerId(UUID id, UUID ownerId);
 
-    Optional<Ingredient> findByExternalIdAndOwnerId(String externalId, UUID ownerId);
-
-    List<Ingredient> findAllByCategoryAndOwnerId(IngredientCategory category, UUID ownerId);
+    Optional<Ingredient> findByCanonicalNameAndOwnerId(String canonicalName, UUID ownerId);
 }

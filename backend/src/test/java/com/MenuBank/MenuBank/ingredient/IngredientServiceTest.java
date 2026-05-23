@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.ingredient;
 
 import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.notification.NotificationService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,6 +23,9 @@ class IngredientServiceTest {
 
     @Mock
     private IngredientRepository ingredientRepository;
+
+    @Mock
+    private NotificationService notificationService;
 
     @Mock
     private UserContext userContext;
@@ -50,16 +54,13 @@ class IngredientServiceTest {
                 .id(ingredientId)
                 .ownerId(ownerId)
                 .name("Farinha de Trigo")
+                .canonicalName("farinha de trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
                 .defaultQuantity(new BigDecimal("0.20"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
     }
-
-    // -------------------------------------------------------------------------
-    // create()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("create()")
@@ -106,11 +107,42 @@ class IngredientServiceTest {
 
             then(ingredientRepository).should(never()).save(any(Ingredient.class));
         }
-    }
 
-    // -------------------------------------------------------------------------
-    // findById()
-    // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("deve popular canonicalName normalizado a partir do nome (lowercase, sem acentos)")
+        void shouldPopulateCanonicalNameNormalizedFromName() {
+            IngredientRequest withAccent = IngredientRequest.builder()
+                    .name("Açaí Premium").unit("ml")
+                    .costPerUnit(new BigDecimal("0.05"))
+                    .build();
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(withAccent);
+
+            then(ingredientRepository).should()
+                    .save(argThat(i -> "acai premium".equals(i.getCanonicalName())));
+        }
+
+        @Test
+        @DisplayName("deve resolver notificações pendentes 'MISSING_INGREDIENT' do canonical name após salvar")
+        void shouldResolvePendingMissingIngredientNotificationsAfterSave() {
+            IngredientRequest withAccent = IngredientRequest.builder()
+                    .name("Açaí Premium").unit("ml")
+                    .costPerUnit(new BigDecimal("0.05"))
+                    .build();
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(withAccent);
+
+            then(notificationService).should().resolveMissingIngredient("acai premium", ownerId);
+        }
+    }
 
     @Nested
     @DisplayName("findById()")
@@ -142,10 +174,6 @@ class IngredientServiceTest {
                     .isInstanceOf(IngredientNotFoundException.class);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // findAll()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("findAll(search, pageable)")
@@ -184,10 +212,6 @@ class IngredientServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // update()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("update()")
     class Update {
@@ -206,6 +230,7 @@ class IngredientServiceTest {
                     .id(ingredientId)
                     .ownerId(ownerId)
                     .name("Farinha de Trigo Integral")
+                    .canonicalName("farinha de trigo integral")
                     .unit("kg")
                     .costPerUnit(new BigDecimal("5.75"))
                     .defaultQuantity(new BigDecimal("0.35"))
@@ -224,6 +249,24 @@ class IngredientServiceTest {
         }
 
         @Test
+        @DisplayName("deve recomputar canonicalName ao alterar nome")
+        void shouldRecomputeCanonicalNameOnUpdate() {
+            IngredientRequest updateRequest = IngredientRequest.builder()
+                    .name("PISTACHE")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("1.20"))
+                    .build();
+            given(userContext.getUserId()).willReturn(ownerId);
+            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.update(ingredientId, updateRequest);
+
+            then(ingredientRepository).should()
+                    .save(argThat(i -> "pistache".equals(i.getCanonicalName())));
+        }
+
+        @Test
         @DisplayName("deve lançar IngredientNotFoundException ao atualizar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForUpdate() {
             given(userContext.getUserId()).willReturn(ownerId);
@@ -235,10 +278,6 @@ class IngredientServiceTest {
             then(ingredientRepository).should(never()).save(any(Ingredient.class));
         }
     }
-
-    // -------------------------------------------------------------------------
-    // delete()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("delete()")

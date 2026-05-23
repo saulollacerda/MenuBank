@@ -6,6 +6,7 @@ import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import PageControls from '@/components/PageControls.vue'
 import type {
   OrderRequest,
@@ -21,6 +22,7 @@ const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
 const paymentMethodStore = usePaymentMethodStore()
 const anotaAIStore = useAnotaAIStore()
+const notificationStore = useNotificationStore()
 
 async function handleSyncAnotaAI() {
   anotaAIStore.clearResult()
@@ -28,6 +30,9 @@ async function handleSyncAnotaAI() {
     await anotaAIStore.syncOrders()
   } catch {
     // erro fica em anotaAIStore.error
+  } finally {
+    // Refresh notification badge — sync may have created MISSING_INGREDIENT entries.
+    notificationStore.refreshCount()
   }
 }
 
@@ -228,6 +233,10 @@ function onPageChange(p: number) {
   orderStore.fetchPage({ page: p })
 }
 
+function onSortChange(value: string) {
+  orderStore.fetchPage({ sort: value, page: 0 })
+}
+
 onMounted(() => {
   orderStore.fetchPage({ page: 0, search: '' })
   customerStore.fetchAll()
@@ -268,8 +277,36 @@ onMounted(() => {
         ({{ anotaAIStore.lastResult.errors.length }} erro(s) ignorado(s))
       </span>
     </div>
+    <div
+      v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
+      class="alert alert-warning"
+      data-testid="missing-ingredients-alert"
+    >
+      ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não
+      encontrado(s) e descartado(s) dos pedidos:
+      <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
+      Abra o sino de notificações para cadastrá-los.
+    </div>
 
     <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
+
+    <div class="order-filters">
+      <div class="filter-group">
+        <label for="order-sort">Ordenar por</label>
+        <select
+          id="order-sort"
+          class="form-control"
+          data-testid="order-sort-select"
+          :value="orderStore.sort"
+          @change="onSortChange(($event.target as HTMLSelectElement).value)"
+        >
+          <option value="dateTime,desc">Data: mais recentes primeiro</option>
+          <option value="dateTime,asc">Data: mais antigos primeiro</option>
+          <option value="totalValue,desc">Valor: maior → menor</option>
+          <option value="totalValue,asc">Valor: menor → maior</option>
+        </select>
+      </div>
+    </div>
 
     <PageControls
       v-model="orderStore.search"
@@ -724,6 +761,33 @@ onMounted(() => {
 
 .badge-origin-menubank {
   background: #8b5cf6; /* roxo */
+}
+
+.order-filters {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.order-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.order-filters .filter-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.order-filters .filter-group .form-control {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  min-width: 240px;
 }
 </style>
 

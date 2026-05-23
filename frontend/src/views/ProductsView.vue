@@ -1,16 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import PageControls from '@/components/PageControls.vue'
-import type {
-  ProductRequest,
-  ProductResponse,
-  ProductComplementGroupResponse,
-  ProductIngredientRequest,
-} from '@/types/Product'
+import type { ProductRequest, ProductResponse, ProductIngredientRequest } from '@/types/Product'
 
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
@@ -36,74 +31,6 @@ const form = ref<ProductRequest>({ name: '', price: 0, categoryId: '' })
 const recipeForm = ref<ProductIngredientRequest>({ ingredientId: '', grammage: 0, isOptional: false })
 const confirmDeleteId = ref<string | null>(null)
 const confirmClearRecipe = ref(false)
-const addingFromGroup = ref<ProductComplementGroupResponse | null>(null)
-const groupIngredientForm = ref<ProductIngredientRequest>({ ingredientId: '', grammage: 0, isOptional: true })
-
-// Wizard de grupos obrigatórios
-const showWizard = ref(false)
-interface WizardRow {
-  group: ProductComplementGroupResponse
-  ingredientId: string
-  grammage: number
-  skip: boolean
-}
-const wizardRows = ref<WizardRow[]>([])
-
-const uncoveredRequiredGroups = computed<ProductComplementGroupResponse[]>(() => {
-  if (!selectedProduct.value?.complementGroups) return []
-  const covered = new Set(
-    productStore.productIngredients
-      .map((item) => item.ingredientCategoryId)
-      .filter((id): id is string => !!id),
-  )
-  return selectedProduct.value.complementGroups.filter(
-    (g) => g.minRequired > 0 && !covered.has(g.ingredientCategoryId),
-  )
-})
-
-function openWizard() {
-  wizardRows.value = uncoveredRequiredGroups.value.map((group) => ({
-    group,
-    ingredientId: '',
-    grammage: 0,
-    skip: false,
-  }))
-  showWizard.value = true
-}
-
-function closeWizard() {
-  showWizard.value = false
-  wizardRows.value = []
-}
-
-function ingredientsForGroup(group: ProductComplementGroupResponse) {
-  return ingredientStore.items.filter(
-    (i) => i.ingredientCategoryId === group.ingredientCategoryId,
-  )
-}
-
-function onWizardIngredientChange(row: WizardRow) {
-  const selected = ingredientStore.items.find((i) => i.id === row.ingredientId)
-  row.grammage = selected?.defaultQuantity ?? 0
-}
-
-async function handleWizardSave() {
-  if (!selectedProduct.value) return
-  // Ingredientes vindos do wizard são por padrão opcionais (vêm de grupos de complementos)
-  const payload: ProductIngredientRequest[] = wizardRows.value
-    .filter((r) => !r.skip && r.ingredientId && r.grammage > 0)
-    .map((r) => ({ ingredientId: r.ingredientId, grammage: r.grammage, isOptional: true }))
-  if (payload.length === 0) {
-    closeWizard()
-    return
-  }
-  try {
-    await productStore.batchAddProductIngredients(selectedProduct.value.id, payload)
-    closeWizard()
-  } catch {
-    // Error is handled by the store
-  }
-}
 
 function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -205,30 +132,6 @@ async function handleRemoveRecipeItem(productIngredientId: string) {
   }
 }
 
-function openGroupSelector(group: ProductComplementGroupResponse) {
-  addingFromGroup.value = group
-  groupIngredientForm.value = { ingredientId: '', grammage: 0, isOptional: true }
-}
-
-function closeGroupSelector() {
-  addingFromGroup.value = null
-}
-
-function handleGroupIngredientChange() {
-  const selected = ingredientStore.items.find((i) => i.id === groupIngredientForm.value.ingredientId)
-  groupIngredientForm.value.grammage = selected?.defaultQuantity ?? 0
-}
-
-async function handleAddFromGroup() {
-  if (!selectedProduct.value || !groupIngredientForm.value.ingredientId) return
-  try {
-    await productStore.addProductIngredient(selectedProduct.value.id, groupIngredientForm.value)
-    closeGroupSelector()
-  } catch {
-    // Error is handled by the store
-  }
-}
-
 function confirmDelete(id: string) {
   confirmDeleteId.value = id
 }
@@ -302,6 +205,9 @@ onMounted(() => {
       {{ anotaAIStore.lastResult.categoriesUpdated }} atualizada(s).
       Produtos: {{ anotaAIStore.lastResult.productsCreated }} criado(s),
       {{ anotaAIStore.lastResult.productsUpdated }} atualizado(s).
+      <div style="margin-top: 4px; font-size: 0.8rem; color: #475569">
+        Ingredientes do cardápio são cadastrados manualmente em "Ingredientes".
+      </div>
     </div>
 
     <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
@@ -556,210 +462,6 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
-          </div>
-
-          <!-- Complement groups section -->
-          <template v-if="selectedProduct?.complementGroups?.length">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px">
-              <h3 style="font-size: 0.875rem; font-weight: 600; margin: 0">
-                Grupos de Complementos
-              </h3>
-              <button
-                v-if="uncoveredRequiredGroups.length > 0"
-                class="btn btn-primary btn-sm"
-                data-testid="open-wizard-button"
-                style="margin-bottom: 0"
-                @click="openWizard"
-              >
-                ⚙ Configurar grupos obrigatórios ({{ uncoveredRequiredGroups.length }})
-              </button>
-            </div>
-            <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px">
-              Selecione um ingrediente de cada grupo para incluir no custo padrão do produto.
-            </p>
-            <div class="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Grupo</th>
-                    <th>Mín.</th>
-                    <th>Máx.</th>
-                    <th style="width: 160px">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="group in selectedProduct.complementGroups"
-                    :key="group.id"
-                    :data-testid="`complement-group-${group.id}`"
-                  >
-                    <td>{{ group.ingredientCategoryName }}</td>
-                    <td>{{ group.minRequired }}</td>
-                    <td>{{ group.maxAllowed }}</td>
-                    <td>
-                      <button
-                        class="btn btn-secondary btn-sm"
-                        :data-testid="`add-from-group-${group.id}`"
-                        @click="openGroupSelector(group)"
-                      >
-                        Adicionar ao custo
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Inline ingredient selector for a group -->
-            <div
-              v-if="addingFromGroup"
-              style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-top: 12px"
-            >
-              <p style="font-weight: 600; margin-bottom: 8px">
-                Adicionar ingrediente do grupo: {{ addingFromGroup.ingredientCategoryName }}
-              </p>
-              <form
-                class="order-items-row"
-                style="margin-bottom: 0"
-                @submit.prevent="handleAddFromGroup"
-              >
-                <div class="form-group">
-                  <label>Ingrediente</label>
-                  <select
-                    v-model="groupIngredientForm.ingredientId"
-                    class="form-control"
-                    :data-testid="`group-ingredient-select-${addingFromGroup.id}`"
-                    required
-                    @change="handleGroupIngredientChange"
-                  >
-                    <option value="" disabled>Selecione...</option>
-                    <option
-                      v-for="ingredient in ingredientStore.items.filter(
-                        (i) => i.ingredientCategoryId === addingFromGroup!.ingredientCategoryId,
-                      )"
-                      :key="ingredient.id"
-                      :value="ingredient.id"
-                    >
-                      {{ ingredient.name }} ({{ ingredient.unit }})
-                    </option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Gramatura</label>
-                  <input
-                    v-model.number="groupIngredientForm.grammage"
-                    type="number"
-                    step="0.001"
-                    min="0.001"
-                    class="form-control"
-                    :data-testid="`group-ingredient-quantity-${addingFromGroup.id}`"
-                    required
-                  />
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom: 0">
-                  Confirmar
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  style="margin-bottom: 0"
-                  @click="closeGroupSelector"
-                >
-                  Cancelar
-                </button>
-              </form>
-            </div>
-          </template>
-        </div>
-      </div>
-    </div>
-
-    <!-- Wizard de Grupos Obrigatórios -->
-    <div v-if="showWizard" class="modal-overlay" @click.self="closeWizard">
-      <div class="modal modal-wide">
-        <div class="modal-header">
-          <h2>Configurar grupos obrigatórios — {{ selectedProduct?.name }}</h2>
-          <button class="modal-close" @click="closeWizard">✕</button>
-        </div>
-        <div class="modal-body">
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px">
-            Selecione o ingrediente padrão de cada grupo obrigatório (ou marque "Pular").
-            Todos serão adicionados à Ficha Técnica em uma única operação.
-          </p>
-
-          <div v-if="wizardRows.length === 0" class="empty-state">
-            <p>Não há grupos obrigatórios pendentes para configurar.</p>
-          </div>
-
-          <div v-else class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Grupo</th>
-                  <th>Ingrediente</th>
-                  <th style="width: 120px">Gramatura</th>
-                  <th style="width: 80px">Pular</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(row, idx) in wizardRows"
-                  :key="row.group.id"
-                  :data-testid="`wizard-row-${row.group.id}`"
-                  :style="row.skip ? 'opacity: 0.5' : ''"
-                >
-                  <td>{{ row.group.ingredientCategoryName }}</td>
-                  <td>
-                    <select
-                      v-model="row.ingredientId"
-                      class="form-control"
-                      :disabled="row.skip"
-                      :data-testid="`wizard-ingredient-${idx}`"
-                      @change="onWizardIngredientChange(row)"
-                    >
-                      <option value="" disabled>Selecione...</option>
-                      <option
-                        v-for="ingredient in ingredientsForGroup(row.group)"
-                        :key="ingredient.id"
-                        :value="ingredient.id"
-                      >
-                        {{ ingredient.name }} ({{ ingredient.unit }})
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      v-model.number="row.grammage"
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      class="form-control"
-                      :disabled="row.skip"
-                      :data-testid="`wizard-quantity-${idx}`"
-                    />
-                  </td>
-                  <td style="text-align: center">
-                    <input
-                      v-model="row.skip"
-                      type="checkbox"
-                      :data-testid="`wizard-skip-${idx}`"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn btn-secondary" @click="closeWizard">Cancelar</button>
-            <button
-              class="btn btn-primary"
-              data-testid="wizard-save-button"
-              :disabled="productStore.loading || wizardRows.length === 0"
-              @click="handleWizardSave"
-            >
-              Salvar todos
-            </button>
           </div>
         </div>
       </div>

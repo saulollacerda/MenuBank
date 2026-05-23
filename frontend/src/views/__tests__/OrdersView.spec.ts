@@ -7,6 +7,7 @@ let productStoreMock: any
 let ingredientStoreMock: any
 let paymentMethodStoreMock: any
 let anotaAIStoreMock: any
+let notificationStoreMock: any
 
 vi.mock('@/stores/orderStore', () => ({
   useOrderStore: () => orderStoreMock,
@@ -30,6 +31,10 @@ vi.mock('@/stores/paymentMethodStore', () => ({
 
 vi.mock('@/stores/anotaAIStore', () => ({
   useAnotaAIStore: () => anotaAIStoreMock,
+}))
+
+vi.mock('@/stores/notificationStore', () => ({
+  useNotificationStore: () => notificationStoreMock,
 }))
 
 import OrdersView from '@/views/OrdersView.vue'
@@ -101,6 +106,17 @@ describe('OrdersView', () => {
       syncOrders: vi.fn(),
       syncCatalog: vi.fn(),
       clearResult: vi.fn(),
+    }
+
+    notificationStoreMock = {
+      items: [],
+      unreadCount: 0,
+      loading: false,
+      error: null,
+      fetchAll: vi.fn(),
+      refreshCount: vi.fn(),
+      markRead: vi.fn(),
+      dismiss: vi.fn(),
     }
   })
 

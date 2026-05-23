@@ -70,6 +70,7 @@ public class AnotaAIOrderDetailResponse {
         private String name;
         private int quantity;
         private double price;
+        private double total;
         private String internalId;
         private String externalId;
     }

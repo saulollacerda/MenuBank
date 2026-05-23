@@ -16,7 +16,6 @@ public class ProductIngredientResponse {
     private UUID ingredientId;
     private String ingredientName;
     private String ingredientUnit;
-    private UUID ingredientCategoryId;
     private BigDecimal grammage;
     private boolean isOptional;
     private BigDecimal costPerUnit;

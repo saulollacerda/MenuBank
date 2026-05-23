@@ -1,80 +1,110 @@
 package com.MenuBank.MenuBank.order;
 
-import com.MenuBank.MenuBank.payment.PaymentMethod;
+import com.MenuBank.MenuBank.product.Product;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("OrderCalculations")
+@DisplayName("OrderCalculations.calculateEstimatedProfit(order)")
 class OrderCalculationsTest {
 
-    @Nested
-    @DisplayName("calculateEstimatedProfit(totalValue, totalCost, paymentMethod, deliveryFee)")
-    class CalculateEstimatedProfitWithDeliveryFee {
-
-        @Test
-        @DisplayName("deve subtrair deliveryFee da receita antes de calcular o lucro")
-        void shouldSubtractDeliveryFeeFromRevenue() {
-            BigDecimal totalValue = new BigDecimal("25.80");
-            BigDecimal totalCost = new BigDecimal("5.00");
-            BigDecimal deliveryFee = new BigDecimal("6.00");
-
-            BigDecimal profit = OrderCalculations.calculateEstimatedProfit(
-                    totalValue, totalCost, null, deliveryFee);
-
-            // (25.80 - 6.00) - 5.00 - 0 (sem paymentMethod) = 14.80
-            assertThat(profit).isEqualByComparingTo("14.80");
-        }
-
-        @Test
-        @DisplayName("deve aplicar taxa do meio de pagamento sobre o valor total (não o líquido de entrega)")
-        void shouldApplyPaymentFeeOnTotalValueIncludingDelivery() {
-            BigDecimal totalValue = new BigDecimal("100.00");
-            BigDecimal totalCost = new BigDecimal("30.00");
-            BigDecimal deliveryFee = new BigDecimal("10.00");
-            PaymentMethod pm = PaymentMethod.builder()
-                    .feeRate(new BigDecimal("5.00"))
-                    .build();
-
-            BigDecimal profit = OrderCalculations.calculateEstimatedProfit(
-                    totalValue, totalCost, pm, deliveryFee);
-
-            // fee = 100 * 5% = 5.00
-            // (100 - 10) - 30 - 5 = 55.00
-            assertThat(profit).isEqualByComparingTo("55.00");
-        }
-
-        @Test
-        @DisplayName("deve tratar deliveryFee nulo como zero")
-        void shouldTreatNullDeliveryFeeAsZero() {
-            BigDecimal totalValue = new BigDecimal("20.00");
-            BigDecimal totalCost = new BigDecimal("5.00");
-
-            BigDecimal profit = OrderCalculations.calculateEstimatedProfit(
-                    totalValue, totalCost, null, null);
-
-            assertThat(profit).isEqualByComparingTo("15.00");
-        }
+    private OrderItem item(BigDecimal unitPrice, BigDecimal unitCost, int quantity,
+                           List<OrderItemExtraIngredient> extras) {
+        Product product = Product.builder().id(UUID.randomUUID()).build();
+        return OrderItem.builder()
+                .product(product)
+                .unitPrice(unitPrice)
+                .unitCost(unitCost)
+                .quantity(quantity)
+                .extraIngredients(extras)
+                .build();
     }
 
-    @Nested
-    @DisplayName("calculateEstimatedProfit(totalValue, totalCost, paymentMethod) — overload legado")
-    class CalculateEstimatedProfitLegacy {
+    private OrderItemExtraIngredient extra(BigDecimal qty, BigDecimal costPerUnit) {
+        return OrderItemExtraIngredient.builder()
+                .quantity(qty)
+                .costPerUnit(costPerUnit)
+                .ingredientName("x").ingredientUnit("g")
+                .build();
+    }
 
-        @Test
-        @DisplayName("deve manter comportamento anterior (sem desconto de entrega)")
-        void shouldKeepLegacyBehaviorWithoutDeliveryDiscount() {
-            BigDecimal totalValue = new BigDecimal("25.80");
-            BigDecimal totalCost = new BigDecimal("5.00");
+    private Order order(BigDecimal totalValue, BigDecimal deliveryFee, BigDecimal totalCost) {
+        return Order.builder()
+                .totalValue(totalValue)
+                .deliveryFee(deliveryFee)
+                .totalCost(totalCost)
+                .build();
+    }
 
-            BigDecimal profit = OrderCalculations.calculateEstimatedProfit(
-                    totalValue, totalCost, null);
+    @Test
+    @DisplayName("lucro = totalValue − deliveryFee − totalCost")
+    void shouldSubtractDeliveryAndCostFromTotalValue() {
+        Order o = order(new BigDecimal("50.00"), new BigDecimal("5.00"), new BigDecimal("12.00"));
 
-            assertThat(profit).isEqualByComparingTo("20.80");
-        }
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 50.00 − 5.00 − 12.00 = 33.00
+        assertThat(profit).isEqualByComparingTo("33.00");
+    }
+
+    @Test
+    @DisplayName("trata deliveryFee null como zero (pedidos MenuBank sem entrega)")
+    void shouldTreatNullDeliveryFeeAsZero() {
+        Order o = order(new BigDecimal("30.00"), null, new BigDecimal("10.00"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 30.00 − 0 − 10.00 = 20.00
+        assertThat(profit).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    @DisplayName("trata totalCost null como zero (pedidos sem custo calculado)")
+    void shouldTreatNullTotalCostAsZero() {
+        Order o = order(new BigDecimal("30.00"), new BigDecimal("4.00"), null);
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 30.00 − 4.00 − 0 = 26.00
+        assertThat(profit).isEqualByComparingTo("26.00");
+    }
+
+    @Test
+    @DisplayName("trata totalValue null como zero")
+    void shouldTreatNullTotalValueAsZero() {
+        Order o = order(null, new BigDecimal("5.00"), new BigDecimal("2.00"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 0 − 5.00 − 2.00 = −7.00
+        assertThat(profit).isEqualByComparingTo("-7.00");
+    }
+
+    @Test
+    @DisplayName("retorna zero para order null")
+    void shouldReturnZeroForNullOrder() {
+        assertThat(OrderCalculations.calculateEstimatedProfit(null))
+                .isEqualByComparingTo("0");
+    }
+
+    // -------------------------------------------------------------------------
+    // calculateTotalCost — comportamento antigo (mantido para o cálculo do snapshot)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("calculateTotalCost soma custo base × qty + custos de extras × qty")
+    void calculateTotalCost_shouldSumBaseAndExtras() {
+        OrderItem item = item(new BigDecimal("16.00"), new BigDecimal("1.066"), 1,
+                List.of(extra(new BigDecimal("40"), new BigDecimal("0.0533"))));
+
+        BigDecimal totalCost = OrderCalculations.calculateTotalCost(List.of(item));
+
+        // (1.066 + 40*0.0533) * 1 = 1.066 + 2.132 = 3.198
+        assertThat(totalCost).isEqualByComparingTo("3.198");
     }
 }

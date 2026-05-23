@@ -154,7 +154,6 @@ public class ProductIngredientService {
                 .ingredientId(ingredient.getId())
                 .ingredientName(ingredient.getName())
                 .ingredientUnit(ingredient.getUnit())
-                .ingredientCategoryId(ingredient.getCategory() != null ? ingredient.getCategory().getId() : null)
                 .grammage(productIngredient.getGrammage())
                 .isOptional(productIngredient.isOptional())
                 .costPerUnit(costPerUnit)

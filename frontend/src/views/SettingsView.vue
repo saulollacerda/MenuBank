@@ -53,7 +53,8 @@ onMounted(loadProfile)
       <h2>Integração Anota.AI</h2>
       <p class="settings-description">
         Cole aqui o token de integração fornecido pelo Anota.AI. Ele será usado para importar
-        pedidos do dia e sincronizar o cardápio (categorias e produtos).
+        pedidos do dia e sincronizar o cardápio (apenas categorias e produtos —
+        ingredientes devem ser cadastrados manualmente em "Ingredientes").
       </p>
 
       <form @submit.prevent="handleSubmit">

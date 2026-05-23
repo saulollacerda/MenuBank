@@ -6,10 +6,9 @@ import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAIIntegrationException;
-import com.MenuBank.MenuBank.ingredient.DuplicateIngredientCategoryException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
-import com.MenuBank.MenuBank.ingredient.IngredientCategoryNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
+import com.MenuBank.MenuBank.notification.NotificationNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.product.DuplicateProductException;
 import com.MenuBank.MenuBank.product.ProductNotFoundException;
@@ -92,20 +91,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
-    @ExceptionHandler(IngredientCategoryNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleIngredientCategoryNotFound(IngredientCategoryNotFoundException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setTitle("Categoria de ingrediente não encontrada");
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
-    }
-
-    @ExceptionHandler(DuplicateIngredientCategoryException.class)
-    public ResponseEntity<ProblemDetail> handleDuplicateIngredientCategory(DuplicateIngredientCategoryException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setTitle("Conflito de dados");
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
-    }
-
     @ExceptionHandler(CategoryNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleCategoryNotFound(CategoryNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
@@ -167,5 +152,12 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setTitle("Erro na integração com Anota.AI");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleNotificationNotFound(NotificationNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Notificação não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 }

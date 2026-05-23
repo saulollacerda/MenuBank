@@ -24,6 +24,14 @@ public class Ingredient {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * Normalized name (lowercase, accent-free, whitespace-collapsed) used to match
+     * orders against ingredients by name. Populated by {@code IngredientService} on
+     * create/update via {@link IngredientNameNormalizer}.
+     */
+    @Column(name = "canonical_name")
+    private String canonicalName;
+
     @Column(nullable = false)
     private String unit;
 
@@ -33,7 +41,7 @@ public class Ingredient {
 
     /**
      * Preço de venda do complemento no cardápio Anota.AI (informativo).
-     * Sincronizado a partir do {@code price} retornado pela API; NÃO substitui {@link #costPerUnit}.
+     * NÃO substitui {@link #costPerUnit}.
      */
     @Column(name = "sale_price", precision = 19, scale = 4)
     private BigDecimal salePrice;
@@ -44,11 +52,4 @@ public class Ingredient {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private IngredientStatus status;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ingredient_category_id")
-    private IngredientCategory category;
-
-    @Column(name = "external_id")
-    private String externalId;
 }

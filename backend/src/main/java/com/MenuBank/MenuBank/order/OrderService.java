@@ -82,10 +82,8 @@ public class OrderService {
 
         // Cálculo via service (requer order.items setado)
         BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
-        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                totalValue, totalCost, paymentMethod);
         order.setTotalCost(totalCost);
-        order.setEstimatedProfit(estimatedProfit);
+        order.setEstimatedProfit(OrderCalculations.calculateEstimatedProfit(order));
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
@@ -139,10 +137,8 @@ public class OrderService {
 
         // Cálculo via service (requer order.items atualizado)
         BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
-        BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                totalValue, totalCost, paymentMethod);
         order.setTotalCost(totalCost);
-        order.setEstimatedProfit(estimatedProfit);
+        order.setEstimatedProfit(OrderCalculations.calculateEstimatedProfit(order));
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
@@ -224,15 +220,20 @@ public class OrderService {
 
     private OrderResponse toResponse(Order order) {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
-        List<OrderItemResponse> itemResponses = items.stream().map(this::toItemResponse).toList();
+        UUID orderOwnerId = order.getOwnerId();
+        List<OrderItemResponse> itemResponses = items.stream()
+                .map(item -> toItemResponse(item, orderOwnerId))
+                .toList();
 
         PaymentMethod pm = order.getPaymentMethod();
         // totalCost: snapshot persistido tem prioridade; pedidos antigos (null) caem no fallback legado
         BigDecimal totalCost = order.getTotalCost() != null
                 ? order.getTotalCost()
                 : OrderCalculations.calculateTotalCost(items);
+        // Lucro: recalcula sempre a partir dos valores do pedido para refletir a fórmula atual,
+        // usando o totalCost resolvido acima (snapshot ou fallback).
         BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                order.getTotalValue(), totalCost, pm, order.getDeliveryFee());
+                order.getTotalValue(), order.getDeliveryFee(), totalCost);
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -252,7 +253,7 @@ public class OrderService {
                 .build();
     }
 
-    private OrderItemResponse toItemResponse(OrderItem item) {
+    private OrderItemResponse toItemResponse(OrderItem item, UUID ownerId) {
         List<OrderItemExtraIngredientResponse> extraResponses = item.getExtraIngredients() != null
                 ? item.getExtraIngredients().stream().map(extra -> {
                     BigDecimal totalCost = extra.getQuantity()
@@ -271,15 +272,9 @@ public class OrderService {
                 }).toList()
                 : List.of();
 
-        BigDecimal baseUnitCost = item.getUnitCost() != null
-                ? item.getUnitCost()
-                : BigDecimal.ZERO;
-        BigDecimal extrasPerUnit = item.getExtraIngredients() != null
-                ? item.getExtraIngredients().stream()
-                        .map(extra -> extra.getQuantity().multiply(extra.getCostPerUnit()))
-                        .reduce(BigDecimal.ZERO, BigDecimal::add)
-                : BigDecimal.ZERO;
-        BigDecimal unitCost = baseUnitCost.add(extrasPerUnit);
+        // Modelo aditivo: ficha técnica (item.unitCost = mandatory base) + extras.
+        BigDecimal unitCost = orderCostCalculatorService.computeItemUnitCost(item, ownerId);
+        if (unitCost == null) unitCost = BigDecimal.ZERO;
         BigDecimal totalCost = unitCost.multiply(BigDecimal.valueOf(item.getQuantity()));
 
         return OrderItemResponse.builder()

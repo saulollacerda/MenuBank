@@ -5,7 +5,6 @@ export interface IngredientRequest {
   unit: string
   costPerUnit: number
   defaultQuantity?: number
-  ingredientCategoryId?: string | null
 }
 
 export interface IngredientResponse {
@@ -16,9 +15,6 @@ export interface IngredientResponse {
   salePrice?: number | null
   defaultQuantity?: number
   status: IngredientStatus
-  ingredientCategoryId: string | null
-  ingredientCategoryName: string | null
-  externalId?: string | null
 }
 
 export interface IngredientCostRequest {

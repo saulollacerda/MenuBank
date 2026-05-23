@@ -18,7 +18,4 @@ public class IngredientResponse {
     private BigDecimal salePrice;
     private BigDecimal defaultQuantity;
     private IngredientStatus status;
-    private UUID ingredientCategoryId;
-    private String ingredientCategoryName;
-    private String externalId;
 }

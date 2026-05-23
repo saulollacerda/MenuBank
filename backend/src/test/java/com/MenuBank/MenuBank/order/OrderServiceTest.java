@@ -374,11 +374,14 @@ class OrderServiceTest {
                 saved.getItems().forEach(i -> i.setId(UUID.randomUUID()));
                 return saved;
             });
+            // unitCost vem do calculator (mandatory base + opcionais escolhidos = 12 + 5 = 17)
+            given(orderCostCalculatorService.computeItemUnitCost(any(OrderItem.class), eq(ownerId)))
+                    .willReturn(new BigDecimal("17.00"));
 
             OrderResponse response = orderService.create(requestWithExtra);
 
-            // unitCost = product.estimatedCost (12) + extras (50 * 0.10 = 5) = 17
-            // totalCost = unitCost * quantity (2) = 34
+            // unitCost = base mandatória (12) + opcional escolhido (50 × 0.10 = 5) = 17
+            // totalCost = unitCost × quantity (2) = 34
             OrderItemResponse itemResponse = response.getItems().get(0);
             assertThat(itemResponse.getUnitCost()).isEqualByComparingTo(new BigDecimal("17.00"));
             assertThat(itemResponse.getTotalCost()).isEqualByComparingTo(new BigDecimal("34.00"));

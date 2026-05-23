@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-creme-escolha",
+      "title": "Escolha seu Creme",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "creme-choc-1",
+          "title": "Creme de Chocolate",
+          "out": false,
+          "week_prices": [
+            { "price": 0.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "creme-mor-1",
+          "title": "Creme de Morango",
+          "out": false,
+          "week_prices": [
+            { "price": 0.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-creme-add",
+      "title": "Adicionais de Creme",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "creme-choc-2",
+          "title": "Creme de Chocolate",
+          "out": false,
+          "week_prices": [
+            { "price": 2.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "creme-pist-1",
+          "title": "Creme de Pistache",
+          "out": false,
+          "week_prices": [
+            { "price": 2.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

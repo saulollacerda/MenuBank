@@ -5,23 +5,19 @@ import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
-import com.MenuBank.MenuBank.ingredient.IngredientCategory;
-import com.MenuBank.MenuBank.ingredient.IngredientCategoryRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
+import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.order.OrderStatus;
-import com.MenuBank.MenuBank.payment.PaymentMethod;
 import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
 import com.MenuBank.MenuBank.product.Product;
-import com.MenuBank.MenuBank.product.ProductComplementGroup;
-import com.MenuBank.MenuBank.product.ProductComplementGroupRepository;
-import com.MenuBank.MenuBank.product.ProductRepository;
-import com.MenuBank.MenuBank.product.ProductStatus;
 import com.MenuBank.MenuBank.product.ProductIngredient;
 import com.MenuBank.MenuBank.product.ProductIngredientRepository;
+import com.MenuBank.MenuBank.product.ProductRepository;
+import com.MenuBank.MenuBank.product.ProductStatus;
 import com.MenuBank.MenuBank.user.User;
 import com.MenuBank.MenuBank.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,10 +54,9 @@ class AnotaAISyncServiceTest {
     @Mock private CustomerRepository customerRepository;
     @Mock private PaymentMethodRepository paymentMethodRepository;
     @Mock private OrderRepository orderRepository;
-    @Mock private IngredientCategoryRepository ingredientCategoryRepository;
     @Mock private IngredientRepository ingredientRepository;
     @Mock private ProductIngredientRepository productIngredientRepository;
-    @Mock private ProductComplementGroupRepository complementGroupRepository;
+    @Mock private NotificationService notificationService;
     @Mock private com.MenuBank.MenuBank.product.OrderCostCalculatorService orderCostCalculatorService;
 
     @InjectMocks
@@ -79,12 +74,12 @@ class AnotaAISyncServiceTest {
                 .build();
         // Default: cálculo de custo retorna ZERO — testes que verificam profit/cost específico sobrescrevem
         org.mockito.Mockito.lenient()
-                .when(orderCostCalculatorService.computeOrderTotalCost(org.mockito.ArgumentMatchers.any(Order.class)))
+                .when(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
                 .thenReturn(BigDecimal.ZERO);
     }
 
     // -------------------------------------------------------------------------
-    // syncCatalog — product categories and products
+    // syncCatalog — apenas categorias e produtos
     // -------------------------------------------------------------------------
 
     @Test
@@ -137,145 +132,25 @@ class AnotaAISyncServiceTest {
         assertThat(existingProduct.getPrice()).isEqualByComparingTo("10.00");
     }
 
-    // -------------------------------------------------------------------------
-    // syncCatalog — ingredient categories and ingredients
-    // -------------------------------------------------------------------------
-
     @Test
-    @DisplayName("syncCatalog deve criar categorias de ingrediente e ingredientes a partir de is_additional=true")
-    void syncCatalog_shouldCreateIngredientCategoriesAndIngredients() {
+    @DisplayName("syncCatalog NÃO deve tocar em ingredientes — usuário cadastra manualmente")
+    void syncCatalog_shouldNotTouchIngredients() {
         given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
         given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithAdditionals());
         given(categoryRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
                 .willReturn(Optional.empty());
         given(productRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
                 .willReturn(Optional.empty());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.empty());
-        given(ingredientRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
         given(categoryRepository.save(any(Category.class)))
                 .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class)))
-                .willAnswer(inv -> { IngredientCategory c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); i.setId(UUID.randomUUID()); return i; });
-
-        AnotaAISyncResult result = syncService.syncCatalog(ownerId);
-
-        assertThat(result.getIngredientCategoriesCreated()).isEqualTo(1);
-        assertThat(result.getIngredientsCreated()).isEqualTo(2);
-        verify(ingredientCategoryRepository, times(1)).save(any(IngredientCategory.class));
-        verify(ingredientRepository, times(2)).save(any(Ingredient.class));
-    }
-
-    @Test
-    @DisplayName("syncCatalog deve popular salePrice no Ingredient ao criar (não no costPerUnit)")
-    void syncCatalog_shouldPopulateSalePriceFromAnotaAiOnCreate() {
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithAdditionals());
-        given(categoryRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.empty());
-        given(ingredientRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class)))
-                .willAnswer(inv -> { IngredientCategory c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); i.setId(UUID.randomUUID()); return i; });
 
         syncService.syncCatalog(ownerId);
 
-        ArgumentCaptor<Ingredient> captor = ArgumentCaptor.forClass(Ingredient.class);
-        verify(ingredientRepository, times(2)).save(captor.capture());
-        Ingredient first = captor.getAllValues().get(0);
-        // salePrice vem do Anota.AI (price do remote item), costPerUnit fica zero (usuário cadastra depois)
-        assertThat(first.getSalePrice()).isNotNull();
-        assertThat(first.getCostPerUnit()).isEqualByComparingTo("0");
+        // Nada de ingredientes ou categorias de ingrediente é criado no sync de cardápio
+        verify(ingredientRepository, never()).save(any(Ingredient.class));
+        // Categorias is_additional=true são puladas no Pass único; só cat-1 (is_additional=false) gera Category
+        verify(categoryRepository, times(1)).save(any(Category.class));
     }
-
-    @Test
-    @DisplayName("syncCatalog NÃO deve sobrescrever costPerUnit em ingrediente existente (preserva custo manual)")
-    void syncCatalog_shouldNotOverwriteCostPerUnitOnUpdate() {
-        BigDecimal manualCost = new BigDecimal("0.08");
-        IngredientCategory existingIngCat = IngredientCategory.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Adicionais").externalId("cat-extra").build();
-        Ingredient existingIngredient = Ingredient.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Bacon")
-                .unit("g").costPerUnit(manualCost).status(IngredientStatus.ACTIVE)
-                .externalId("extra-1").build();
-
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithAdditionals());
-        given(categoryRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.of(existingIngCat));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-1", ownerId))
-                .willReturn(Optional.of(existingIngredient));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-2", ownerId))
-                .willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class))).willReturn(existingIngCat);
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); if (i.getId() == null) i.setId(UUID.randomUUID()); return i; });
-
-        syncService.syncCatalog(ownerId);
-
-        // costPerUnit preservado, salePrice foi atualizado com o valor da Anota.AI
-        assertThat(existingIngredient.getCostPerUnit()).isEqualByComparingTo(manualCost);
-        assertThat(existingIngredient.getSalePrice()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("syncCatalog deve atualizar categorias e ingredientes existentes")
-    void syncCatalog_shouldUpdateExistingIngredientCategories() {
-        IngredientCategory existingIngCat = IngredientCategory.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Old Extra").externalId("cat-extra").build();
-        Ingredient existingIngredient = Ingredient.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Old Bacon")
-                .unit("un").costPerUnit(BigDecimal.ONE).status(IngredientStatus.ACTIVE)
-                .externalId("extra-1").build();
-
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithAdditionals());
-        given(categoryRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
-                .willReturn(Optional.empty());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.of(existingIngCat));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-1", ownerId))
-                .willReturn(Optional.of(existingIngredient));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-2", ownerId))
-                .willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class))).willReturn(existingIngCat);
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); if (i.getId() == null) i.setId(UUID.randomUUID()); return i; });
-
-        AnotaAISyncResult result = syncService.syncCatalog(ownerId);
-
-        assertThat(result.getIngredientCategoriesUpdated()).isEqualTo(1);
-        assertThat(result.getIngredientCategoriesCreated()).isZero();
-        assertThat(result.getIngredientsUpdated()).isEqualTo(1);
-        assertThat(result.getIngredientsCreated()).isEqualTo(1);
-        assertThat(existingIngCat.getName()).isEqualTo("Adicionais");
-        assertThat(existingIngredient.getName()).isEqualTo("Bacon");
-    }
-
-    // -------------------------------------------------------------------------
-    // syncCatalog — clearRecipes flag
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("syncCatalog(ownerId, true) deve apagar ProductIngredients dos produtos vindos do Anota.AI antes de re-importar")
@@ -299,7 +174,6 @@ class AnotaAISyncServiceTest {
 
         syncService.syncCatalog(ownerId, true);
 
-        // Existing product had its recipe items wiped
         verify(productIngredientRepository).deleteAllByProductIdAndProductOwnerId(existingProduct.getId(), ownerId);
     }
 
@@ -346,38 +220,6 @@ class AnotaAISyncServiceTest {
     }
 
     // -------------------------------------------------------------------------
-    // syncCatalog — next_steps NÃO devem criar ProductIngredients
-    // -------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("syncCatalog não deve criar ProductIngredients a partir de next_steps — complementos não são ingredientes de receita")
-    void syncCatalog_shouldNotCreateProductIngredientsFromNextSteps() {
-        IngredientCategory ingCat = IngredientCategory.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Adicionais").externalId("cat-extra").build();
-
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithNextSteps());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.of(ingCat));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-1", ownerId)).willReturn(Optional.empty());
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-2", ownerId)).willReturn(Optional.empty());
-        given(categoryRepository.findByExternalIdAndOwnerId("cat-1", ownerId)).willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId("item-1", ownerId)).willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(productRepository.save(any(Product.class)))
-                .willAnswer(inv -> { Product p = inv.getArgument(0); p.setId(UUID.randomUUID()); return p; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class))).willReturn(ingCat);
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); i.setId(UUID.randomUUID()); return i; });
-
-        AnotaAISyncResult result = syncService.syncCatalog(ownerId);
-
-        assertThat(result.getProductIngredientsCreated()).isZero();
-        verify(productIngredientRepository, never()).save(any(ProductIngredient.class));
-    }
-
-    // -------------------------------------------------------------------------
     // syncOrders
     // -------------------------------------------------------------------------
 
@@ -418,44 +260,7 @@ class AnotaAISyncServiceTest {
     }
 
     @Test
-    @DisplayName("syncOrders deve calcular estimatedProfit aplicando feeRate do método de pagamento")
-    void syncOrders_shouldComputeEstimatedProfitWithPaymentFee() {
-        PaymentMethod paymentMethod = PaymentMethod.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("money")
-                .feeRate(new BigDecimal("10.00")).build();
-        Product mappedProduct = Product.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Refrigerante 1L")
-                .status(ProductStatus.ACTIVE).externalId("65d4a428f784bb001956f919").build();
-        Ingredient costIng = Ingredient.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Cost").unit("un")
-                .costPerUnit(new BigDecimal("3.00")).status(IngredientStatus.ACTIVE).build();
-
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
-        given(orderRepository.existsByExternalOrderIdAndOwnerId("order-1", ownerId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(buildOrderDetail("order-1"));
-        given(customerRepository.findByPhoneAndOwnerId("43123456789", ownerId))
-                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).ownerId(ownerId).build()));
-        given(paymentMethodRepository.findByNameIgnoreCaseAndOwnerId("money", ownerId))
-                .willReturn(Optional.of(paymentMethod));
-        given(productRepository.findByExternalIdAndOwnerId("65d4a428f784bb001956f919", ownerId))
-                .willReturn(Optional.of(mappedProduct));
-        given(productIngredientRepository.findByProductIdAndProductOwnerId(mappedProduct.getId(), ownerId))
-                .willReturn(List.of(ProductIngredient.builder().product(mappedProduct).ingredient(costIng)
-                        .grammage(BigDecimal.ONE).build()));
-        given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
-                .willReturn(new BigDecimal("3.00"));
-
-        syncService.syncOrders(ownerId);
-
-        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-        verify(orderRepository).save(orderCaptor.capture());
-        // totalValue 10.00 − deliveryFee 0 − totalCost 3.00 − paymentFee (10 × 10%) 1.00 = 6.00
-        assertThat(orderCaptor.getValue().getEstimatedProfit()).isEqualByComparingTo("6.00");
-    }
-
-    @Test
-    @DisplayName("syncOrders deve calcular estimatedProfit sem fee quando não há método de pagamento")
+    @DisplayName("syncOrders deve calcular estimatedProfit como sum(item.profit) — sem subtrair fees")
     void syncOrders_shouldComputeEstimatedProfitWithoutPaymentMethod() {
         Product mappedProduct = Product.builder()
                 .id(UUID.randomUUID()).ownerId(ownerId).name("Refrigerante 1L")
@@ -477,7 +282,6 @@ class AnotaAISyncServiceTest {
         given(productIngredientRepository.findByProductIdAndProductOwnerId(mappedProduct.getId(), ownerId))
                 .willReturn(List.of(ProductIngredient.builder().product(mappedProduct).ingredient(costIng)
                         .grammage(BigDecimal.ONE).build()));
-        // OrderCostCalculatorService mockado retorna o custo esperado (grammage 1 × cost 4 = 4.00)
         given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
                 .willReturn(new BigDecimal("4.00"));
 
@@ -490,13 +294,13 @@ class AnotaAISyncServiceTest {
     }
 
     @Test
-    @DisplayName("syncOrders deve reclassificar origin de pedido já existente quando salesChannel mudou (ex: pedidos antigos importados como ANOTA_AI mas que são IFOOD)")
+    @DisplayName("syncOrders deve reclassificar origin de pedido já existente quando salesChannel mudou")
     void syncOrders_shouldReclassifyOriginOfExistingOrderWhenSalesChannelDiffers() {
         Order existingOrder = Order.builder()
                 .id(UUID.randomUUID())
                 .ownerId(ownerId)
                 .externalOrderId("order-ifood")
-                .origin(OrderOrigin.ANOTA_AI) // origin antiga (errada)
+                .origin(OrderOrigin.ANOTA_AI)
                 .build();
 
         given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
@@ -508,10 +312,8 @@ class AnotaAISyncServiceTest {
 
         AnotaAISyncResult result = syncService.syncOrders(ownerId);
 
-        // Pedido foi reclassificado, não importado de novo
         assertThat(existingOrder.getOrigin()).isEqualTo(OrderOrigin.IFOOD);
         verify(orderRepository).save(existingOrder);
-        // Não chamou getOrderDetail para esse pedido (apenas reclassificou)
         verify(anotaAIClient, never()).getOrderDetail(anyString(), eq("order-ifood"));
         assertThat(result.getOrdersImported()).isZero();
         assertThat(result.getOrdersSkipped()).isEqualTo(1);
@@ -524,7 +326,7 @@ class AnotaAISyncServiceTest {
                 .id(UUID.randomUUID())
                 .ownerId(ownerId)
                 .externalOrderId("order-anota")
-                .origin(OrderOrigin.ANOTA_AI) // já correta
+                .origin(OrderOrigin.ANOTA_AI)
                 .build();
 
         given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
@@ -565,7 +367,7 @@ class AnotaAISyncServiceTest {
     }
 
     @Test
-    @DisplayName("syncOrders deve manter origin=ANOTA_AI para outros salesChannel (anotaai, whats, etc.)")
+    @DisplayName("syncOrders deve manter origin=ANOTA_AI para outros salesChannel")
     void syncOrders_shouldDefaultToAnotaAiOriginForNonIfoodChannels() {
         Product mappedProduct = Product.builder()
                 .id(UUID.randomUUID()).ownerId(ownerId).name("Refrigerante 1L")
@@ -609,7 +411,6 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.of(mappedProduct));
         given(productIngredientRepository.findByProductIdAndProductOwnerId(mappedProduct.getId(), ownerId))
                 .willReturn(List.of());
-        // Sem ProductIngredients → custo zero
         given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
                 .willReturn(BigDecimal.ZERO);
 
@@ -620,7 +421,7 @@ class AnotaAISyncServiceTest {
         Order saved = orderCaptor.getValue();
         assertThat(saved.getDeliveryFee()).isEqualByComparingTo("6.00");
         assertThat(saved.getTotalValue()).isEqualByComparingTo("25.80");
-        // (25.80 - 6.00) - 0 (sem ProductIngredients) - 0 (sem fee) = 19.80
+        // estimatedProfit = totalValue (25.80) − deliveryFee (6.00) − totalCost (0) = 19.80
         assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("19.80");
         assertThat(saved.getTotalCost()).isEqualByComparingTo("0");
     }
@@ -678,13 +479,17 @@ class AnotaAISyncServiceTest {
                 .isInstanceOf(AnotaAIIntegrationException.class);
     }
 
+    // -------------------------------------------------------------------------
+    // syncOrders — match de extras por nome canônico (refactor central)
+    // -------------------------------------------------------------------------
+
     @Test
-    @DisplayName("syncOrders deve criar ExtraIngredients a partir dos subItems do pedido")
-    void syncOrders_shouldCreateExtraIngredientsFromSubItems() {
-        Ingredient complementIngredient = Ingredient.builder()
+    @DisplayName("syncOrders deve resolver extra ingredient por canonical name (normalizado)")
+    void syncOrders_shouldMatchExtraIngredientByCanonicalName() {
+        Ingredient acaiPremium = Ingredient.builder()
                 .id(UUID.randomUUID()).ownerId(ownerId).name("Açaí Premium").unit("ml")
                 .costPerUnit(new BigDecimal("0.05")).defaultQuantity(new BigDecimal("500"))
-                .status(IngredientStatus.ACTIVE).externalId("complement-item-id").build();
+                .status(IngredientStatus.ACTIVE).build();
         Product mappedProduct = Product.builder()
                 .id(UUID.randomUUID()).ownerId(ownerId).name("Açaí 500ml")
                 .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
@@ -700,8 +505,9 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.empty());
         given(productRepository.findByExternalIdAndOwnerId("product-internal-id", ownerId))
                 .willReturn(Optional.of(mappedProduct));
-        given(ingredientRepository.findByExternalIdAndOwnerId("complement-item-id", ownerId))
-                .willReturn(Optional.of(complementIngredient));
+        // subItem.name = "Açaí Premium" → canonical "acai premium"
+        given(ingredientRepository.findByCanonicalNameAndOwnerId("acai premium", ownerId))
+                .willReturn(Optional.of(acaiPremium));
 
         syncService.syncOrders(ownerId);
 
@@ -711,16 +517,57 @@ class AnotaAISyncServiceTest {
         assertThat(saved.getItems()).hasSize(1);
         assertThat(saved.getItems().get(0).getExtraIngredients()).hasSize(1);
         var extra = saved.getItems().get(0).getExtraIngredients().get(0);
-        assertThat(extra.getIngredient()).isEqualTo(complementIngredient);
+        assertThat(extra.getIngredient()).isEqualTo(acaiPremium);
+        // quantity = subItem.quantity (1) × ingredient.defaultQuantity (500) = 500
         assertThat(extra.getQuantity()).isEqualByComparingTo("500");
         assertThat(extra.getCostPerUnit()).isEqualByComparingTo("0.05");
         assertThat(extra.getIngredientName()).isEqualTo("Açaí Premium");
         assertThat(extra.getIngredientUnit()).isEqualTo("ml");
+        // Nenhuma notificação foi criada — ingrediente foi encontrado
+        verify(notificationService, never()).createMissingIngredient(anyString(), anyString(), any());
     }
 
     @Test
-    @DisplayName("syncOrders deve ignorar subItem quando ingrediente não está sincronizado")
-    void syncOrders_shouldSkipSubItemWhenIngredientNotFound() {
+    @DisplayName("syncOrders deve respeitar subItem.quantity ao montar OrderItemExtraIngredient")
+    void syncOrders_shouldRespectSubItemQuantityForExtra() {
+        Ingredient leiteNinho = Ingredient.builder()
+                .id(UUID.randomUUID()).ownerId(ownerId).name("leite ninho").unit("g")
+                .costPerUnit(new BigDecimal("0.0533"))
+                .defaultQuantity(new BigDecimal("20"))
+                .status(IngredientStatus.ACTIVE).build();
+        Product mappedProduct = Product.builder()
+                .id(UUID.randomUUID()).ownerId(ownerId).name("Açaí 330ml")
+                .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
+
+        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-q2"));
+        given(orderRepository.existsByExternalOrderIdAndOwnerId("order-q2", ownerId)).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-q2"))
+                .willReturn(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
+                        AnotaAIOrderDetailResponse.class));
+        given(customerRepository.findByPhoneAndOwnerId("43123456789", ownerId))
+                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).ownerId(ownerId).build()));
+        given(paymentMethodRepository.findByNameIgnoreCaseAndOwnerId("money", ownerId))
+                .willReturn(Optional.empty());
+        given(productRepository.findByExternalIdAndOwnerId("product-internal-id", ownerId))
+                .willReturn(Optional.of(mappedProduct));
+        // subItem.name = "leite ninho" → canonical "leite ninho"
+        given(ingredientRepository.findByCanonicalNameAndOwnerId("leite ninho", ownerId))
+                .willReturn(Optional.of(leiteNinho));
+
+        syncService.syncOrders(ownerId);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        var extra = orderCaptor.getValue().getItems().get(0).getExtraIngredients().get(0);
+        // quantity = subItem.quantity (2) × ingredient.defaultQuantity (20) = 40 g
+        assertThat(extra.getQuantity()).isEqualByComparingTo("40");
+        assertThat(extra.getCostPerUnit()).isEqualByComparingTo("0.0533");
+    }
+
+    @Test
+    @DisplayName("syncOrders deve criar notificação e pular extra quando ingrediente não está cadastrado")
+    void syncOrders_shouldCreateMissingIngredientNotificationWhenNotFound() {
         Product mappedProduct = Product.builder()
                 .id(UUID.randomUUID()).ownerId(ownerId).name("Açaí 500ml")
                 .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
@@ -736,80 +583,54 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.empty());
         given(productRepository.findByExternalIdAndOwnerId("product-internal-id", ownerId))
                 .willReturn(Optional.of(mappedProduct));
-        given(ingredientRepository.findByExternalIdAndOwnerId("complement-item-id", ownerId))
+        // Ingrediente "Açaí Premium" não encontrado
+        given(ingredientRepository.findByCanonicalNameAndOwnerId("acai premium", ownerId))
                 .willReturn(Optional.empty());
 
-        syncService.syncOrders(ownerId);
+        AnotaAISyncResult result = syncService.syncOrders(ownerId);
 
+        // Pedido foi importado, mas sem o extra
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository).save(orderCaptor.capture());
-        Order saved = orderCaptor.getValue();
-        assertThat(saved.getItems().get(0).getExtraIngredients()).isEmpty();
-    }
+        assertThat(orderCaptor.getValue().getItems().get(0).getExtraIngredients()).isEmpty();
 
-    // -------------------------------------------------------------------------
-    // syncCatalog — next_steps devem criar ProductComplementGroups
-    // -------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("syncCatalog deve criar ProductComplementGroups a partir de next_steps")
-    void syncCatalog_shouldCreateComplementGroupsFromNextSteps() {
-        IngredientCategory ingCat = IngredientCategory.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Adicionais").externalId("cat-extra").build();
-        Product savedProduct = Product.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("Lanche")
-                .price(new BigDecimal("12.00")).status(ProductStatus.ACTIVE).externalId("item-1").build();
-
-        given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithNextSteps());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
-                .willReturn(Optional.of(ingCat));
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-1", ownerId)).willReturn(Optional.empty());
-        given(ingredientRepository.findByExternalIdAndOwnerId("extra-2", ownerId)).willReturn(Optional.empty());
-        given(categoryRepository.findByExternalIdAndOwnerId("cat-1", ownerId)).willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId("item-1", ownerId)).willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(productRepository.save(any(Product.class))).willReturn(savedProduct);
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class))).willReturn(ingCat);
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); i.setId(UUID.randomUUID()); return i; });
-
-        syncService.syncCatalog(ownerId);
-
-        ArgumentCaptor<ProductComplementGroup> groupCaptor =
-                ArgumentCaptor.forClass(ProductComplementGroup.class);
-        verify(complementGroupRepository).save(groupCaptor.capture());
-        ProductComplementGroup saved = groupCaptor.getValue();
-        assertThat(saved.getProduct()).isEqualTo(savedProduct);
-        assertThat(saved.getIngredientCategory()).isEqualTo(ingCat);
-        assertThat(saved.getMinRequired()).isEqualTo(0);
-        assertThat(saved.getMaxAllowed()).isEqualTo(3);
+        // Notificação criada
+        verify(notificationService).createMissingIngredient("Açaí Premium", "acai premium", ownerId);
+        // Nome aparece no resultado
+        assertThat(result.getMissingIngredientNames()).containsExactly("Açaí Premium");
     }
 
     @Test
-    @DisplayName("syncCatalog deve ignorar next_step quando categoria de ingrediente não está sincronizada")
-    void syncCatalog_shouldSkipNextStepWhenIngredientCategoryNotFound() {
+    @DisplayName("syncOrders deve ouvinte notificar uma única vez para o mesmo nome quando aparece em múltiplos pedidos do mesmo sync")
+    void syncOrders_shouldReportDistinctMissingNamesAcrossOrders() {
+        Product mappedProduct = Product.builder()
+                .id(UUID.randomUUID()).ownerId(ownerId).name("Açaí 500ml")
+                .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
+
         given(userRepository.findById(ownerId)).willReturn(Optional.of(user));
-        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalogWithNextSteps());
-        given(ingredientCategoryRepository.findByExternalIdAndOwnerId("cat-extra", ownerId))
+        // 2 pedidos com o mesmo subItem "Açaí Premium" faltando
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderListWith2Orders("ord-A", "ord-B"));
+        given(orderRepository.existsByExternalOrderIdAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "ord-A"))
+                .willReturn(buildOrderDetailWithSubItems("ord-A"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "ord-B"))
+                .willReturn(buildOrderDetailWithSubItems("ord-B"));
+        given(customerRepository.findByPhoneAndOwnerId("43123456789", ownerId))
+                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).ownerId(ownerId).build()));
+        given(paymentMethodRepository.findByNameIgnoreCaseAndOwnerId("money", ownerId))
                 .willReturn(Optional.empty());
-        given(ingredientRepository.findByExternalIdAndOwnerId(anyString(), eq(ownerId)))
+        given(productRepository.findByExternalIdAndOwnerId("product-internal-id", ownerId))
+                .willReturn(Optional.of(mappedProduct));
+        given(ingredientRepository.findByCanonicalNameAndOwnerId("acai premium", ownerId))
                 .willReturn(Optional.empty());
-        given(categoryRepository.findByExternalIdAndOwnerId("cat-1", ownerId)).willReturn(Optional.empty());
-        given(productRepository.findByExternalIdAndOwnerId("item-1", ownerId)).willReturn(Optional.empty());
-        given(categoryRepository.save(any(Category.class)))
-                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
-        given(productRepository.save(any(Product.class)))
-                .willAnswer(inv -> { Product p = inv.getArgument(0); p.setId(UUID.randomUUID()); return p; });
-        given(ingredientCategoryRepository.save(any(IngredientCategory.class)))
-                .willAnswer(inv -> { IngredientCategory ic = inv.getArgument(0); ic.setId(UUID.randomUUID()); return ic; });
-        given(ingredientRepository.save(any(Ingredient.class)))
-                .willAnswer(inv -> { Ingredient i = inv.getArgument(0); i.setId(UUID.randomUUID()); return i; });
 
-        syncService.syncCatalog(ownerId);
+        AnotaAISyncResult result = syncService.syncOrders(ownerId);
 
-        verify(complementGroupRepository, never()).save(any(ProductComplementGroup.class));
+        // Nome único no resultado (não duplica)
+        assertThat(result.getMissingIngredientNames()).containsExactly("Açaí Premium");
+        // Notificação foi chamada (a dedupe acontece no NotificationService, então pode ser chamada 2x)
+        verify(notificationService, times(2))
+                .createMissingIngredient("Açaí Premium", "acai premium", ownerId);
     }
 
     // -------------------------------------------------------------------------
@@ -817,94 +638,11 @@ class AnotaAISyncServiceTest {
     // -------------------------------------------------------------------------
 
     private AnotaAICatalogResponse buildCatalog() {
-        AnotaAICatalogResponse catalog = new AnotaAICatalogResponse();
-        AnotaAICatalogResponse.AnotaAICategory category = new AnotaAICatalogResponse.AnotaAICategory();
-        category.setId("cat-1");
-        category.setTitle("Bebidas");
-        category.setAdditional(false);
-
-        AnotaAICatalogResponse.AnotaAIItem item1 = new AnotaAICatalogResponse.AnotaAIItem();
-        item1.setId("item-1");
-        item1.setTitle("Refrigerante 1L");
-        item1.setPrice(10.0);
-        item1.setOut(false);
-
-        AnotaAICatalogResponse.AnotaAIItem item2 = new AnotaAICatalogResponse.AnotaAIItem();
-        item2.setId("item-2");
-        item2.setTitle("Suco 500ml");
-        item2.setPrice(7.0);
-        item2.setOut(false);
-
-        category.setItens(List.of(item1, item2));
-        catalog.setCategories(List.of(category));
-        return catalog;
+        return AnotaAIFixtures.load("catalog_minimal.json", AnotaAICatalogResponse.class);
     }
 
     private AnotaAICatalogResponse buildCatalogWithAdditionals() {
-        AnotaAICatalogResponse catalog = buildCatalog();
-
-        AnotaAICatalogResponse.AnotaAICategory additional = new AnotaAICatalogResponse.AnotaAICategory();
-        additional.setId("cat-extra");
-        additional.setTitle("Adicionais");
-        additional.setAdditional(true);
-
-        AnotaAICatalogResponse.AnotaAIItem extra1 = new AnotaAICatalogResponse.AnotaAIItem();
-        extra1.setId("extra-1");
-        extra1.setTitle("Bacon");
-        extra1.setPrice(2.0);
-        extra1.setOut(false);
-
-        AnotaAICatalogResponse.AnotaAIItem extra2 = new AnotaAICatalogResponse.AnotaAIItem();
-        extra2.setId("extra-2");
-        extra2.setTitle("Queijo");
-        extra2.setPrice(3.0);
-        extra2.setOut(false);
-
-        additional.setItens(List.of(extra1, extra2));
-        catalog.setCategories(List.of(additional, catalog.getCategories().get(0)));
-        return catalog;
-    }
-
-    private AnotaAICatalogResponse buildCatalogWithNextSteps() {
-        AnotaAICatalogResponse catalog = new AnotaAICatalogResponse();
-
-        AnotaAICatalogResponse.AnotaAICategory additional = new AnotaAICatalogResponse.AnotaAICategory();
-        additional.setId("cat-extra");
-        additional.setTitle("Adicionais");
-        additional.setAdditional(true);
-
-        AnotaAICatalogResponse.AnotaAIItem extra1 = new AnotaAICatalogResponse.AnotaAIItem();
-        extra1.setId("extra-1");
-        extra1.setTitle("Bacon");
-        extra1.setPrice(2.0);
-
-        AnotaAICatalogResponse.AnotaAIItem extra2 = new AnotaAICatalogResponse.AnotaAIItem();
-        extra2.setId("extra-2");
-        extra2.setTitle("Queijo");
-        extra2.setPrice(3.0);
-
-        additional.setItens(List.of(extra1, extra2));
-
-        AnotaAICatalogResponse.AnotaAICategory productCat = new AnotaAICatalogResponse.AnotaAICategory();
-        productCat.setId("cat-1");
-        productCat.setTitle("Lanches");
-        productCat.setAdditional(false);
-
-        AnotaAICatalogResponse.NextStep nextStep = new AnotaAICatalogResponse.NextStep();
-        nextStep.setCategoryId("cat-extra");
-        nextStep.setCategoryTitle("Adicionais");
-        nextStep.setMin(0);
-        nextStep.setMax(3);
-
-        AnotaAICatalogResponse.AnotaAIItem product = new AnotaAICatalogResponse.AnotaAIItem();
-        product.setId("item-1");
-        product.setTitle("Lanche");
-        product.setPrice(12.0);
-        product.setNextSteps(List.of(nextStep));
-
-        productCat.setItens(List.of(product));
-        catalog.setCategories(List.of(additional, productCat));
-        return catalog;
+        return AnotaAIFixtures.load("catalog_with_additionals.json", AnotaAICatalogResponse.class);
     }
 
     private AnotaAIOrderListResponse buildOrderList(String orderId) {
@@ -912,53 +650,33 @@ class AnotaAISyncServiceTest {
     }
 
     private AnotaAIOrderListResponse buildOrderListWithSalesChannel(String orderId, String salesChannel) {
-        AnotaAIOrderListResponse response = new AnotaAIOrderListResponse();
-        AnotaAIOrderListResponse.OrderListInfo info = new AnotaAIOrderListResponse.OrderListInfo();
-        AnotaAIOrderListResponse.OrderSummary summary = new AnotaAIOrderListResponse.OrderSummary();
+        AnotaAIOrderListResponse response = AnotaAIFixtures.load("order_list_template.json",
+                AnotaAIOrderListResponse.class);
+        AnotaAIOrderListResponse.OrderSummary summary = response.getInfo().getDocs().get(0);
         summary.setId(orderId);
-        summary.setCheck(1);
         summary.setSalesChannel(salesChannel);
-        info.setDocs(List.of(summary));
-        info.setCount(1);
-        response.setInfo(info);
+        return response;
+    }
+
+    private AnotaAIOrderListResponse buildOrderListWith2Orders(String idA, String idB) {
+        AnotaAIOrderListResponse response = AnotaAIFixtures.load("order_list_template.json",
+                AnotaAIOrderListResponse.class);
+        AnotaAIOrderListResponse.OrderSummary first = response.getInfo().getDocs().get(0);
+        first.setId(idA);
+        first.setSalesChannel("anotaai");
+        AnotaAIOrderListResponse.OrderSummary second = new AnotaAIOrderListResponse.OrderSummary();
+        second.setId(idB);
+        second.setSalesChannel("anotaai");
+        second.setFrom(first.getFrom());
+        second.setUpdatedAt(first.getUpdatedAt());
+        response.getInfo().getDocs().add(second);
         return response;
     }
 
     private AnotaAIOrderDetailResponse buildOrderDetailWithSubItems(String orderId) {
-        AnotaAIOrderDetailResponse response = new AnotaAIOrderDetailResponse();
-        AnotaAIOrderDetailResponse.OrderDetail detail = new AnotaAIOrderDetailResponse.OrderDetail();
-        detail.setId(orderId);
-
-        AnotaAIOrderDetailResponse.AnotaAICustomer customer = new AnotaAIOrderDetailResponse.AnotaAICustomer();
-        customer.setId("cust-1");
-        customer.setName("Teste");
-        customer.setPhone("43123456789");
-        detail.setCustomer(customer);
-
-        AnotaAIOrderDetailResponse.AnotaAISubItem subItem = new AnotaAIOrderDetailResponse.AnotaAISubItem();
-        subItem.setName("Açaí Premium");
-        subItem.setQuantity(1);
-        subItem.setPrice(5.0);
-        subItem.setInternalId("complement-item-id");
-
-        AnotaAIOrderDetailResponse.AnotaAIOrderItem item = new AnotaAIOrderDetailResponse.AnotaAIOrderItem();
-        item.setName("Açaí 500ml");
-        item.setQuantity(1);
-        item.setInternalId("product-internal-id");
-        item.setPrice(21.99);
-        item.setTotal(21.99);
-        item.setSubItems(List.of(subItem));
-        detail.setItems(List.of(item));
-
-        AnotaAIOrderDetailResponse.AnotaAIPayment payment = new AnotaAIOrderDetailResponse.AnotaAIPayment();
-        payment.setName("money");
-        payment.setCode("money");
-        payment.setValue("21.99");
-        detail.setPayments(List.of(payment));
-
-        detail.setTotal(21.99);
-        detail.setType("LOCAL");
-        response.setInfo(detail);
+        AnotaAIOrderDetailResponse response = AnotaAIFixtures.load("order_detail_with_subitems.json",
+                AnotaAIOrderDetailResponse.class);
+        response.getInfo().setId(orderId);
         return response;
     }
 
@@ -970,33 +688,9 @@ class AnotaAISyncServiceTest {
     }
 
     private AnotaAIOrderDetailResponse buildOrderDetail(String orderId) {
-        AnotaAIOrderDetailResponse response = new AnotaAIOrderDetailResponse();
-        AnotaAIOrderDetailResponse.OrderDetail detail = new AnotaAIOrderDetailResponse.OrderDetail();
-        detail.setId(orderId);
-
-        AnotaAIOrderDetailResponse.AnotaAICustomer customer = new AnotaAIOrderDetailResponse.AnotaAICustomer();
-        customer.setId("cust-1");
-        customer.setName("Teste");
-        customer.setPhone("43123456789");
-        detail.setCustomer(customer);
-
-        AnotaAIOrderDetailResponse.AnotaAIOrderItem item = new AnotaAIOrderDetailResponse.AnotaAIOrderItem();
-        item.setName("Refrigerante 1L");
-        item.setQuantity(1);
-        item.setInternalId("65d4a428f784bb001956f919");
-        item.setPrice(10.0);
-        item.setTotal(10.0);
-        detail.setItems(List.of(item));
-
-        AnotaAIOrderDetailResponse.AnotaAIPayment payment = new AnotaAIOrderDetailResponse.AnotaAIPayment();
-        payment.setName("money");
-        payment.setCode("money");
-        payment.setValue("10");
-        detail.setPayments(List.of(payment));
-
-        detail.setTotal(10.0);
-        detail.setType("LOCAL");
-        response.setInfo(detail);
+        AnotaAIOrderDetailResponse response = AnotaAIFixtures.load("order_detail_simple.json",
+                AnotaAIOrderDetailResponse.class);
+        response.getInfo().setId(orderId);
         return response;
     }
 }

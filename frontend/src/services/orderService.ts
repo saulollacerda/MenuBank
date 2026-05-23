@@ -3,15 +3,19 @@ import type { OrderRequest, OrderResponse } from '@/types/Order'
 import type { Page, PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 
+export interface OrderFilterParams extends PageParams {
+  sort?: string
+}
+
 export const orderService = {
-  async findAll(params: PageParams = {}): Promise<Page<OrderResponse>> {
-    const { data } = await api.get<Page<OrderResponse>>('/orders', {
-      params: {
-        search: params.search ?? '',
-        page: params.page ?? 0,
-        size: params.size ?? DEFAULT_PAGE_SIZE,
-      },
-    })
+  async findAll(params: OrderFilterParams = {}): Promise<Page<OrderResponse>> {
+    const query: Record<string, string | number> = {
+      search: params.search ?? '',
+      page: params.page ?? 0,
+      size: params.size ?? DEFAULT_PAGE_SIZE,
+    }
+    if (params.sort) query.sort = params.sort
+    const { data } = await api.get<Page<OrderResponse>>('/orders', { params: query })
     return data
   },
 

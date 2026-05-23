@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useIngredientStore } from '@/stores/ingredientStore'
-import { useIngredientCategoryStore } from '@/stores/ingredientCategoryStore'
 import PageControls from '@/components/PageControls.vue'
 import type { IngredientRequest, IngredientResponse } from '@/types/Ingredient'
 
 const store = useIngredientStore()
-const categoryStore = useIngredientCategoryStore()
+const route = useRoute()
+const router = useRouter()
 
 const showModal = ref(false)
 const editing = ref<IngredientResponse | null>(null)
-const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0, ingredientCategoryId: null })
+const form = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0, defaultQuantity: 0 })
 const confirmDeleteId = ref<string | null>(null)
 
 const autoCalcCost = ref(false)
@@ -47,9 +48,9 @@ function resetAutoCalcFields() {
   purchaseQuantity.value = null
 }
 
-function openCreateModal() {
+function openCreateModal(prefilledName = '') {
   editing.value = null
-  form.value = { name: '', unit: '', costPerUnit: 0, defaultQuantity: 0, ingredientCategoryId: null }
+  form.value = { name: prefilledName, unit: '', costPerUnit: 0, defaultQuantity: 0 }
   resetAutoCalcFields()
   showModal.value = true
 }
@@ -61,7 +62,6 @@ function openEditModal(ingredient: IngredientResponse) {
     unit: ingredient.unit,
     costPerUnit: ingredient.costPerUnit,
     defaultQuantity: ingredient.defaultQuantity ?? 0,
-    ingredientCategoryId: ingredient.ingredientCategoryId,
   }
   resetAutoCalcFields()
   showModal.value = true
@@ -111,17 +111,28 @@ function onPageChange(p: number) {
   store.fetchPage({ page: p })
 }
 
+function maybeOpenFromQuery() {
+  const createName = route.query.createName
+  if (typeof createName === 'string' && createName.trim().length > 0) {
+    openCreateModal(createName)
+    // Clear the query so a page reload doesn't reopen the modal
+    router.replace({ query: {} })
+  }
+}
+
 onMounted(() => {
   store.fetchPage({ page: 0, search: '' })
-  categoryStore.fetchAll()
+  maybeOpenFromQuery()
 })
+
+watch(() => route.query.createName, () => maybeOpenFromQuery())
 </script>
 
 <template>
   <div>
     <div class="page-header">
       <h1>Ingredientes</h1>
-      <button class="btn btn-primary" @click="openCreateModal">+ Novo Ingrediente</button>
+      <button class="btn btn-primary" @click="openCreateModal()">+ Novo Ingrediente</button>
     </div>
 
     <div v-if="store.error" class="alert alert-error">{{ store.error }}</div>
@@ -145,7 +156,7 @@ onMounted(() => {
       <p v-if="store.search">Nenhum ingrediente encontrado para "{{ store.search }}".</p>
       <template v-else>
         <p>Nenhum ingrediente cadastrado.</p>
-        <button class="btn btn-primary" @click="openCreateModal">
+        <button class="btn btn-primary" @click="openCreateModal()">
           Cadastrar primeiro ingrediente
         </button>
       </template>
@@ -156,7 +167,6 @@ onMounted(() => {
         <thead>
           <tr>
             <th>Nome</th>
-            <th>Categoria</th>
             <th>Unidade</th>
             <th title="Custo: o que você paga pelo ingrediente">Custo/Unidade</th>
             <th title="Preço de venda no cardápio Anota.AI (informativo)">Preço Venda</th>
@@ -168,7 +178,6 @@ onMounted(() => {
         <tbody>
           <tr v-for="ingredient in store.items" :key="ingredient.id">
             <td>{{ ingredient.name }}</td>
-            <td>{{ ingredient.ingredientCategoryName ?? '—' }}</td>
             <td>{{ ingredient.unit }}</td>
             <td>
               <span
@@ -181,7 +190,7 @@ onMounted(() => {
               <template v-else>{{ formatCurrency(ingredient.costPerUnit) }}</template>
             </td>
             <td>
-              <template v-if="ingredient.salePrice != null && ingredient.externalId">
+              <template v-if="ingredient.salePrice != null">
                 <span title="Preço de venda vindo do cardápio Anota.AI">
                   🛒 {{ formatCurrency(ingredient.salePrice) }}
                 </span>
@@ -225,6 +234,7 @@ onMounted(() => {
                 type="text"
                 class="form-control"
                 placeholder="Nome do ingrediente"
+                data-testid="ingredient-name-input"
                 required
               />
             </div>
@@ -300,19 +310,6 @@ onMounted(() => {
                   {{ computedCostPerUnit != null ? formatCurrency(computedCostPerUnit) : '—' }}
                 </div>
               </div>
-            </div>
-            <div class="form-group">
-              <label>Categoria</label>
-              <select v-model="form.ingredientCategoryId" class="form-control">
-                <option :value="null">— Sem categoria —</option>
-                <option
-                  v-for="cat in categoryStore.items"
-                  :key="cat.id"
-                  :value="cat.id"
-                >
-                  {{ cat.name }}
-                </option>
-              </select>
             </div>
             <div class="form-group">
               <label>Quantidade padrão (unidade do ingrediente)</label>

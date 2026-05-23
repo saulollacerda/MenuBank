@@ -24,8 +24,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname
       if (currentPath !== '/login' && currentPath !== '/register') {
-        localStorage.removeItem('menubank_token')
-        localStorage.removeItem('menubank_user')
+        const { useAuthStore } = await import('@/stores/authStore')
+        useAuthStore().clearSession()
         const { default: router } = await import('@/router')
         router.push({ name: 'login' })
       }

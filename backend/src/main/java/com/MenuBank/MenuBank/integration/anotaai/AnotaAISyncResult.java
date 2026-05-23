@@ -15,10 +15,13 @@ public class AnotaAISyncResult {
     private int categoriesUpdated;
     private int productsCreated;
     private int productsUpdated;
-    private int ingredientCategoriesCreated;
-    private int ingredientCategoriesUpdated;
-    private int ingredientsCreated;
-    private int ingredientsUpdated;
-    private int productIngredientsCreated;
+
+    /**
+     * Unique display names of ingredients referenced by imported orders that
+     * are not yet registered in the system. Surfaced to the UI for immediate
+     * feedback; persistent tracking lives in the notifications domain.
+     */
+    private List<String> missingIngredientNames;
+
     private List<String> errors;
 }
