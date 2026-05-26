@@ -1,18 +1,21 @@
 package com.MenuBank.MenuBank.order;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.merchant.Merchant;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+
+import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
-import com.MenuBank.MenuBank.payment.PaymentMethodRepository;
+import com.MenuBank.MenuBank.fee.FeeRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
-import com.MenuBank.MenuBank.product.ProductIngredient;
-import com.MenuBank.MenuBank.product.ProductIngredientRepository;
+import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,22 +51,26 @@ class OrderServiceTest {
     private IngredientRepository ingredientRepository;
 
     @Mock
-    private PaymentMethodRepository paymentMethodRepository;
+    private FeeRepository feeRepository;
 
     @Mock
-    private ProductIngredientRepository productIngredientRepository;
+    private IncludeRepository includeRepository;
 
     @Mock
     private com.MenuBank.MenuBank.product.OrderCostCalculatorService orderCostCalculatorService;
 
     @Mock
-    private UserContext userContext;
+    private MerchantContext merchantContext;
+
+    @Mock
+    private MerchantRepository merchantRepository;
+
 
     @InjectMocks
     private OrderService orderService;
 
     private UUID orderId;
-    private UUID ownerId;
+    private UUID merchantId;
     private UUID customerId;
     private UUID productId;
     private UUID ingredientId;
@@ -76,14 +83,15 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderId = UUID.randomUUID();
-        ownerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        lenient().when(merchantRepository.getReferenceById(any())).thenReturn(Merchant.builder().id(merchantId).build());
         customerId = UUID.randomUUID();
         productId = UUID.randomUUID();
         ingredientId = UUID.randomUUID();
 
         customer = Customer.builder()
                 .id(customerId)
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Cliente Teste")
                 .phone("11999999999")
                 .email("cliente@email.com")
@@ -91,7 +99,7 @@ class OrderServiceTest {
 
         product = Product.builder()
                 .id(productId)
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Hambúrguer")
                 .price(new BigDecimal("30.00"))
                 .status(ProductStatus.ACTIVE)
@@ -99,23 +107,19 @@ class OrderServiceTest {
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Bacon")
                 .unit("g")
                 .costPerUnit(new BigDecimal("0.10"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
 
-        // Mock receita do produto: 1 ingrediente × custo 12.00 = unitCost 12.00
-        // (substitui o antigo product.estimatedCost = 12)
-        Ingredient costIngredient = Ingredient.builder()
-                .id(UUID.randomUUID()).ownerId(ownerId).name("CustoBase")
-                .unit("un").costPerUnit(new BigDecimal("12.00"))
-                .status(IngredientStatus.ACTIVE).build();
-        ProductIngredient defaultRecipe = ProductIngredient.builder()
-                .product(product).ingredient(costIngredient)
-                .grammage(BigDecimal.ONE).build();
-        lenient().when(productIngredientRepository.findByProductIdAndProductOwnerId(productId, ownerId))
+        // Mock receita do produto: 1 include × custo 12.00 = unitCost 12.00
+        Include defaultRecipe = Include.builder()
+                .product(product).name("CustoBase")
+                .cost(new BigDecimal("12.00"))
+                .quantity(BigDecimal.ONE).build();
+        lenient().when(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
                 .thenReturn(List.of(defaultRecipe));
 
         // Cálculo padrão dos testes simples: 2 items × 12.00 base = 24.00.
@@ -143,7 +147,7 @@ class OrderServiceTest {
 
         order = Order.builder()
                 .id(orderId)
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .dateTime(LocalDateTime.now())
                 .customer(customer)
                 .status(OrderStatus.PAID)
@@ -164,9 +168,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve criar pedido com dados válidos e retornar OrderResponse")
         void shouldCreateOrderAndReturnOrderResponse() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             OrderResponse result = orderService.create(orderRequest);
@@ -181,9 +185,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir status como PAID (concluído) por padrão")
         void shouldSetStatusToPaidByDefault() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -194,9 +198,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve calcular totalValue a partir dos itens (quantidade × preço)")
         void shouldCalculateTotalValueFromItems() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -210,9 +214,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve calcular estimatedProfit (totalValue − custo total dos itens)")
         void shouldCalculateEstimatedProfitFromItems() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -226,9 +230,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir unitPrice do item com o preço atual do produto")
         void shouldSetItemUnitPriceFromProductPrice() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.create(orderRequest);
@@ -242,9 +246,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve definir dateTime no momento da criação")
         void shouldSetDateTimeOnCreation() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             LocalDateTime before = LocalDateTime.now();
@@ -260,8 +264,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando cliente não encontrado")
         void shouldThrowWhenCustomerNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(orderRequest))
                     .isInstanceOf(OrderNotFoundException.class)
@@ -273,9 +277,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando produto não encontrado")
         void shouldThrowWhenProductNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(orderRequest))
                     .isInstanceOf(OrderNotFoundException.class)
@@ -287,9 +291,9 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve mapear corretamente os itens na resposta")
         void shouldMapItemsCorrectlyInResponse() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             OrderResponse result = orderService.create(orderRequest);
@@ -321,10 +325,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             // Sobrescreve cálculo padrão com o valor esperado para este caso: base (24) + extras (10) = 34
             given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
                     .willReturn(new BigDecimal("34.00"));
@@ -364,10 +368,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
                 Order saved = invocation.getArgument(0);
                 saved.setId(orderId);
@@ -375,7 +379,7 @@ class OrderServiceTest {
                 return saved;
             });
             // unitCost vem do calculator (mandatory base + opcionais escolhidos = 12 + 5 = 17)
-            given(orderCostCalculatorService.computeItemUnitCost(any(OrderItem.class), eq(ownerId)))
+            given(orderCostCalculatorService.computeItemUnitCost(any(OrderItem.class), eq(merchantId)))
                     .willReturn(new BigDecimal("17.00"));
 
             OrderResponse response = orderService.create(requestWithExtra);
@@ -392,7 +396,7 @@ class OrderServiceTest {
         void shouldSupportFourDecimalCostPerUnit() {
             Ingredient fineIngredient = Ingredient.builder()
                     .id(ingredientId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .name("Açúcar refinado")
                     .unit("g")
                     .costPerUnit(new BigDecimal("0.0035"))
@@ -415,10 +419,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(fineIngredient));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(fineIngredient));
             // totalCost esperado: base (12.00) + extra (100 * 0.0035 = 0.35) = 12.35
             given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
                     .willReturn(new BigDecimal("12.3500"));
@@ -455,10 +459,10 @@ class OrderServiceTest {
                     .items(List.of(itemWithExtra))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.create(requestWithExtra))
                     .isInstanceOf(IngredientNotFoundException.class)
@@ -479,8 +483,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve retornar OrderResponse quando pedido existe")
         void shouldReturnOrderResponseWhenExists() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
 
             OrderResponse result = orderService.findById(orderId);
 
@@ -493,11 +497,30 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException quando pedido não existe")
         void shouldThrowWhenOrderNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.findById(orderId))
                     .isInstanceOf(OrderNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("deve popular insumos do item com os Includes da ficha técnica do produto")
+        void shouldPopulateItemInsumosFromProductIncludes() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            assertThat(result.getItems()).hasSize(1);
+            OrderItemResponse item = result.getItems().get(0);
+            assertThat(item.getInsumos())
+                    .as("insumos devem refletir os Includes da ficha técnica do produto")
+                    .hasSize(1);
+            assertThat(item.getInsumos().get(0).getName()).isEqualTo("CustoBase");
+            assertThat(item.getInsumos().get(0).getCost()).isEqualByComparingTo(new BigDecimal("12.00"));
+            assertThat(item.getInsumos().get(0).getQuantity()).isEqualByComparingTo(BigDecimal.ONE);
+            assertThat(item.getInsumos().get(0).getTotalCost()).isEqualByComparingTo(new BigDecimal("12.00"));
         }
 
         @Test
@@ -512,7 +535,7 @@ class OrderServiceTest {
                     .build();
             Order orderWithStaleProfit = Order.builder()
                     .id(orderId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .dateTime(LocalDateTime.now())
                     .customer(customer)
                     .status(OrderStatus.PENDING)
@@ -521,8 +544,8 @@ class OrderServiceTest {
                     .items(new ArrayList<>(List.of(itemWithZeroCost)))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId))
                     .willReturn(Optional.of(orderWithStaleProfit));
 
             OrderResponse result = orderService.findById(orderId);
@@ -545,8 +568,8 @@ class OrderServiceTest {
         void shouldReturnPagedOrdersFilteredByCustomerName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findPageByOwnerIdAndCustomerNameContaining(ownerId, "client", pageable))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, "client", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
 
             org.springframework.data.domain.Page<OrderResponse> result =
@@ -562,8 +585,8 @@ class OrderServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findPageByOwnerIdAndCustomerNameContaining(ownerId, "", pageable))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<OrderResponse> result =
@@ -587,7 +610,7 @@ class OrderServiceTest {
             UUID newProductId = UUID.randomUUID();
             Product newProduct = Product.builder()
                     .id(newProductId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .name("Pizza")
                     .price(new BigDecimal("45.00"))
                     .status(ProductStatus.ACTIVE)
@@ -613,7 +636,7 @@ class OrderServiceTest {
 
             Order updatedOrder = Order.builder()
                     .id(orderId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .dateTime(order.getDateTime())
                     .customer(customer)
                     .status(OrderStatus.PENDING)
@@ -622,10 +645,10 @@ class OrderServiceTest {
                     .items(List.of(updatedItem))
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(newProductId, ownerId)).willReturn(Optional.of(newProduct));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(newProductId, merchantId)).willReturn(Optional.of(newProduct));
             given(orderRepository.save(any(Order.class))).willReturn(updatedOrder);
 
             OrderResponse result = orderService.update(orderId, updateRequest);
@@ -638,10 +661,10 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve recalcular totais ao atualizar pedido")
         void shouldRecalculateTotalsOnUpdate() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.update(orderId, orderRequest);
@@ -662,10 +685,10 @@ class OrderServiceTest {
                     .status(OrderStatus.CANCELLED)
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.of(order));
-            given(customerRepository.findByIdAndOwnerId(customerId, ownerId)).willReturn(Optional.of(customer));
-            given(productRepository.findByIdAndOwnerId(productId, ownerId)).willReturn(Optional.of(product));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(orderRepository.save(any(Order.class))).willReturn(order);
 
             orderService.update(orderId, updateWithStatus);
@@ -676,8 +699,8 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve lançar OrderNotFoundException ao atualizar pedido inexistente")
         void shouldThrowWhenOrderNotFoundForUpdate() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByIdAndOwnerId(orderId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> orderService.update(orderId, orderRequest))
                     .isInstanceOf(OrderNotFoundException.class);
@@ -697,25 +720,25 @@ class OrderServiceTest {
         @Test
         @DisplayName("deve deletar pedido existente sem lançar exceção")
         void shouldDeleteExistingOrder() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.existsByIdAndOwnerId(orderId, ownerId)).willReturn(true);
-            willDoNothing().given(orderRepository).deleteByIdAndOwnerId(orderId, ownerId);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.existsByIdAndMerchantId(orderId, merchantId)).willReturn(true);
+            willDoNothing().given(orderRepository).deleteByIdAndMerchantId(orderId, merchantId);
 
             assertThatNoException().isThrownBy(() -> orderService.delete(orderId));
 
-            then(orderRepository).should().deleteByIdAndOwnerId(orderId, ownerId);
+            then(orderRepository).should().deleteByIdAndMerchantId(orderId, merchantId);
         }
 
         @Test
         @DisplayName("deve lançar OrderNotFoundException ao deletar pedido inexistente")
         void shouldThrowWhenOrderNotFoundForDelete() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.existsByIdAndOwnerId(orderId, ownerId)).willReturn(false);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.existsByIdAndMerchantId(orderId, merchantId)).willReturn(false);
 
             assertThatThrownBy(() -> orderService.delete(orderId))
                     .isInstanceOf(OrderNotFoundException.class);
 
-            then(orderRepository).should(never()).deleteByIdAndOwnerId(any(), any());
+            then(orderRepository).should(never()).deleteByIdAndMerchantId(any(), any());
         }
     }
 }

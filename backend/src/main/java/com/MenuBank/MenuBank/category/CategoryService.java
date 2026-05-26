@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.category;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,22 +13,26 @@ import java.util.UUID;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
-    private final UserContext userContext;
+    private final MerchantRepository merchantRepository;
+    private final MerchantContext merchantContext;
 
-    public CategoryService(CategoryRepository categoryRepository, UserContext userContext) {
+    public CategoryService(CategoryRepository categoryRepository,
+                           MerchantRepository merchantRepository,
+                           MerchantContext merchantContext) {
         this.categoryRepository = categoryRepository;
-        this.userContext = userContext;
+        this.merchantRepository = merchantRepository;
+        this.merchantContext = merchantContext;
     }
 
     public CategoryResponse create(CategoryRequest request) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
 
-        if (categoryRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
+        if (categoryRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateCategoryException("nome");
         }
 
         Category category = Category.builder()
-                .ownerId(ownerId)
+                .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
                 .build();
 
@@ -36,22 +41,22 @@ public class CategoryService {
     }
 
     public CategoryResponse findById(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        Category category = categoryRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Category category = categoryRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
         return toResponse(category);
     }
 
     public Page<CategoryResponse> findAll(String search, Pageable pageable) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
         String term = search == null ? "" : search;
-        return categoryRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+        return categoryRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
                 .map(this::toResponse);
     }
 
     public CategoryResponse update(UUID id, CategoryRequest request) {
-        UUID ownerId = userContext.getUserId();
-        Category category = categoryRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Category category = categoryRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
 
         category.setName(request.getName());
@@ -62,11 +67,11 @@ public class CategoryService {
 
     @Transactional
     public void delete(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        if (!categoryRepository.existsByIdAndOwnerId(id, ownerId)) {
+        UUID merchantId = merchantContext.getMerchantId();
+        if (!categoryRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new CategoryNotFoundException(id);
         }
-        categoryRepository.deleteByIdAndOwnerId(id, ownerId);
+        categoryRepository.deleteByIdAndMerchantId(id, merchantId);
     }
 
     private CategoryResponse toResponse(Category category) {

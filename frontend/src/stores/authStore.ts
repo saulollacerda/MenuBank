@@ -9,9 +9,9 @@ const TOKEN_KEY = 'menubank_token'
 const USER_KEY = 'menubank_user'
 
 interface StoredUser {
-  userId: string
+  merchantId: string
   email: string
-  restaurantName: string
+  merchantName: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -22,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => !!token.value)
-  const restaurantName = computed(() => user.value?.restaurantName ?? '')
+  const restaurantName = computed(() => user.value?.merchantName ?? '')
 
   function loadUser(): StoredUser | null {
     const raw = localStorage.getItem(USER_KEY)
@@ -37,9 +37,9 @@ export const useAuthStore = defineStore('auth', () => {
   function saveSession(response: LoginResponse) {
     token.value = response.token
     user.value = {
-      userId: response.userId,
+      merchantId: response.merchantId,
       email: response.email,
-      restaurantName: response.restaurantName,
+      merchantName: response.merchantName,
     }
     localStorage.setItem(TOKEN_KEY, response.token)
     localStorage.setItem(USER_KEY, JSON.stringify(user.value))
@@ -104,7 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      const response = await userService.getById(user.value.userId)
+      const response = await userService.getById(user.value.merchantId)
       currentUser.value = response
       return response
     } catch (e: unknown) {

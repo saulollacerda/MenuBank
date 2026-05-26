@@ -10,15 +10,15 @@ import java.util.UUID;
 
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
-	Optional<Customer> findByIdAndOwnerId(UUID id, UUID ownerId);
+	Optional<Customer> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-	List<Customer> findAllByOwnerId(UUID ownerId);
+	List<Customer> findAllByMerchantId(UUID merchantId);
 
-	Page<Customer> findAllByOwnerIdAndNameContainingIgnoreCase(UUID ownerId, String name, Pageable pageable);
+	Page<Customer> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-	boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+	boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
 
-	void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+	void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
-	Optional<Customer> findByPhoneAndOwnerId(String phone, UUID ownerId);
+	Optional<Customer> findByPhoneAndMerchantId(String phone, UUID merchantId);
 }

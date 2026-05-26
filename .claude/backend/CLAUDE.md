@@ -38,6 +38,56 @@
 - **REST endpoints:** `/api/<feature>` (e.g. `/api/orders`, `/api/products`, `/api/dashboard`).
 - **Dev profile:** `SPRING_PROFILES_ACTIVE=dev` for local development with H2.
 
+## Data Model
+
+Tenant-scoped multi-tenant: todas as entidades de negócio têm `merchant_id` (FK → `merchants.id`, NOT NULL) extraído do JWT do usuário autenticado via `MerchantContext`.
+
+### Tabelas
+
+| Tabela | Descrição | FKs principais |
+|---|---|---|
+| `merchants` | Tenant raiz — restaurante/lojista. Auth via email/senha, JWT sub = `merchants.id` | — |
+| `customers` | Clientes do restaurante | `merchant_id` |
+| `categories` | Categorias do cardápio | `merchant_id` |
+| `products` | Itens do cardápio | `merchant_id`, `category_id` |
+| `includes` | Ficha técnica do produto — componentes que sempre entram no custo (`name`, `cost`, `quantity` armazenados direto, **sem FK pra `ingredients`**) | `product_id` |
+| `ingredients` | Catálogo de ingredientes — usado **apenas** para resolver extras de pedidos (subItems do Anota.AI) via match de nome canônico | `merchant_id` |
+| `fees` | Taxas/formas de pagamento | `merchant_id` |
+| `orders` | Pedidos | `merchant_id`, `customer_id`, `fee_id` (nullable) |
+| `order_items` | Itens do pedido — `unit_price` e `unit_cost` são **snapshots** do momento do pedido | `order_id`, `product_id` |
+| `order_item_extra_ingredients` | Extras escolhidos pelo cliente no pedido — `cost_per_unit`, `name`, `unit` são **snapshots** | `order_item_id`, `ingredient_id` |
+| `notifications` | Notificações do sistema (ex.: `MISSING_INGREDIENT`) | `merchant_id` |
+
+### Conceitos-chave
+
+- **`includes` vs `ingredients`** — desacoplados desde o refactor:
+  - `includes` = ficha técnica do produto (lojista define `name`, `cost`, `quantity` por produto, sem ligação com catálogo de `ingredients`).
+  - `ingredients` = catálogo separado, referenciado **só** por `order_item_extra_ingredients` para tracking de extras dos pedidos.
+- **Cálculo de custo**:
+  - `product.unitCost = Σ(include.cost × include.quantity)` — via `ProductCostCalculator`.
+  - `order.totalCost` = soma de `(item.unitCost × item.quantity) + extras` — via `OrderCostCalculatorService`.
+- **Snapshots**: `order_items.unit_cost`, `order_items.unit_price`, e os campos de `order_item_extra_ingredients` (`cost_per_unit`, `name`, `unit`) preservam valores no momento do pedido — alterações posteriores em produtos/ingredientes não afetam o histórico financeiro.
+- **Multi-tenant**: `MerchantContext.getMerchantId()` lê o `sub` do JWT. Todo repository tem queries `findByXAndMerchantId(...)` para garantir isolamento de tenant.
+- **Match de extras (Anota.AI)**: `IngredientNameNormalizer` normaliza nomes (lowercase, sem acento, espaços colapsados) e busca em `ingredients.canonical_name`. Match não encontrado gera notificação `MISSING_INGREDIENT`.
+
+### Endpoints principais
+
+| Recurso | Endpoint |
+|---|---|
+| Merchant | `/api/merchants` |
+| Customer | `/api/customers` |
+| Category | `/api/categories` |
+| Product | `/api/products` |
+| Ficha técnica do produto | `/api/products/{productId}/includes` |
+| Ingredient | `/api/ingredients` |
+| "Onde este ingrediente é usado" (match por nome em includes) | `/api/ingredients/{id}/usages` |
+| Fee | `/api/fees` |
+| Order | `/api/orders` |
+| Notification | `/api/notifications` |
+| Auth | `/api/auth/login`, `/api/auth/register` |
+| Dashboard | `/api/dashboard?from=&to=` |
+| Anota.AI sync | `/api/anota-ai/sync/catalog`, `/api/anota-ai/sync/orders` |
+
 ## Running locally
 
 ```bash

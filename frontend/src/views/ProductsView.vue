@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
-import { useIngredientStore } from '@/stores/ingredientStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import PageControls from '@/components/PageControls.vue'
-import type { ProductRequest, ProductResponse, ProductIngredientRequest } from '@/types/Product'
+import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
 
 const productStore = useProductStore()
-const ingredientStore = useIngredientStore()
 const categoryStore = useCategoryStore()
 const anotaAIStore = useAnotaAIStore()
 
@@ -28,7 +26,7 @@ const showRecipeModal = ref(false)
 const editing = ref<ProductResponse | null>(null)
 const selectedProduct = ref<ProductResponse | null>(null)
 const form = ref<ProductRequest>({ name: '', price: 0, categoryId: '' })
-const recipeForm = ref<ProductIngredientRequest>({ ingredientId: '', grammage: 0, isOptional: false })
+const recipeForm = ref<IncludeRequest>({ name: '', cost: 0, quantity: 1 })
 const confirmDeleteId = ref<string | null>(null)
 const confirmClearRecipe = ref(false)
 
@@ -85,16 +83,9 @@ async function handleSubmit() {
 
 async function openRecipeModal(product: ProductResponse) {
   selectedProduct.value = product
-  recipeForm.value = { ingredientId: '', grammage: 0, isOptional: false }
+  recipeForm.value = { name: '', cost: 0, quantity: 1 }
   showRecipeModal.value = true
-  await productStore.fetchProductIngredients(product.id)
-}
-
-function handleRecipeIngredientChange() {
-  const selected = ingredientStore.items.find(
-    (ingredient) => ingredient.id === recipeForm.value.ingredientId,
-  )
-  recipeForm.value.grammage = selected?.defaultQuantity ?? 0
+  await productStore.fetchIncludes(product.id)
 }
 
 function closeRecipeModal() {
@@ -105,8 +96,8 @@ function closeRecipeModal() {
 async function handleAddRecipeItem() {
   if (!selectedProduct.value) return
   try {
-    await productStore.addProductIngredient(selectedProduct.value.id, recipeForm.value)
-    recipeForm.value = { ingredientId: '', grammage: 0, isOptional: false }
+    await productStore.addInclude(selectedProduct.value.id, recipeForm.value)
+    recipeForm.value = { name: '', cost: 0, quantity: 1 }
   } catch {
     // Error is handled by the store
   }
@@ -123,10 +114,10 @@ async function handleClearRecipe() {
   }
 }
 
-async function handleRemoveRecipeItem(productIngredientId: string) {
+async function handleRemoveRecipeItem(includeId: string) {
   if (!selectedProduct.value) return
   try {
-    await productStore.removeProductIngredient(selectedProduct.value.id, productIngredientId)
+    await productStore.removeInclude(selectedProduct.value.id, includeId)
   } catch {
     // Error is handled by the store
   }
@@ -156,7 +147,6 @@ function onPageChange(p: number) {
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
-  ingredientStore.fetchAll()
   categoryStore.fetchAll()
 })
 </script>
@@ -352,7 +342,7 @@ onMounted(() => {
         </div>
         <div class="modal-body">
           <div
-            v-if="productStore.recipeItems.length > 0"
+            v-if="productStore.includes.length > 0"
             style="display: flex; justify-content: flex-end; margin-bottom: 12px"
           >
             <button
@@ -364,52 +354,44 @@ onMounted(() => {
               🗑 Limpar Ficha Técnica
             </button>
           </div>
-          <!-- Add ingredient form -->
+          <!-- Add include form -->
           <form @submit.prevent="handleAddRecipeItem" class="order-items-row" style="margin-bottom: 16px">
             <div class="form-group">
-              <label>Ingrediente</label>
-              <select
-                v-model="recipeForm.ingredientId"
-                class="form-control"
-                data-testid="recipe-ingredient-select"
-                required
-                @change="handleRecipeIngredientChange"
-              >
-                <option value="" disabled>Selecione...</option>
-                <option
-                  v-for="ingredient in ingredientStore.items"
-                  :key="ingredient.id"
-                  :value="ingredient.id"
-                >
-                  {{ ingredient.name }} ({{ ingredient.unit }})
-                </option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Gramatura</label>
+              <label>Nome</label>
               <input
-                v-model.number="recipeForm.grammage"
-                type="number"
-                step="0.001"
-                min="0.001"
+                v-model="recipeForm.name"
+                type="text"
                 class="form-control"
-                placeholder="0"
-                data-testid="recipe-quantity-input"
+                placeholder="Ex.: Copo, Colher, Açaí Base"
+                data-testid="recipe-name-input"
                 required
               />
             </div>
-            <div class="form-group" style="min-width: 130px">
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer">
-                <input
-                  v-model="recipeForm.isOptional"
-                  type="checkbox"
-                  data-testid="recipe-isoptional-checkbox"
-                />
-                Opcional
-              </label>
-              <small style="font-size: 0.7rem; color: #64748b">
-                Só conta no custo quando aparece nos extras do pedido
-              </small>
+            <div class="form-group">
+              <label>Custo (R$)</label>
+              <input
+                v-model.number="recipeForm.cost"
+                type="number"
+                step="0.0001"
+                min="0"
+                class="form-control"
+                placeholder="0,00"
+                data-testid="recipe-cost-input"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Quantidade</label>
+              <input
+                v-model.number="recipeForm.quantity"
+                type="number"
+                step="0.0001"
+                min="0.0001"
+                class="form-control"
+                placeholder="1"
+                data-testid="recipe-quantity-input"
+                required
+              />
             </div>
             <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom: 0">
               Adicionar
@@ -417,39 +399,25 @@ onMounted(() => {
           </form>
 
           <!-- Recipe items table -->
-          <div v-if="productStore.productIngredients.length === 0" class="empty-state">
-            <p>Nenhum ingrediente na ficha técnica.</p>
+          <div v-if="productStore.includes.length === 0" class="empty-state">
+            <p>Nenhum item na ficha técnica.</p>
           </div>
           <div v-else class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Ingrediente</th>
-                  <th>Unidade</th>
-                  <th>Gramatura</th>
-                  <th>Tipo</th>
-                  <th>Custo/Unidade</th>
+                  <th>Nome</th>
+                  <th>Custo</th>
+                  <th>Quantidade</th>
                   <th>Custo Total</th>
                   <th style="width: 80px">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in productStore.productIngredients" :key="item.id">
-                  <td>{{ item.ingredientName }}</td>
-                  <td>{{ item.ingredientUnit }}</td>
-                  <td>{{ item.grammage }}</td>
-                  <td>
-                    <span v-if="item.isOptional" class="badge badge-warning" title="Só entra no custo quando aparece nos extras do pedido">
-                      Opcional
-                    </span>
-                    <span v-else class="badge badge-active">Base</span>
-                  </td>
-                  <td>
-                    <span v-if="Number(item.costPerUnit) === 0" class="badge badge-warning" title="Custo não configurado — configure no cadastro do ingrediente">
-                      ⚠ R$ 0,00
-                    </span>
-                    <template v-else>{{ formatCurrency(item.costPerUnit) }}</template>
-                  </td>
+                <tr v-for="item in productStore.includes" :key="item.id">
+                  <td>{{ item.name }}</td>
+                  <td>{{ formatCurrency(item.cost) }}</td>
+                  <td>{{ item.quantity }}</td>
                   <td>{{ formatCurrency(item.totalCost) }}</td>
                   <td>
                     <button
@@ -476,7 +444,7 @@ onMounted(() => {
         </div>
         <div class="modal-body">
           <p>
-            Tem certeza que deseja remover <strong>todos</strong> os ingredientes da ficha técnica
+            Tem certeza que deseja remover <strong>todos</strong> os itens da ficha técnica
             de <strong>{{ selectedProduct?.name }}</strong>?
           </p>
           <p style="font-size: 0.85rem; color: #64748b">Essa ação não pode ser desfeita.</p>

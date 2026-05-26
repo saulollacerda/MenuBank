@@ -5,7 +5,7 @@ let orderStoreMock: any
 let customerStoreMock: any
 let productStoreMock: any
 let ingredientStoreMock: any
-let paymentMethodStoreMock: any
+let feeStoreMock: any
 let anotaAIStoreMock: any
 let notificationStoreMock: any
 
@@ -25,8 +25,8 @@ vi.mock('@/stores/ingredientStore', () => ({
   useIngredientStore: () => ingredientStoreMock,
 }))
 
-vi.mock('@/stores/paymentMethodStore', () => ({
-  usePaymentMethodStore: () => paymentMethodStoreMock,
+vi.mock('@/stores/feeStore', () => ({
+  useFeeStore: () => feeStoreMock,
 }))
 
 vi.mock('@/stores/anotaAIStore', () => ({
@@ -91,7 +91,7 @@ describe('OrdersView', () => {
       fetchAll: vi.fn(),
     }
 
-    paymentMethodStoreMock = {
+    feeStoreMock = {
       items: [],
       loading: false,
       error: null,

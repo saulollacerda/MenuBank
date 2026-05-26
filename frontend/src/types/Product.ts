@@ -15,26 +15,22 @@ export interface ProductResponse {
   categoryName: string
 }
 
-export interface ProductIngredientRequest {
-  ingredientId: string
-  grammage: number
-  isOptional?: boolean
+/**
+ * Item da ficha técnica do produto (tabela `includes`).
+ * Sem FK para `ingredients`: name/cost são armazenados direto, por produto.
+ */
+export interface IncludeRequest {
+  name: string
+  cost: number
+  /** Opcional. Backend assume 1 quando ausente. */
+  quantity?: number
 }
 
-export interface ProductIngredientResponse {
+export interface IncludeResponse {
   id: string
   productId: string
-  ingredientId: string
-  ingredientName: string
-  ingredientUnit: string
-  grammage: number
-  isOptional: boolean
-  costPerUnit: number
+  name: string
+  cost: number
+  quantity: number
   totalCost: number
 }
-
-/** @deprecated use ProductIngredientRequest */
-export type RecipeItemRequest = ProductIngredientRequest
-
-/** @deprecated use ProductIngredientResponse */
-export type RecipeItemResponse = ProductIngredientResponse

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { mount, flushPromises } from '@vue/test-utils'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ingredientStoreMock: any
 const routeMock = { query: {} as Record<string, string | string[]> }
 const routerMock = { replace: vi.fn(), push: vi.fn() }
@@ -13,6 +13,35 @@ vi.mock('@/stores/ingredientStore', () => ({
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
   useRouter: () => routerMock,
+}))
+
+vi.mock('@/services/productService', () => ({
+  productService: {
+    findAll: vi.fn().mockResolvedValue({
+      content: [],
+      totalElements: 0,
+      totalPages: 0,
+      number: 0,
+      size: 500,
+      first: true,
+      last: true,
+      empty: true,
+    }),
+  },
+}))
+
+vi.mock('@/services/includeService', () => ({
+  includeService: {
+    add: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    remove: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
+vi.mock('@/services/ingredientService', () => ({
+  ingredientService: {
+    fetchUsages: vi.fn().mockResolvedValue([]),
+  },
 }))
 
 import IngredientsView from '@/views/IngredientsView.vue'
@@ -133,8 +162,8 @@ describe('IngredientsView', () => {
 
     const wrapper = mount(IngredientsView)
 
-    // Wait for onMounted to fire
-    await wrapper.vm.$nextTick()
+    // Wait for onMounted + async openCreateModal (loadProducts) to settle
+    await flushPromises()
 
     const nameInput = wrapper.get('[data-testid="ingredient-name-input"]')
     expect((nameInput.element as HTMLInputElement).value).toBe('Pistache')

@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.customer;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,18 +13,22 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
-    private final UserContext userContext;
+    private final MerchantRepository merchantRepository;
+    private final MerchantContext merchantContext;
 
-    public CustomerService(CustomerRepository customerRepository, UserContext userContext) {
+    public CustomerService(CustomerRepository customerRepository,
+                           MerchantRepository merchantRepository,
+                           MerchantContext merchantContext) {
         this.customerRepository = customerRepository;
-        this.userContext = userContext;
+        this.merchantRepository = merchantRepository;
+        this.merchantContext = merchantContext;
     }
 
     public CustomerResponse create(CustomerRequest request) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
 
         Customer customer = Customer.builder()
-                .ownerId(ownerId)
+                .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
@@ -34,22 +39,22 @@ public class CustomerService {
     }
 
     public CustomerResponse findById(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        Customer customer = customerRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Customer customer = customerRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
         return toResponse(customer);
     }
 
     public Page<CustomerResponse> findAll(String search, Pageable pageable) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
         String term = search == null ? "" : search;
-        return customerRepository.findAllByOwnerIdAndNameContainingIgnoreCase(ownerId, term, pageable)
+        return customerRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
                 .map(this::toResponse);
     }
 
     public CustomerResponse update(UUID id, CustomerRequest request) {
-        UUID ownerId = userContext.getUserId();
-        Customer customer = customerRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Customer customer = customerRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
 
         customer.setName(request.getName());
@@ -62,11 +67,11 @@ public class CustomerService {
 
     @Transactional
     public void delete(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        if (!customerRepository.existsByIdAndOwnerId(id, ownerId)) {
+        UUID merchantId = merchantContext.getMerchantId();
+        if (!customerRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new CustomerNotFoundException(id);
         }
-        customerRepository.deleteByIdAndOwnerId(id, ownerId);
+        customerRepository.deleteByIdAndMerchantId(id, merchantId);
     }
 
     private CustomerResponse toResponse(Customer customer) {

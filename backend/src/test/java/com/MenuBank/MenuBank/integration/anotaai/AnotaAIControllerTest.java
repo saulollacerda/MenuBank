@@ -1,6 +1,6 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,14 +32,14 @@ class AnotaAIControllerTest {
     private AnotaAISyncService syncService;
 
     @MockitoBean
-    private UserContext userContext;
+    private MerchantContext merchantContext;
 
-    private UUID ownerId;
+    private UUID merchantId;
 
     @BeforeEach
     void setUp() {
-        ownerId = UUID.randomUUID();
-        given(userContext.getUserId()).willReturn(ownerId);
+        merchantId = UUID.randomUUID();
+        given(merchantContext.getMerchantId()).willReturn(merchantId);
     }
 
     @Test

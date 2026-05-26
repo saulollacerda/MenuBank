@@ -4,7 +4,7 @@ import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
-import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
+import { useFeeStore } from '@/stores/feeStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import PageControls from '@/components/PageControls.vue'
@@ -20,7 +20,7 @@ const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
-const paymentMethodStore = usePaymentMethodStore()
+const feeStore = useFeeStore()
 const anotaAIStore = useAnotaAIStore()
 const notificationStore = useNotificationStore()
 
@@ -133,7 +133,7 @@ function openEditModal(order: OrderResponse) {
   form.value = {
     customerId: order.customerId,
     status: order.status,
-    paymentMethodId: order.paymentMethodId,
+    feeId: order.feeId,
     items: order.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -242,7 +242,7 @@ onMounted(() => {
   customerStore.fetchAll()
   productStore.fetchAll()
   ingredientStore.fetchAll()
-  paymentMethodStore.fetchAll()
+  feeStore.fetchAll()
 })
 </script>
 
@@ -429,19 +429,19 @@ onMounted(() => {
             </div>
 
             <div class="form-group">
-              <label>Forma de Pagamento</label>
+              <label>Taxa</label>
               <select
-                v-model="form.paymentMethodId"
+                v-model="form.feeId"
                 class="form-control"
-                data-testid="order-payment-method-select"
+                data-testid="order-fee-select"
               >
                 <option :value="undefined">Nenhuma</option>
                 <option
-                  v-for="pm in paymentMethodStore.items"
-                  :key="pm.id"
-                  :value="pm.id"
+                  v-for="fee in feeStore.items"
+                  :key="fee.id"
+                  :value="fee.id"
                 >
-                  {{ pm.name }} ({{ pm.feeRate }}%)
+                  {{ fee.name }} ({{ fee.feeRate }}%)
                 </option>
               </select>
             </div>
@@ -645,9 +645,9 @@ onMounted(() => {
                 {{ formatPercent(orderMargin(selectedOrder)) }}
               </span>
             </div>
-            <div v-if="selectedOrder.paymentMethodName">
-              <strong>Forma de Pagamento:</strong>
-              {{ selectedOrder.paymentMethodName }} ({{ selectedOrder.feeRate }}%)
+            <div v-if="selectedOrder.feeName">
+              <strong>Taxa:</strong>
+              {{ selectedOrder.feeName }} ({{ selectedOrder.feeRate }}%)
             </div>
           </div>
 
@@ -677,6 +677,32 @@ onMounted(() => {
                   <strong>Lucro do item:</strong>
                   {{ formatCurrency(item.unitPrice * item.quantity - item.totalCost) }}
                 </div>
+              </div>
+
+              <div
+                v-if="item.insumos && item.insumos.length"
+                :data-testid="`order-detail-insumos-${item.id}`"
+                style="margin-top: 10px"
+              >
+                <div style="font-weight: 600; margin-bottom: 4px">Insumos</div>
+                <table style="width: 100%; font-size: 0.875rem">
+                  <thead>
+                    <tr>
+                      <th style="text-align: left">Insumo</th>
+                      <th style="text-align: right">Quantidade</th>
+                      <th style="text-align: right">Custo Unit.</th>
+                      <th style="text-align: right">Custo Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="insumo in item.insumos" :key="insumo.id">
+                      <td>{{ insumo.name }}</td>
+                      <td style="text-align: right">{{ insumo.quantity }}</td>
+                      <td style="text-align: right">{{ formatCurrency(insumo.cost) }}</td>
+                      <td style="text-align: right">{{ formatCurrency(insumo.totalCost) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               <div

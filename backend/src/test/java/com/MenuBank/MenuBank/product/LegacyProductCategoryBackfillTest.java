@@ -1,5 +1,8 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.merchant.Merchant;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import org.junit.jupiter.api.*;
@@ -17,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("LegacyProductCategoryBackfill")
@@ -27,6 +31,10 @@ class LegacyProductCategoryBackfillTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private MerchantRepository merchantRepository;
+
 
     @InjectMocks
     private LegacyProductCategoryBackfill backfill;
@@ -48,19 +56,21 @@ class LegacyProductCategoryBackfillTest {
         UUID ownerA = UUID.randomUUID();
         UUID ownerB = UUID.randomUUID();
 
-        Product p1 = Product.builder().id(UUID.randomUUID()).ownerId(ownerA).name("Produto 1").build();
-        Product p2 = Product.builder().id(UUID.randomUUID()).ownerId(ownerA).name("Produto 2").build();
-        Product p3 = Product.builder().id(UUID.randomUUID()).ownerId(ownerB).name("Produto 3").build();
+        Product p1 = Product.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(ownerA).build()).name("Produto 1").build();
+        Product p2 = Product.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(ownerA).build()).name("Produto 2").build();
+        Product p3 = Product.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(ownerB).build()).name("Produto 3").build();
 
         given(productRepository.findAllByCategoryIsNull()).willReturn(List.of(p1, p2, p3));
-        given(categoryRepository.findByNameAndOwnerId("Sem categoria", ownerA)).willReturn(Optional.empty());
-        given(categoryRepository.findByNameAndOwnerId("Sem categoria", ownerB)).willReturn(Optional.empty());
+        given(categoryRepository.findByNameAndMerchantId("Sem categoria", ownerA)).willReturn(Optional.empty());
+        given(categoryRepository.findByNameAndMerchantId("Sem categoria", ownerB)).willReturn(Optional.empty());
+        given(merchantRepository.getReferenceById(any(UUID.class)))
+                .willAnswer(inv -> Merchant.builder().id(inv.getArgument(0)).build());
 
-        Category createdA = Category.builder().id(UUID.randomUUID()).ownerId(ownerA).name("Sem categoria").build();
-        Category createdB = Category.builder().id(UUID.randomUUID()).ownerId(ownerB).name("Sem categoria").build();
-        given(categoryRepository.save(argThat(c -> c != null && ownerA.equals(c.getOwnerId()))))
+        Category createdA = Category.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(ownerA).build()).name("Sem categoria").build();
+        Category createdB = Category.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(ownerB).build()).name("Sem categoria").build();
+        given(categoryRepository.save(argThat(c -> c != null && ownerA.equals(c.getMerchant().getId()))))
                 .willReturn(createdA);
-        given(categoryRepository.save(argThat(c -> c != null && ownerB.equals(c.getOwnerId()))))
+        given(categoryRepository.save(argThat(c -> c != null && ownerB.equals(c.getMerchant().getId()))))
                 .willReturn(createdB);
 
         backfill.run();
@@ -88,12 +98,12 @@ class LegacyProductCategoryBackfillTest {
     @Test
     @DisplayName("reutiliza categoria 'Sem categoria' existente em vez de duplicar (idempotência)")
     void shouldReuseExistingDefaultCategory() throws Exception {
-        UUID ownerId = UUID.randomUUID();
-        Product orphan = Product.builder().id(UUID.randomUUID()).ownerId(ownerId).name("Produto").build();
-        Category existing = Category.builder().id(UUID.randomUUID()).ownerId(ownerId).name("Sem categoria").build();
+        UUID merchantId = UUID.randomUUID();
+        Product orphan = Product.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Produto").build();
+        Category existing = Category.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Sem categoria").build();
 
         given(productRepository.findAllByCategoryIsNull()).willReturn(List.of(orphan));
-        given(categoryRepository.findByNameAndOwnerId("Sem categoria", ownerId)).willReturn(Optional.of(existing));
+        given(categoryRepository.findByNameAndMerchantId("Sem categoria", merchantId)).willReturn(Optional.of(existing));
 
         backfill.run();
 

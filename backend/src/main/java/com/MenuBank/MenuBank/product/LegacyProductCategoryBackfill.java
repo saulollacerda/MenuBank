@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.product;
 
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -21,11 +22,14 @@ class LegacyProductCategoryBackfill implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final MerchantRepository merchantRepository;
 
     LegacyProductCategoryBackfill(ProductRepository productRepository,
-                                  CategoryRepository categoryRepository) {
+                                  CategoryRepository categoryRepository,
+                                  MerchantRepository merchantRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.merchantRepository = merchantRepository;
     }
 
     @Override
@@ -37,13 +41,13 @@ class LegacyProductCategoryBackfill implements CommandLineRunner {
         }
 
         Map<UUID, List<Product>> byOwner = orphans.stream()
-                .collect(Collectors.groupingBy(Product::getOwnerId));
+                .collect(Collectors.groupingBy(p -> p.getMerchant().getId()));
 
-        byOwner.forEach((ownerId, products) -> {
+        byOwner.forEach((merchantId, products) -> {
             Category defaultCategory = categoryRepository
-                    .findByNameAndOwnerId(DEFAULT_NAME, ownerId)
+                    .findByNameAndMerchantId(DEFAULT_NAME, merchantId)
                     .orElseGet(() -> categoryRepository.save(Category.builder()
-                            .ownerId(ownerId)
+                            .merchant(merchantRepository.getReferenceById(merchantId))
                             .name(DEFAULT_NAME)
                             .build()));
 
@@ -51,7 +55,7 @@ class LegacyProductCategoryBackfill implements CommandLineRunner {
             productRepository.saveAll(products);
 
             log.info("Backfill: {} produtos legados atribuídos a '{}' para owner {}",
-                    products.size(), DEFAULT_NAME, ownerId);
+                    products.size(), DEFAULT_NAME, merchantId);
         });
     }
 }

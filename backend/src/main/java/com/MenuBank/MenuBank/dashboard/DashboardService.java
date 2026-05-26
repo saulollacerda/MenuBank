@@ -1,6 +1,6 @@
 package com.MenuBank.MenuBank.dashboard;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderRepository;
@@ -18,15 +18,15 @@ import java.util.stream.Collectors;
 public class DashboardService {
 
     private final OrderRepository orderRepository;
-    private final UserContext userContext;
+    private final MerchantContext merchantContext;
 
-    public DashboardService(OrderRepository orderRepository, UserContext userContext) {
+    public DashboardService(OrderRepository orderRepository, MerchantContext merchantContext) {
         this.orderRepository = orderRepository;
-        this.userContext = userContext;
+        this.merchantContext = merchantContext;
     }
 
     public DashboardResponse getDashboard(LocalDate startDate, LocalDate endDate) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
 
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
@@ -34,8 +34,8 @@ public class DashboardService {
         LocalDateTime startDateTime = start.atStartOfDay();
         LocalDateTime endDateTime = end.atTime(23, 59, 59);
 
-        List<Order> paidOrders = orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(
-                ownerId, startDateTime, endDateTime, OrderStatus.PAID);
+        List<Order> paidOrders = orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(
+                merchantId, startDateTime, endDateTime, OrderStatus.PAID);
 
         BigDecimal totalSales = calculateTotalSales(paidOrders);
         long orderCount = paidOrders.size();

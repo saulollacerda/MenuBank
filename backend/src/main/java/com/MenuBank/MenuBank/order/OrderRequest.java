@@ -22,6 +22,6 @@ public class OrderRequest {
 
     private OrderStatus status;
 
-    private UUID paymentMethodId;
+    private UUID feeId;
 }
 

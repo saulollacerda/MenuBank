@@ -10,19 +10,19 @@ import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
 
-    boolean existsByNameAndOwnerId(String name, UUID ownerId);
+    boolean existsByNameAndMerchantId(String name, UUID merchantId);
 
-    Optional<Product> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Product> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Product> findAllByOwnerId(UUID ownerId);
+    List<Product> findAllByMerchantId(UUID merchantId);
 
-    Page<Product> findAllByOwnerIdAndNameContainingIgnoreCase(UUID ownerId, String name, Pageable pageable);
+    Page<Product> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+    boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
     List<Product> findAllByCategoryIsNull();
 
-    Optional<Product> findByExternalIdAndOwnerId(String externalId, UUID ownerId);
+    Optional<Product> findByExternalIdAndMerchantId(String externalId, UUID merchantId);
 }

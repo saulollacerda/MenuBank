@@ -29,16 +29,16 @@ public class OrderCostCalculatorService {
             return BigDecimal.ZERO;
         }
         return order.getItems().stream()
-                .map(item -> computeItemTotalCost(item, order.getOwnerId()))
+                .map(item -> computeItemTotalCost(item, order.getMerchant().getId()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /**
      * Custo unitário do item = base da ficha técnica ({@code item.unitCost}) +
      * soma dos extras (quantity × costPerUnit). NÃO multiplica pela quantidade do item.
-     * Parâmetro {@code ownerId} reservado para evoluções futuras (snapshot externo).
+     * Parâmetro {@code merchantId} reservado para evoluções futuras (snapshot externo).
      */
-    public BigDecimal computeItemUnitCost(OrderItem item, UUID ownerId) {
+    public BigDecimal computeItemUnitCost(OrderItem item, UUID merchantId) {
         BigDecimal baseCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
         BigDecimal extrasPerUnit = BigDecimal.ZERO;
         if (item.getExtraIngredients() != null) {
@@ -51,8 +51,8 @@ public class OrderCostCalculatorService {
         return baseCost.add(extrasPerUnit);
     }
 
-    private BigDecimal computeItemTotalCost(OrderItem item, UUID ownerId) {
-        return computeItemUnitCost(item, ownerId)
+    private BigDecimal computeItemTotalCost(OrderItem item, UUID merchantId) {
+        return computeItemUnitCost(item, merchantId)
                 .multiply(BigDecimal.valueOf(item.getQuantity()));
     }
 }

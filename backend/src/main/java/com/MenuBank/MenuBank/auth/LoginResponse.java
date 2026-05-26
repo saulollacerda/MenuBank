@@ -14,8 +14,8 @@ import java.util.UUID;
 public class LoginResponse {
 
     private String token;
-    private UUID userId;
+    private UUID merchantId;
     private String email;
-    private String restaurantName;
+    private String merchantName;
 }
 

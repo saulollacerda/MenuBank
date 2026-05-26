@@ -4,13 +4,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Utilitário legado para calcular o custo unitário base de um produto a partir dos
- * ingredientes obrigatórios (isOptional=false) da sua ficha técnica.
+ * Utilitario para calcular o custo unitario base de um produto a partir dos seus
+ * {@link Include}s (componentes da ficha tecnica).
  *
- * <p><b>Deprecated em favor de {@code OrderCostCalculatorService}</b> — este utilitário
- * só considera a base obrigatória e é mantido como snapshot do {@code unitCost} no
- * {@code OrderItem}. Para o cálculo completo do custo do pedido (base + opcionais
- * presentes nos subItems), use o service.</p>
+ * <p>No modelo atual, todos os includes sempre contam para o custo do produto.
+ * O custo total e: {@code sum(include.cost x include.quantity)}.</p>
  */
 public final class ProductCostCalculator {
 
@@ -18,23 +16,18 @@ public final class ProductCostCalculator {
     }
 
     /**
-     * Soma {@code grammage × costPerUnit} dos ingredientes obrigatórios (isOptional=false).
-     * Ingredientes opcionais são ignorados aqui — entram no cálculo só quando aparecem
-     * nos subItems do pedido (responsabilidade do {@code OrderCostCalculatorService}).
-     *
-     * Retorna {@link BigDecimal#ZERO} se a lista estiver vazia/nula ou se o ingrediente
-     * tiver {@code costPerUnit} nulo (tratado como zero).
+     * Soma {@code cost x quantity} de todos os {@link Include}s do produto.
+     * Retorna {@link BigDecimal#ZERO} se a lista estiver vazia/nula.
      */
-    public static BigDecimal computeUnitCost(List<ProductIngredient> productIngredients) {
-        if (productIngredients == null || productIngredients.isEmpty()) {
+    public static BigDecimal computeUnitCost(List<Include> includes) {
+        if (includes == null || includes.isEmpty()) {
             return BigDecimal.ZERO;
         }
-        return productIngredients.stream()
-                .filter(pi -> !pi.isOptional())
-                .map(pi -> {
-                    BigDecimal cost = pi.getIngredient().getCostPerUnit();
-                    if (cost == null) cost = BigDecimal.ZERO;
-                    return pi.getGrammage().multiply(cost);
+        return includes.stream()
+                .map(inc -> {
+                    BigDecimal cost = inc.getCost() != null ? inc.getCost() : BigDecimal.ZERO;
+                    BigDecimal qty = inc.getQuantity() != null ? inc.getQuantity() : BigDecimal.ONE;
+                    return cost.multiply(qty);
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }

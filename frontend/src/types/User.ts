@@ -1,7 +1,7 @@
 export type UserStatus = 'ACTIVE' | 'INACTIVE'
 
 export interface UserRequest {
-  restaurantName: string
+  merchantName: string
   cnpj: string
   email: string
   password: string
@@ -11,7 +11,7 @@ export interface UserRequest {
 
 export interface UserResponse {
   id: string
-  restaurantName: string
+  merchantName: string
   cnpj: string
   email: string
   phone: string | null

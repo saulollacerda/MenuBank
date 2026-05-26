@@ -1,0 +1,83 @@
+{
+  "success": true,
+  "info": {
+    "_id": "ORDER_ID_PLACEHOLDER",
+    "check": 1,
+    "type": "DELIVERY",
+    "salesChannel": "anotaai",
+    "from": "menu-share-adm",
+    "shortReference": 5176,
+    "createdAt": "2026-05-24T10:00:00.000Z",
+    "total": 25.00,
+    "deliveryFee": 0,
+    "additionalFees": [],
+    "discounts": [],
+    "customer": {
+      "id": "cust-1",
+      "name": "Teste",
+      "phone": "43123456789"
+    },
+    "items": [
+      {
+        "_id": "oi-1",
+        "name": "Açaí 330ml",
+        "quantity": 1,
+        "price": 15.0,
+        "total": 25.0,
+        "internalId": "product-internal-id",
+        "externalId": "",
+        "subItems": [
+          {
+            "name": "leite ninho",
+            "quantity": 1,
+            "price": 0.0,
+            "total": 0.0,
+            "internalId": "complement-basic-id",
+            "externalId": ""
+          },
+          {
+            "name": "chocoball",
+            "quantity": 1,
+            "price": 0.0,
+            "total": 0.0,
+            "internalId": "complement-basic-id-2",
+            "externalId": ""
+          },
+          {
+            "name": "leite ninho",
+            "quantity": 1,
+            "price": 2.0,
+            "total": 2.0,
+            "internalId": "complement-extra-id",
+            "externalId": ""
+          },
+          {
+            "name": "chocoball",
+            "quantity": 1,
+            "price": 2.0,
+            "total": 2.0,
+            "internalId": "complement-extra-id-2",
+            "externalId": ""
+          },
+          {
+            "name": "morango",
+            "quantity": 1,
+            "price": 0.0,
+            "total": 0.0,
+            "internalId": "complement-basic-id-3",
+            "externalId": ""
+          }
+        ]
+      }
+    ],
+    "payments": [
+      {
+        "name": "money",
+        "code": "money",
+        "value": "25.00",
+        "prepaid": false
+      }
+    ],
+    "observation": null
+  }
+}

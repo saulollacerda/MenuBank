@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.notification;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -15,30 +16,34 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final UserContext userContext;
+    private final MerchantRepository merchantRepository;
+    private final MerchantContext merchantContext;
 
-    public NotificationService(NotificationRepository notificationRepository, UserContext userContext) {
+    public NotificationService(NotificationRepository notificationRepository,
+                               MerchantRepository merchantRepository,
+                               MerchantContext merchantContext) {
         this.notificationRepository = notificationRepository;
-        this.userContext = userContext;
+        this.merchantRepository = merchantRepository;
+        this.merchantContext = merchantContext;
     }
 
     /**
      * Creates a notification flagging that an ingredient referenced by an imported order
-     * is not registered yet. Deduplicates by (ownerId, type, canonicalName): if a pending
+     * is not registered yet. Deduplicates by (merchantId, type, canonicalName): if a pending
      * (non-RESOLVED) notification already exists for the same canonical name, returns it
      * unchanged.
      */
     @Transactional
-    public Notification createMissingIngredient(String rawName, String canonicalName, UUID ownerId) {
+    public Notification createMissingIngredient(String rawName, String canonicalName, UUID merchantId) {
         Optional<Notification> existing = notificationRepository
-                .findByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                        ownerId, NotificationType.MISSING_INGREDIENT, canonicalName, NotificationStatus.RESOLVED);
+                .findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                        merchantId, NotificationType.MISSING_INGREDIENT, canonicalName, NotificationStatus.RESOLVED);
         if (existing.isPresent()) {
             return existing.get();
         }
 
         Notification created = Notification.builder()
-                .ownerId(ownerId)
+                .merchant(merchantRepository.getReferenceById(merchantId))
                 .type(NotificationType.MISSING_INGREDIENT)
                 .title("Ingrediente não cadastrado")
                 .message("O ingrediente '" + rawName + "' apareceu em um pedido mas não está cadastrado no sistema.")
@@ -52,14 +57,14 @@ public class NotificationService {
 
     /**
      * Marks every pending {@link NotificationType#MISSING_INGREDIENT} notification for
-     * the given canonical name as RESOLVED. Invoked when the user finally registers the
+     * the given canonical name as RESOLVED. Invoked when the merchant finally registers the
      * ingredient.
      */
     @Transactional
-    public int resolveMissingIngredient(String canonicalName, UUID ownerId) {
+    public int resolveMissingIngredient(String canonicalName, UUID merchantId) {
         List<Notification> pending = notificationRepository
-                .findAllByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                        ownerId, NotificationType.MISSING_INGREDIENT, canonicalName, NotificationStatus.RESOLVED);
+                .findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                        merchantId, NotificationType.MISSING_INGREDIENT, canonicalName, NotificationStatus.RESOLVED);
         if (pending.isEmpty()) {
             return 0;
         }
@@ -73,20 +78,20 @@ public class NotificationService {
     }
 
     public Page<NotificationResponse> findAll(Pageable pageable) {
-        UUID ownerId = userContext.getUserId();
-        return notificationRepository.findAllByOwnerIdOrderByCreatedAtDesc(ownerId, pageable)
+        UUID merchantId = merchantContext.getMerchantId();
+        return notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable)
                 .map(this::toResponse);
     }
 
     public long unreadCount() {
-        UUID ownerId = userContext.getUserId();
-        return notificationRepository.countByOwnerIdAndStatus(ownerId, NotificationStatus.UNREAD);
+        UUID merchantId = merchantContext.getMerchantId();
+        return notificationRepository.countByMerchantIdAndStatus(merchantId, NotificationStatus.UNREAD);
     }
 
     @Transactional
     public void markRead(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        Notification notification = notificationRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Notification notification = notificationRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         if (notification.getStatus() == NotificationStatus.UNREAD) {
             notification.setStatus(NotificationStatus.READ);
@@ -96,10 +101,10 @@ public class NotificationService {
 
     @Transactional
     public void dismiss(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        notificationRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        notificationRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
-        notificationRepository.deleteByIdAndOwnerId(id, ownerId);
+        notificationRepository.deleteByIdAndMerchantId(id, merchantId);
     }
 
     private NotificationResponse toResponse(Notification n) {

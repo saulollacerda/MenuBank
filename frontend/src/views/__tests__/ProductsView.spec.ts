@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let productStoreMock: any
-let ingredientStoreMock: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let categoryStoreMock: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let anotaAIStoreMock: any
 
 vi.mock('@/stores/productStore', () => ({
   useProductStore: () => productStoreMock,
-}))
-
-vi.mock('@/stores/ingredientStore', () => ({
-  useIngredientStore: () => ingredientStoreMock,
 }))
 
 vi.mock('@/stores/categoryStore', () => ({
@@ -37,8 +35,7 @@ describe('ProductsView', () => {
           categoryName: 'Bebidas',
         },
       ],
-      productIngredients: [],
-      recipeItems: [],
+      includes: [],
       loading: false,
       error: null,
       search: '',
@@ -51,27 +48,10 @@ describe('ProductsView', () => {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
       remove: vi.fn(),
-      fetchProductIngredients: vi.fn(),
-      addProductIngredient: vi.fn().mockResolvedValue({}),
-      removeProductIngredient: vi.fn(),
+      fetchIncludes: vi.fn(),
+      addInclude: vi.fn().mockResolvedValue({}),
+      removeInclude: vi.fn(),
       clearRecipe: vi.fn(),
-    }
-
-    ingredientStoreMock = {
-      items: [
-        {
-          id: 'i1',
-          name: 'Leite Ninho',
-          unit: 'g',
-          costPerUnit: 0.02,
-          defaultQuantity: 20,
-          status: 'ACTIVE',
-        },
-      ],
-      loading: false,
-      error: null,
-      fetchAll: vi.fn(),
-      fetchPage: vi.fn(),
     }
 
     categoryStoreMock = {
@@ -93,18 +73,6 @@ describe('ProductsView', () => {
       syncCatalog: vi.fn(),
       clearResult: vi.fn(),
     }
-  })
-
-  it('should prefill recipe quantity when ingredient has default quantity', async () => {
-    const wrapper = mount(ProductsView)
-
-    await wrapper.get('button.btn.btn-primary.btn-sm').trigger('click')
-    await flushPromises()
-
-    await wrapper.get('[data-testid="recipe-ingredient-select"]').setValue('i1')
-
-    const quantityInput = wrapper.get('[data-testid="recipe-quantity-input"]').element as HTMLInputElement
-    expect(quantityInput.value).toBe('20')
   })
 
   it('should render category column with categoryName for each product', () => {
@@ -140,5 +108,26 @@ describe('ProductsView', () => {
 
     const select = wrapper.get('[data-testid="product-category-select"]').element as HTMLSelectElement
     expect(select.value).toBe('cat1')
+  })
+
+  it('should add include with name/cost/quantity to the ficha tecnica', async () => {
+    const wrapper = mount(ProductsView)
+
+    // Abre o modal de ficha tecnica do primeiro produto
+    await wrapper.get('button.btn.btn-primary.btn-sm').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="recipe-name-input"]').setValue('Copo')
+    await wrapper.get('[data-testid="recipe-cost-input"]').setValue('0.5')
+    await wrapper.get('[data-testid="recipe-quantity-input"]').setValue('1')
+
+    await wrapper.get('form.order-items-row').trigger('submit')
+    await flushPromises()
+
+    expect(productStoreMock.addInclude).toHaveBeenCalledWith('p1', {
+      name: 'Copo',
+      cost: 0.5,
+      quantity: 1,
+    })
   })
 })

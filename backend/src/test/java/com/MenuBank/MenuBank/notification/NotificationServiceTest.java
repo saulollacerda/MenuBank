@@ -1,6 +1,9 @@
 package com.MenuBank.MenuBank.notification;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.merchant.Merchant;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+
+import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -19,6 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("NotificationService")
@@ -28,17 +32,22 @@ class NotificationServiceTest {
     private NotificationRepository notificationRepository;
 
     @Mock
-    private UserContext userContext;
+    private MerchantContext merchantContext;
+
+    @Mock
+    private MerchantRepository merchantRepository;
+
 
     @InjectMocks
     private NotificationService notificationService;
 
-    private UUID ownerId;
+    private UUID merchantId;
     private UUID notificationId;
 
     @BeforeEach
     void setUp() {
-        ownerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        lenient().when(merchantRepository.getReferenceById(any())).thenReturn(Merchant.builder().id(merchantId).build());
         notificationId = UUID.randomUUID();
     }
 
@@ -49,19 +58,19 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve criar nova notificação quando não existir uma pendente para o canonical name")
         void shouldCreateNewWhenNoPendingExists() {
-            given(notificationRepository.findByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                    ownerId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
+            given(notificationRepository.findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
                     .willReturn(Optional.empty());
             given(notificationRepository.save(any(Notification.class)))
                     .willAnswer(inv -> inv.getArgument(0));
 
-            Notification result = notificationService.createMissingIngredient("Pistache", "pistache", ownerId);
+            Notification result = notificationService.createMissingIngredient("Pistache", "pistache", merchantId);
 
             ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
             then(notificationRepository).should().save(captor.capture());
             Notification saved = captor.getValue();
 
-            assertThat(saved.getOwnerId()).isEqualTo(ownerId);
+            assertThat(saved.getMerchant().getId()).isEqualTo(merchantId);
             assertThat(saved.getType()).isEqualTo(NotificationType.MISSING_INGREDIENT);
             assertThat(saved.getReferenceData()).isEqualTo("pistache");
             assertThat(saved.getReferenceDisplay()).isEqualTo("Pistache");
@@ -77,7 +86,7 @@ class NotificationServiceTest {
         void shouldNotDuplicateWhenPendingExists() {
             Notification existing = Notification.builder()
                     .id(notificationId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .referenceData("pistache")
                     .referenceDisplay("Pistache")
@@ -86,11 +95,11 @@ class NotificationServiceTest {
                     .title("Ingrediente não cadastrado")
                     .message("...")
                     .build();
-            given(notificationRepository.findByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                    ownerId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
+            given(notificationRepository.findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
                     .willReturn(Optional.of(existing));
 
-            Notification result = notificationService.createMissingIngredient("Pistache", "pistache", ownerId);
+            Notification result = notificationService.createMissingIngredient("Pistache", "pistache", merchantId);
 
             then(notificationRepository).should(never()).save(any(Notification.class));
             assertThat(result).isSameAs(existing);
@@ -105,23 +114,23 @@ class NotificationServiceTest {
         @DisplayName("deve marcar notificações pendentes como RESOLVED e setar resolvedAt")
         void shouldResolveAllPendingForCanonicalName() {
             Notification n1 = Notification.builder()
-                    .id(UUID.randomUUID()).ownerId(ownerId)
+                    .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .referenceData("pistache").referenceDisplay("Pistache")
                     .status(NotificationStatus.UNREAD).createdAt(Instant.now())
                     .title("t").message("m").build();
             Notification n2 = Notification.builder()
-                    .id(UUID.randomUUID()).ownerId(ownerId)
+                    .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .referenceData("pistache").referenceDisplay("Pistache")
                     .status(NotificationStatus.READ).createdAt(Instant.now())
                     .title("t").message("m").build();
-            given(notificationRepository.findAllByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                    ownerId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
+            given(notificationRepository.findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
                     .willReturn(List.of(n1, n2));
             given(notificationRepository.saveAll(anyList())).willAnswer(inv -> inv.getArgument(0));
 
-            int resolved = notificationService.resolveMissingIngredient("pistache", ownerId);
+            int resolved = notificationService.resolveMissingIngredient("pistache", merchantId);
 
             assertThat(resolved).isEqualTo(2);
             assertThat(n1.getStatus()).isEqualTo(NotificationStatus.RESOLVED);
@@ -133,11 +142,11 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve retornar 0 quando não há notificações pendentes")
         void shouldReturnZeroWhenNoPending() {
-            given(notificationRepository.findAllByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-                    ownerId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
+            given(notificationRepository.findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
                     .willReturn(List.of());
 
-            int resolved = notificationService.resolveMissingIngredient("pistache", ownerId);
+            int resolved = notificationService.resolveMissingIngredient("pistache", merchantId);
 
             assertThat(resolved).isZero();
             then(notificationRepository).should(never()).saveAll(anyList());
@@ -153,13 +162,13 @@ class NotificationServiceTest {
         void shouldReturnPagedNotificationsForCurrentUser() {
             Pageable pageable = PageRequest.of(0, 10);
             Notification n = Notification.builder()
-                    .id(notificationId).ownerId(ownerId)
+                    .id(notificationId).merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .referenceData("pistache").referenceDisplay("Pistache")
                     .status(NotificationStatus.UNREAD)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findAllByOwnerIdOrderByCreatedAtDesc(ownerId, pageable))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable))
                     .willReturn(new PageImpl<>(List.of(n), pageable, 1));
 
             var page = notificationService.findAll(pageable);
@@ -177,8 +186,8 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve retornar contagem de notificações UNREAD do owner autenticado")
         void shouldReturnUnreadCount() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.countByOwnerIdAndStatus(ownerId, NotificationStatus.UNREAD))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.countByMerchantIdAndStatus(merchantId, NotificationStatus.UNREAD))
                     .willReturn(3L);
 
             assertThat(notificationService.unreadCount()).isEqualTo(3L);
@@ -193,12 +202,12 @@ class NotificationServiceTest {
         @DisplayName("deve marcar UNREAD como READ")
         void shouldMarkUnreadAsRead() {
             Notification n = Notification.builder()
-                    .id(notificationId).ownerId(ownerId)
+                    .id(notificationId).merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .status(NotificationStatus.UNREAD)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findByIdAndOwnerId(notificationId, ownerId))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.of(n));
             given(notificationRepository.save(any(Notification.class))).willAnswer(inv -> inv.getArgument(0));
 
@@ -212,12 +221,12 @@ class NotificationServiceTest {
         @DisplayName("não deve alterar status quando notificação já está RESOLVED")
         void shouldNotChangeStatusWhenAlreadyResolved() {
             Notification n = Notification.builder()
-                    .id(notificationId).ownerId(ownerId)
+                    .id(notificationId).merchant(Merchant.builder().id(merchantId).build())
                     .type(NotificationType.MISSING_INGREDIENT)
                     .status(NotificationStatus.RESOLVED)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findByIdAndOwnerId(notificationId, ownerId))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.of(n));
 
             notificationService.markRead(notificationId);
@@ -229,8 +238,8 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve lançar NotificationNotFoundException quando notificação não existe para o owner")
         void shouldThrowWhenNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findByIdAndOwnerId(notificationId, ownerId))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> notificationService.markRead(notificationId))
@@ -245,20 +254,20 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve deletar notificação existente do owner autenticado")
         void shouldDeleteWhenExists() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findByIdAndOwnerId(notificationId, ownerId))
-                    .willReturn(Optional.of(Notification.builder().id(notificationId).ownerId(ownerId).build()));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
+                    .willReturn(Optional.of(Notification.builder().id(notificationId).merchant(Merchant.builder().id(merchantId).build()).build()));
 
             notificationService.dismiss(notificationId);
 
-            then(notificationRepository).should().deleteByIdAndOwnerId(notificationId, ownerId);
+            then(notificationRepository).should().deleteByIdAndMerchantId(notificationId, merchantId);
         }
 
         @Test
         @DisplayName("deve lançar NotificationNotFoundException quando não existe")
         void shouldThrowWhenNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(notificationRepository.findByIdAndOwnerId(notificationId, ownerId))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> notificationService.dismiss(notificationId))

@@ -1,6 +1,6 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,23 +14,23 @@ import java.util.UUID;
 public class AnotaAIController {
 
     private final AnotaAISyncService syncService;
-    private final UserContext userContext;
+    private final MerchantContext merchantContext;
 
-    public AnotaAIController(AnotaAISyncService syncService, UserContext userContext) {
+    public AnotaAIController(AnotaAISyncService syncService, MerchantContext merchantContext) {
         this.syncService = syncService;
-        this.userContext = userContext;
+        this.merchantContext = merchantContext;
     }
 
     @PostMapping("/orders")
     public ResponseEntity<AnotaAISyncResult> syncOrders() {
-        UUID ownerId = userContext.getUserId();
-        return ResponseEntity.ok(syncService.syncOrders(ownerId));
+        UUID merchantId = merchantContext.getMerchantId();
+        return ResponseEntity.ok(syncService.syncOrders(merchantId));
     }
 
     @PostMapping("/catalog")
     public ResponseEntity<AnotaAISyncResult> syncCatalog(
             @RequestParam(name = "clearRecipes", defaultValue = "false") boolean clearRecipes) {
-        UUID ownerId = userContext.getUserId();
-        return ResponseEntity.ok(syncService.syncCatalog(ownerId, clearRecipes));
+        UUID merchantId = merchantContext.getMerchantId();
+        return ResponseEntity.ok(syncService.syncCatalog(merchantId, clearRecipes));
     }
 }

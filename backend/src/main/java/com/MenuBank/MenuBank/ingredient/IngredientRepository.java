@@ -10,17 +10,17 @@ import java.util.UUID;
 
 public interface IngredientRepository extends JpaRepository<Ingredient, UUID> {
 
-    boolean existsByNameAndOwnerId(String name, UUID ownerId);
+    boolean existsByNameAndMerchantId(String name, UUID merchantId);
 
-    Optional<Ingredient> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Ingredient> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Ingredient> findAllByOwnerId(UUID ownerId);
+    List<Ingredient> findAllByMerchantId(UUID merchantId);
 
-    Page<Ingredient> findAllByOwnerIdAndNameContainingIgnoreCase(UUID ownerId, String name, Pageable pageable);
+    Page<Ingredient> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+    boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
-    Optional<Ingredient> findByCanonicalNameAndOwnerId(String canonicalName, UUID ownerId);
+    Optional<Ingredient> findByCanonicalNameAndMerchantId(String canonicalName, UUID merchantId);
 }

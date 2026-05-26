@@ -45,9 +45,9 @@ function handleLogout() {
         <span class="nav-icon">👤</span>
         <span>Clientes</span>
       </RouterLink>
-      <RouterLink to="/payment-methods">
+      <RouterLink to="/fees">
         <span class="nav-icon">💳</span>
-        <span>Formas de Pagamento</span>
+        <span>Taxas</span>
       </RouterLink>
       <RouterLink to="/settings">
         <span class="nav-icon">⚙️</span>

@@ -10,7 +10,7 @@ const authStore = useAuthStore()
 const validationError = ref<string | null>(null)
 
 const form = ref<UserRequest>({
-  restaurantName: '',
+  merchantName: '',
   cnpj: '',
   email: '',
   password: '',
@@ -80,10 +80,10 @@ async function handleSubmit() {
 
       <form @submit.prevent="handleSubmit">
         <div class="form-group">
-          <label for="restaurantName">Nome do Restaurante</label>
+          <label for="merchantName">Nome do Restaurante</label>
           <input
-            id="restaurantName"
-            v-model="form.restaurantName"
+            id="merchantName"
+            v-model="form.merchantName"
             type="text"
             class="form-control"
             placeholder="Ex: Pizzaria Napoli"

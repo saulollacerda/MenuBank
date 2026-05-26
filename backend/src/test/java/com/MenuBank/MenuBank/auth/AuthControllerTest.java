@@ -1,7 +1,7 @@
 package com.MenuBank.MenuBank.auth;
 
-import com.MenuBank.MenuBank.user.DuplicateUserException;
-import com.MenuBank.MenuBank.user.UserRequest;
+import com.MenuBank.MenuBank.merchant.DuplicateMerchantException;
+import com.MenuBank.MenuBank.merchant.MerchantRequest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -33,18 +33,18 @@ class AuthControllerTest {
     @MockitoBean
     private AuthService authService;
 
-    private UUID userId;
+    private UUID merchantId;
     private LoginResponse loginResponse;
 
     @BeforeEach
     void setUp() {
-        userId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
 
         loginResponse = LoginResponse.builder()
                 .token("mock-jwt-token")
-                .userId(userId)
+                .merchantId(merchantId)
                 .email("teste@email.com")
-                .restaurantName("Restaurante Teste")
+                .merchantName("Restaurante Teste")
                 .build();
     }
 
@@ -71,9 +71,9 @@ class AuthControllerTest {
                                             .build())))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("mock-jwt-token"))
-                    .andExpect(jsonPath("$.userId").value(userId.toString()))
+                    .andExpect(jsonPath("$.merchantId").value(merchantId.toString()))
                     .andExpect(jsonPath("$.email").value("teste@email.com"))
-                    .andExpect(jsonPath("$.restaurantName").value("Restaurante Teste"));
+                    .andExpect(jsonPath("$.merchantName").value("Restaurante Teste"));
         }
 
         @Test
@@ -123,7 +123,7 @@ class AuthControllerTest {
         @DisplayName("deve retornar 403 quando usuário está inativo")
         void shouldReturn403WhenUserIsInactive() throws Exception {
             given(authService.login(any(LoginRequest.class)))
-                    .willThrow(new InactiveUserException());
+                    .willThrow(new InactiveMerchantException());
 
             mockMvc.perform(post("/api/auth/login")
                             .with(csrf())
@@ -145,9 +145,9 @@ class AuthControllerTest {
     @DisplayName("POST /api/auth/register")
     class RegisterEndpoint {
 
-        private UserRequest buildValidRegisterRequest() {
-            return UserRequest.builder()
-                    .restaurantName("Restaurante Teste")
+        private MerchantRequest buildValidRegisterRequest() {
+            return MerchantRequest.builder()
+                    .merchantName("Restaurante Teste")
                     .cnpj("12345678000195")
                     .email("teste@email.com")
                     .password("senha123")
@@ -159,7 +159,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("deve retornar 201 com token ao registrar usuário válido")
         void shouldReturn201WithTokenWhenRegistrationIsValid() throws Exception {
-            given(authService.register(any(UserRequest.class))).willReturn(loginResponse);
+            given(authService.register(any(MerchantRequest.class))).willReturn(loginResponse);
 
             mockMvc.perform(post("/api/auth/register")
                             .with(csrf())
@@ -167,9 +167,9 @@ class AuthControllerTest {
                             .content(objectMapper.writeValueAsString(buildValidRegisterRequest())))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.token").value("mock-jwt-token"))
-                    .andExpect(jsonPath("$.userId").value(userId.toString()))
+                    .andExpect(jsonPath("$.merchantId").value(merchantId.toString()))
                     .andExpect(jsonPath("$.email").value("teste@email.com"))
-                    .andExpect(jsonPath("$.restaurantName").value("Restaurante Teste"));
+                    .andExpect(jsonPath("$.merchantName").value("Restaurante Teste"));
         }
 
         @Test
@@ -178,15 +178,15 @@ class AuthControllerTest {
             mockMvc.perform(post("/api/auth/register")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(UserRequest.builder().build())))
+                            .content(objectMapper.writeValueAsString(MerchantRequest.builder().build())))
                     .andExpect(status().isBadRequest());
         }
 
         @Test
         @DisplayName("deve retornar 400 quando CNPJ é inválido")
         void shouldReturn400WhenCnpjIsInvalid() throws Exception {
-            UserRequest invalidRequest = UserRequest.builder()
-                    .restaurantName("Restaurante Teste")
+            MerchantRequest invalidRequest = MerchantRequest.builder()
+                    .merchantName("Restaurante Teste")
                     .cnpj("12345678000199")
                     .email("teste@email.com")
                     .password("senha123")
@@ -204,8 +204,8 @@ class AuthControllerTest {
         @Test
         @DisplayName("deve retornar 400 quando confirmação de senha não confere")
         void shouldReturn400WhenPasswordsDoNotMatch() throws Exception {
-            UserRequest invalidRequest = UserRequest.builder()
-                    .restaurantName("Restaurante Teste")
+            MerchantRequest invalidRequest = MerchantRequest.builder()
+                    .merchantName("Restaurante Teste")
                     .cnpj("12345678000195")
                     .email("teste@email.com")
                     .password("senha123")
@@ -223,8 +223,8 @@ class AuthControllerTest {
         @Test
         @DisplayName("deve retornar 409 quando email já está cadastrado")
         void shouldReturn409WhenEmailAlreadyExists() throws Exception {
-            given(authService.register(any(UserRequest.class)))
-                    .willThrow(new DuplicateUserException("email"));
+            given(authService.register(any(MerchantRequest.class)))
+                    .willThrow(new DuplicateMerchantException("email"));
 
             mockMvc.perform(post("/api/auth/register")
                             .with(csrf())
@@ -236,8 +236,8 @@ class AuthControllerTest {
         @Test
         @DisplayName("deve retornar 409 quando CNPJ já está cadastrado")
         void shouldReturn409WhenCnpjAlreadyExists() throws Exception {
-            given(authService.register(any(UserRequest.class)))
-                    .willThrow(new DuplicateUserException("CNPJ"));
+            given(authService.register(any(MerchantRequest.class)))
+                    .willThrow(new DuplicateMerchantException("CNPJ"));
 
             mockMvc.perform(post("/api/auth/register")
                             .with(csrf())

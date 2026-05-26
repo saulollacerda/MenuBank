@@ -1,6 +1,8 @@
 package com.MenuBank.MenuBank.auth;
 
-import com.MenuBank.MenuBank.user.*;
+import com.MenuBank.MenuBank.merchant.Merchant;
+
+import com.MenuBank.MenuBank.merchant.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,10 +27,10 @@ import static org.mockito.BDDMockito.*;
 class AuthServiceTest {
 
     @Mock
-    private UserRepository userRepository;
+    private MerchantRepository merchantRepository;
 
     @Mock
-    private UserService userService;
+    private MerchantService merchantService;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -39,23 +41,23 @@ class AuthServiceTest {
     @InjectMocks
     private AuthService authService;
 
-    private UUID userId;
-    private User activeUser;
-    private User inactiveUser;
+    private UUID merchantId;
+    private Merchant activeUser;
+    private Merchant inactiveUser;
     private LoginRequest loginRequest;
-    private UserRequest registerRequest;
+    private MerchantRequest registerRequest;
 
     @BeforeEach
     void setUp() {
-        userId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
 
         loginRequest = LoginRequest.builder()
                 .email("teste@email.com")
                 .password("senha123")
                 .build();
 
-        registerRequest = UserRequest.builder()
-                .restaurantName("Restaurante Teste")
+        registerRequest = MerchantRequest.builder()
+                .merchantName("Restaurante Teste")
                 .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("senha123")
@@ -63,27 +65,27 @@ class AuthServiceTest {
                 .phone("11999999999")
                 .build();
 
-        activeUser = User.builder()
-                .id(userId)
-                .restaurantName("Restaurante Teste")
+        activeUser = Merchant.builder()
+                .id(merchantId)
+                .merchantName("Restaurante Teste")
                 .cnpj("12345678000195")
                 .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("$2a$10$encodedpassword")
                 .phone("11999999999")
-                .status(UserStatus.ACTIVE)
+                .status(MerchantStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        inactiveUser = User.builder()
-                .id(userId)
-                .restaurantName("Restaurante Teste")
+        inactiveUser = Merchant.builder()
+                .id(merchantId)
+                .merchantName("Restaurante Teste")
                 .cnpj("12345678000195")
                 .cnpj("12345678000195")
                 .email("teste@email.com")
                 .password("$2a$10$encodedpassword")
                 .phone("11999999999")
-                .status(UserStatus.INACTIVE)
+                .status(MerchantStatus.INACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
     }
@@ -91,7 +93,7 @@ class AuthServiceTest {
     private void mockJwtEncoder() {
         Jwt jwt = Jwt.withTokenValue("mock-jwt-token")
                 .header("alg", "RS256")
-                .claim("sub", userId.toString())
+                .claim("sub", merchantId.toString())
                 .claim("email", "teste@email.com")
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(86400))
@@ -110,7 +112,7 @@ class AuthServiceTest {
         @Test
         @DisplayName("deve autenticar usuário com credenciais válidas e retornar token JWT")
         void shouldAuthenticateAndReturnJwtToken() {
-            given(userRepository.findByEmail(loginRequest.getEmail()))
+            given(merchantRepository.findByEmail(loginRequest.getEmail()))
                     .willReturn(Optional.of(activeUser));
             given(passwordEncoder.matches(loginRequest.getPassword(), activeUser.getPassword()))
                     .willReturn(true);
@@ -120,15 +122,15 @@ class AuthServiceTest {
 
             assertThat(result).isNotNull();
             assertThat(result.getToken()).isEqualTo("mock-jwt-token");
-            assertThat(result.getUserId()).isEqualTo(userId);
+            assertThat(result.getMerchantId()).isEqualTo(merchantId);
             assertThat(result.getEmail()).isEqualTo("teste@email.com");
-            assertThat(result.getRestaurantName()).isEqualTo("Restaurante Teste");
+            assertThat(result.getMerchantName()).isEqualTo("Restaurante Teste");
         }
 
         @Test
         @DisplayName("deve gerar token JWT via JwtEncoder")
         void shouldGenerateTokenViaJwtEncoder() {
-            given(userRepository.findByEmail(loginRequest.getEmail()))
+            given(merchantRepository.findByEmail(loginRequest.getEmail()))
                     .willReturn(Optional.of(activeUser));
             given(passwordEncoder.matches(loginRequest.getPassword(), activeUser.getPassword()))
                     .willReturn(true);
@@ -142,7 +144,7 @@ class AuthServiceTest {
         @Test
         @DisplayName("deve lançar InvalidCredentialsException quando email não encontrado")
         void shouldThrowWhenEmailNotFound() {
-            given(userRepository.findByEmail(loginRequest.getEmail()))
+            given(merchantRepository.findByEmail(loginRequest.getEmail()))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> authService.login(loginRequest))
@@ -154,7 +156,7 @@ class AuthServiceTest {
         @Test
         @DisplayName("deve lançar InvalidCredentialsException quando senha incorreta")
         void shouldThrowWhenPasswordIsWrong() {
-            given(userRepository.findByEmail(loginRequest.getEmail()))
+            given(merchantRepository.findByEmail(loginRequest.getEmail()))
                     .willReturn(Optional.of(activeUser));
             given(passwordEncoder.matches(loginRequest.getPassword(), activeUser.getPassword()))
                     .willReturn(false);
@@ -166,15 +168,15 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("deve lançar InactiveUserException quando usuário está inativo")
+        @DisplayName("deve lançar InactiveMerchantException quando usuário está inativo")
         void shouldThrowWhenUserIsInactive() {
-            given(userRepository.findByEmail(loginRequest.getEmail()))
+            given(merchantRepository.findByEmail(loginRequest.getEmail()))
                     .willReturn(Optional.of(inactiveUser));
             given(passwordEncoder.matches(loginRequest.getPassword(), inactiveUser.getPassword()))
                     .willReturn(true);
 
             assertThatThrownBy(() -> authService.login(loginRequest))
-                    .isInstanceOf(InactiveUserException.class);
+                    .isInstanceOf(InactiveMerchantException.class);
 
             then(jwtEncoder).should(never()).encode(any());
         }
@@ -191,57 +193,57 @@ class AuthServiceTest {
         @Test
         @DisplayName("deve registrar usuário e retornar token JWT (auto-login)")
         void shouldRegisterAndReturnJwtToken() {
-            UserResponse userResponse = UserResponse.builder()
-                    .id(userId)
-                    .restaurantName("Restaurante Teste")
+            MerchantResponse merchantResponse = MerchantResponse.builder()
+                    .id(merchantId)
+                    .merchantName("Restaurante Teste")
                     .cnpj("12345678000195")
                     .email("teste@email.com")
                     .phone("11999999999")
-                    .status(UserStatus.ACTIVE)
+                    .status(MerchantStatus.ACTIVE)
                     .createdAt(LocalDateTime.now())
                     .build();
 
-            given(userService.create(registerRequest)).willReturn(userResponse);
+            given(merchantService.create(registerRequest)).willReturn(merchantResponse);
             mockJwtEncoder();
 
             LoginResponse result = authService.register(registerRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getToken()).isEqualTo("mock-jwt-token");
-            assertThat(result.getUserId()).isEqualTo(userId);
+            assertThat(result.getMerchantId()).isEqualTo(merchantId);
             assertThat(result.getEmail()).isEqualTo("teste@email.com");
-            assertThat(result.getRestaurantName()).isEqualTo("Restaurante Teste");
+            assertThat(result.getMerchantName()).isEqualTo("Restaurante Teste");
         }
 
         @Test
-        @DisplayName("deve delegar criação do usuário ao UserService")
-        void shouldDelegateToUserService() {
-            UserResponse userResponse = UserResponse.builder()
-                    .id(userId)
-                    .restaurantName("Restaurante Teste")
+        @DisplayName("deve delegar criação do usuário ao MerchantService")
+        void shouldDelegateToMerchantService() {
+            MerchantResponse merchantResponse = MerchantResponse.builder()
+                    .id(merchantId)
+                    .merchantName("Restaurante Teste")
                     .cnpj("12345678000195")
                     .email("teste@email.com")
                     .phone("11999999999")
-                    .status(UserStatus.ACTIVE)
+                    .status(MerchantStatus.ACTIVE)
                     .createdAt(LocalDateTime.now())
                     .build();
 
-            given(userService.create(registerRequest)).willReturn(userResponse);
+            given(merchantService.create(registerRequest)).willReturn(merchantResponse);
             mockJwtEncoder();
 
             authService.register(registerRequest);
 
-            then(userService).should().create(registerRequest);
+            then(merchantService).should().create(registerRequest);
         }
 
         @Test
-        @DisplayName("deve propagar DuplicateUserException do UserService")
-        void shouldPropagateDuplicateUserException() {
-            given(userService.create(registerRequest))
-                    .willThrow(new DuplicateUserException("email"));
+        @DisplayName("deve propagar DuplicateMerchantException do MerchantService")
+        void shouldPropagateDuplicateMerchantException() {
+            given(merchantService.create(registerRequest))
+                    .willThrow(new DuplicateMerchantException("email"));
 
             assertThatThrownBy(() -> authService.register(registerRequest))
-                    .isInstanceOf(DuplicateUserException.class);
+                    .isInstanceOf(DuplicateMerchantException.class);
         }
     }
 }

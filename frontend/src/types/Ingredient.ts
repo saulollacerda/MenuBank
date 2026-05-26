@@ -22,3 +22,16 @@ export interface IngredientCostRequest {
   defaultQuantity?: number
   unit?: string
 }
+
+/**
+ * Onde o ingrediente aparece (match por nome) nas fichas técnicas dos produtos.
+ * `includeId` referencia a tabela `includes` (era `productIngredientId` no modelo antigo).
+ */
+export interface IngredientProductUsageResponse {
+  includeId: string
+  productId: string
+  productName: string
+  quantity: number
+  cost: number
+  totalCost: number
+}

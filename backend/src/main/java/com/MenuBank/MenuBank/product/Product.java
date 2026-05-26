@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.product;
 
 import com.MenuBank.MenuBank.category.Category;
+import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,8 +22,11 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "owner_id")
-    private UUID ownerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merchant_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Merchant merchant;
 
     @Column(name = "external_id")
     private String externalId;
@@ -47,5 +51,5 @@ public class Product {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Builder.Default
-    private List<ProductIngredient> productIngredients = List.of();
+    private List<Include> includes = List.of();
 }

@@ -10,17 +10,17 @@ import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    Optional<Notification> findByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-            UUID ownerId, NotificationType type, String referenceData, NotificationStatus status);
+    Optional<Notification> findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+            UUID merchantId, NotificationType type, String referenceData, NotificationStatus status);
 
-    List<Notification> findAllByOwnerIdAndTypeAndReferenceDataAndStatusNot(
-            UUID ownerId, NotificationType type, String referenceData, NotificationStatus status);
+    List<Notification> findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+            UUID merchantId, NotificationType type, String referenceData, NotificationStatus status);
 
-    Page<Notification> findAllByOwnerIdOrderByCreatedAtDesc(UUID ownerId, Pageable pageable);
+    Page<Notification> findAllByMerchantIdOrderByCreatedAtDesc(UUID merchantId, Pageable pageable);
 
-    long countByOwnerIdAndStatus(UUID ownerId, NotificationStatus status);
+    long countByMerchantIdAndStatus(UUID merchantId, NotificationStatus status);
 
-    Optional<Notification> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Notification> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 }

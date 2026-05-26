@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.ingredient;
 
+import com.MenuBank.MenuBank.product.IngredientProductUsageResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -54,6 +56,11 @@ public class IngredientController {
     public ResponseEntity<IngredientResponse> updateCost(@PathVariable UUID id, @Valid @RequestBody IngredientCostRequest request) {
         IngredientResponse response = ingredientService.updateCost(id, request);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/usages")
+    public ResponseEntity<List<IngredientProductUsageResponse>> fetchUsages(@PathVariable UUID id) {
+        return ResponseEntity.ok(ingredientService.fetchUsages(id));
     }
 
     @Transactional

@@ -161,7 +161,7 @@ total = item.total (already includes subItems — use directly)
 | `additionalFees` | Has service fees | Empty array |
 | `discounts` | Has iFood promotional discounts | Empty array |
 | `items[].internalId` | Empty string | MenuBank product ID |
-| `items[].subItems[].internalId` | Empty string | MenuBank ingredient/complement ID |
+| `items[].subItems[].internalId` | Empty string | Anota.AI complement ID (extras são resolvidos por **match de nome canônico** contra a tabela `ingredients`, não pelo internalId) |
 | `items[].backoffice_id` | Empty | Anota.AI backoffice numeric ID |
 | `customer.localizer` | Present (pickup code) | Absent |
 | `deliveryAddress.ifood_pickup_code` | Present | Absent |
@@ -189,18 +189,6 @@ Key fields per category:
 | `itens[].week_prices` | Array of `{ price, short_name }` (sun–sat) |
 | `itens[].next_steps` | Linked complement categories |
 | `itens[].out` | `true` = out of stock |
-
-### Complement resolution
-
-```
-item.next_steps[i].category_id
-        ↓
-data.find(cat => cat.id === category_id)
-        ↓
-cat.itens[j].week_prices  ← complement prices
-```
-
-Load catalog once and hold in memory as `Map<categoryId, category>` to resolve all relationships locally without additional API calls.
 
 ### Integration Notes
 

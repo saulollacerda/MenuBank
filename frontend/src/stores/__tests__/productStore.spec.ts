@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useProductStore } from '@/stores/productStore'
 import { productService } from '@/services/productService'
-import { productIngredientService } from '@/services/productIngredientService'
+import { includeService } from '@/services/includeService'
 
 vi.mock('@/services/productService')
-vi.mock('@/services/productIngredientService')
+vi.mock('@/services/includeService')
 
 const mockedProductService = vi.mocked(productService)
-const mockedProductIngredientService = vi.mocked(productIngredientService)
+const mockedIncludeService = vi.mocked(includeService)
 
 function asPage<T>(content: T[], size = 20) {
   return {
@@ -35,10 +35,7 @@ describe('productStore', () => {
         id: '1',
         name: 'Hambúrguer',
         price: 25.0,
-        estimatedCost: 10.0,
-        margin: 15.0,
         status: 'ACTIVE' as const,
-        cmv: 10.0,
         categoryId: 'cat1',
         categoryName: 'Lanches',
       },
@@ -69,8 +66,6 @@ describe('productStore', () => {
     const store = useProductStore()
     await store.fetchAll()
 
-    // size in store state should remain at default (20), not 1000,
-    // so a subsequent fetchPage from a list view starts paginated correctly
     expect(store.size).toBe(20)
     expect(store.page).toBe(0)
     expect(store.search).toBe('')
@@ -81,10 +76,7 @@ describe('productStore', () => {
       id: '1',
       name: 'Hambúrguer',
       price: 25.0,
-      estimatedCost: null,
-      margin: null,
       status: 'ACTIVE' as const,
-      cmv: null,
       categoryId: 'cat1',
       categoryName: 'Lanches',
     }
@@ -98,41 +90,35 @@ describe('productStore', () => {
     expect(store.items).toContainEqual(created)
   })
 
-  it('fetchProductIngredients should populate productIngredients', async () => {
-    const mockProductIngredients = [
+  it('fetchIncludes should populate includes', async () => {
+    const mockIncludes = [
       {
-        id: 'r1',
+        id: 'inc1',
         productId: 'p1',
-        ingredientId: 'i1',
-        ingredientName: 'Farinha',
-        ingredientUnit: 'kg',
-        grammage: 0.5,
-        isOptional: false,
-        costPerUnit: 5.0,
-        totalCost: 2.5,
+        name: 'Copo',
+        cost: 0.5,
+        quantity: 1,
+        totalCost: 0.5,
       },
     ]
-    mockedProductIngredientService.findByProductId.mockResolvedValue(mockProductIngredients)
+    mockedIncludeService.findByProductId.mockResolvedValue(mockIncludes)
 
     const store = useProductStore()
-    await store.fetchProductIngredients('p1')
+    await store.fetchIncludes('p1')
 
-    expect(store.productIngredients).toEqual(mockProductIngredients)
+    expect(store.includes).toEqual(mockIncludes)
   })
 
-  it('addProductIngredient should add to productIngredients', async () => {
-    const newPI = {
-      id: 'r1',
+  it('addInclude should append to includes', async () => {
+    const newInclude = {
+      id: 'inc1',
       productId: 'p1',
-      ingredientId: 'i1',
-      ingredientName: 'Farinha',
-      ingredientUnit: 'kg',
-      grammage: 0.5,
-      isOptional: false,
-      costPerUnit: 5.0,
-      totalCost: 2.5,
+      name: 'Copo',
+      cost: 0.5,
+      quantity: 1,
+      totalCost: 0.5,
     }
-    mockedProductIngredientService.add.mockResolvedValue(newPI)
+    mockedIncludeService.add.mockResolvedValue(newInclude)
 
     const store = useProductStore()
     store.items = [
@@ -146,9 +132,37 @@ describe('productStore', () => {
       },
     ]
 
-    await store.addProductIngredient('p1', { ingredientId: 'i1', grammage: 0.5, isOptional: false })
+    await store.addInclude('p1', { name: 'Copo', cost: 0.5, quantity: 1 })
 
-    expect(store.productIngredients).toContainEqual(newPI)
+    expect(store.includes).toContainEqual(newInclude)
+  })
+
+  it('removeInclude should remove from includes', async () => {
+    const store = useProductStore()
+    store.includes = [
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
+    ]
+    mockedIncludeService.remove.mockResolvedValue()
+
+    await store.removeInclude('p1', 'inc1')
+
+    expect(store.includes).toEqual([
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
+    ])
+  })
+
+  it('clearRecipe should empty includes', async () => {
+    const store = useProductStore()
+    store.includes = [
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
+    ]
+    mockedIncludeService.clear.mockResolvedValue(1)
+
+    const deleted = await store.clearRecipe('p1')
+
+    expect(deleted).toBe(1)
+    expect(store.includes).toEqual([])
   })
 
   it('remove should call service and refetch the current page', async () => {
@@ -156,10 +170,7 @@ describe('productStore', () => {
       id: '2',
       name: 'Pizza',
       price: 35.0,
-      estimatedCost: null,
-      margin: null,
       status: 'ACTIVE' as const,
-      cmv: null,
       categoryId: 'cat1',
       categoryName: 'Lanches',
     }

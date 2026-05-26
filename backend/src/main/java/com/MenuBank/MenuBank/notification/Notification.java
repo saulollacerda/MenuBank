@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.notification;
 
+import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,8 +19,11 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merchant_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Merchant merchant;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 64)

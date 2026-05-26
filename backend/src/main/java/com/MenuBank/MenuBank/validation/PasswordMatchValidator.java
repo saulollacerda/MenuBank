@@ -1,13 +1,13 @@
 package com.MenuBank.MenuBank.validation;
 
-import com.MenuBank.MenuBank.user.UserRequest;
+import com.MenuBank.MenuBank.merchant.MerchantRequest;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
-public class PasswordMatchValidator implements ConstraintValidator<PasswordMatch, UserRequest> {
+public class PasswordMatchValidator implements ConstraintValidator<PasswordMatch, MerchantRequest> {
 
     @Override
-    public boolean isValid(UserRequest value, ConstraintValidatorContext context) {
+    public boolean isValid(MerchantRequest value, ConstraintValidatorContext context) {
         if (value == null) {
             return true;
         }
