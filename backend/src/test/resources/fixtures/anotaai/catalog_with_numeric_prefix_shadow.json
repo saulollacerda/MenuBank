@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-adicionais",
+      "title": "Adicionais",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "ad-bacon",
+          "title": "Bacon",
+          "out": false,
+          "week_prices": [{ "price": 2.0, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-adicionais-shadow",
+      "title": "1: Adicionais",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "ad-bacon-shadow",
+          "title": "Bacon",
+          "out": false,
+          "week_prices": [{ "price": 2.0, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

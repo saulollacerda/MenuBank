@@ -35,13 +35,16 @@ public class OrderItemExtraIngredient {
     private Ingredient ingredient;
 
     /**
-     * Extra ingredient quantity per ordered product unit.
+     * Gramatura total deste extra pedida pelo cliente (por unidade do produto pedido).
+     * Para subItems da Anota.AI = {@code subItem.quantity × ingredient.defaultQuantity}.
+     * O custo total é {@code quantity × costPerUnit × orderItem.quantity}.
      */
     @Column(nullable = false, precision = 19, scale = 6)
     private BigDecimal quantity;
 
     /**
-     * Snapshot of the ingredient cost at the time the order was created/updated.
+     * Snapshot do custo por unidade-de-medida ({@code Ingredient.costPerUnit}, em R$/grama
+     * para {@code unit="g"}) no momento do pedido.
      */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal costPerUnit;

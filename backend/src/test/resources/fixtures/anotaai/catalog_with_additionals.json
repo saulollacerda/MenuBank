@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-extra",
+      "title": "Adicionais",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "extra-1",
+          "title": "Bacon",
+          "out": false,
+          "week_prices": [
+            { "price": 2.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "extra-2",
+          "title": "Queijo",
+          "out": false,
+          "week_prices": [
+            { "price": 3.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-1",
+      "title": "Bebidas",
+      "is_additional": false,
+      "itens": [
+        {
+          "id": "item-1",
+          "title": "Refrigerante 1L",
+          "out": false,
+          "week_prices": [
+            { "price": 10.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "item-2",
+          "title": "Suco 500ml",
+          "out": false,
+          "week_prices": [
+            { "price": 7.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

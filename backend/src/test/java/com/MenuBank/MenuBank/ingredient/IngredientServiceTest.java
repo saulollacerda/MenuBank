@@ -1,6 +1,10 @@
 package com.MenuBank.MenuBank.ingredient;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.merchant.Merchant;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+
+import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.notification.NotificationService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("IngredientService")
@@ -24,19 +29,27 @@ class IngredientServiceTest {
     private IngredientRepository ingredientRepository;
 
     @Mock
-    private UserContext userContext;
+    private NotificationService notificationService;
+
+    @Mock
+    private MerchantContext merchantContext;
+
+    @Mock
+    private MerchantRepository merchantRepository;
+
 
     @InjectMocks
     private IngredientService ingredientService;
 
-    private UUID ownerId;
+    private UUID merchantId;
     private UUID ingredientId;
     private Ingredient ingredient;
     private IngredientRequest ingredientRequest;
 
     @BeforeEach
     void setUp() {
-        ownerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        lenient().when(merchantRepository.getReferenceById(any())).thenReturn(Merchant.builder().id(merchantId).build());
         ingredientId = UUID.randomUUID();
 
         ingredientRequest = IngredientRequest.builder()
@@ -48,18 +61,15 @@ class IngredientServiceTest {
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Farinha de Trigo")
+                .canonicalName("farinha de trigo")
                 .unit("kg")
                 .costPerUnit(new BigDecimal("4.50"))
                 .defaultQuantity(new BigDecimal("0.20"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
     }
-
-    // -------------------------------------------------------------------------
-    // create()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("create()")
@@ -68,8 +78,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve criar ingrediente com dados válidos e retornar IngredientResponse")
         void shouldCreateIngredientAndReturnResponse() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.existsByNameAndOwnerId(ingredientRequest.getName(), ownerId)).willReturn(false);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(ingredientRequest.getName(), merchantId)).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
             IngredientResponse result = ingredientService.create(ingredientRequest);
@@ -79,14 +89,14 @@ class IngredientServiceTest {
             assertThat(result.getUnit()).isEqualTo(ingredientRequest.getUnit());
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(ingredientRequest.getCostPerUnit());
             assertThat(result.getDefaultQuantity()).isEqualByComparingTo(ingredientRequest.getDefaultQuantity());
-            then(ingredientRepository).should().save(argThat(i -> ownerId.equals(i.getOwnerId())));
+            then(ingredientRepository).should().save(argThat(i -> merchantId.equals(i.getMerchant().getId())));
         }
 
         @Test
         @DisplayName("deve criar ingrediente com status ACTIVE por padrão")
         void shouldCreateIngredientWithActiveStatusByDefault() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.existsByNameAndOwnerId(anyString(), eq(ownerId))).willReturn(false);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
             IngredientResponse result = ingredientService.create(ingredientRequest);
@@ -97,8 +107,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateIngredientException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.existsByNameAndOwnerId(ingredientRequest.getName(), ownerId)).willReturn(true);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(ingredientRequest.getName(), merchantId)).willReturn(true);
 
             assertThatThrownBy(() -> ingredientService.create(ingredientRequest))
                     .isInstanceOf(DuplicateIngredientException.class)
@@ -106,11 +116,42 @@ class IngredientServiceTest {
 
             then(ingredientRepository).should(never()).save(any(Ingredient.class));
         }
-    }
 
-    // -------------------------------------------------------------------------
-    // findById()
-    // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("deve popular canonicalName normalizado a partir do nome (lowercase, sem acentos)")
+        void shouldPopulateCanonicalNameNormalizedFromName() {
+            IngredientRequest withAccent = IngredientRequest.builder()
+                    .name("Açaí Premium").unit("ml")
+                    .costPerUnit(new BigDecimal("0.05"))
+                    .build();
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(withAccent);
+
+            then(ingredientRepository).should()
+                    .save(argThat(i -> "acai premium".equals(i.getCanonicalName())));
+        }
+
+        @Test
+        @DisplayName("deve resolver notificações pendentes 'MISSING_INGREDIENT' do canonical name após salvar")
+        void shouldResolvePendingMissingIngredientNotificationsAfterSave() {
+            IngredientRequest withAccent = IngredientRequest.builder()
+                    .name("Açaí Premium").unit("ml")
+                    .costPerUnit(new BigDecimal("0.05"))
+                    .build();
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(withAccent);
+
+            then(notificationService).should().resolveMissingIngredient("acai premium", merchantId);
+        }
+    }
 
     @Nested
     @DisplayName("findById()")
@@ -119,8 +160,8 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve retornar IngredientResponse quando ingrediente existe")
         void shouldReturnResponseWhenExists() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
 
             IngredientResponse result = ingredientService.findById(ingredientId);
 
@@ -135,49 +176,50 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException quando ingrediente não existe")
         void shouldThrowWhenIngredientNotFound() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> ingredientService.findById(ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // findAll()
-    // -------------------------------------------------------------------------
-
     @Nested
-    @DisplayName("findAll()")
+    @DisplayName("findAll(search, pageable)")
     class FindAll {
 
         @Test
-        @DisplayName("deve retornar lista de todos os ingredientes")
-        void shouldReturnListOfAllIngredients() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of(ingredient));
+        @DisplayName("deve retornar página de ingredientes filtrada por nome (contains, case-insensitive)")
+        void shouldReturnPagedIngredientsFilteredByName() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "bac", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(ingredient), pageable, 1));
 
-            List<IngredientResponse> result = ingredientService.findAll();
+            org.springframework.data.domain.Page<IngredientResponse> result =
+                    ingredientService.findAll("bac", pageable);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(ingredientId);
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getId()).isEqualTo(ingredientId);
+            assertThat(result.getTotalElements()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("deve retornar lista vazia quando não há ingredientes")
-        void shouldReturnEmptyList() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findAllByOwnerId(ownerId)).willReturn(List.of());
+        @DisplayName("deve tratar search nulo como string vazia")
+        void shouldTreatNullSearchAsEmpty() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
-            List<IngredientResponse> result = ingredientService.findAll();
+            org.springframework.data.domain.Page<IngredientResponse> result =
+                    ingredientService.findAll(null, pageable);
 
-            assertThat(result).isEmpty();
+            assertThat(result.getContent()).isEmpty();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // update()
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("update()")
@@ -195,16 +237,17 @@ class IngredientServiceTest {
 
             Ingredient updatedIngredient = Ingredient.builder()
                     .id(ingredientId)
-                    .ownerId(ownerId)
+                    .merchant(Merchant.builder().id(merchantId).build())
                     .name("Farinha de Trigo Integral")
+                    .canonicalName("farinha de trigo integral")
                     .unit("kg")
                     .costPerUnit(new BigDecimal("5.75"))
                     .defaultQuantity(new BigDecimal("0.35"))
                     .status(IngredientStatus.ACTIVE)
                     .build();
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.of(ingredient));
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(updatedIngredient);
 
             IngredientResponse result = ingredientService.update(ingredientId, updateRequest);
@@ -215,10 +258,28 @@ class IngredientServiceTest {
         }
 
         @Test
+        @DisplayName("deve recomputar canonicalName ao alterar nome")
+        void shouldRecomputeCanonicalNameOnUpdate() {
+            IngredientRequest updateRequest = IngredientRequest.builder()
+                    .name("PISTACHE")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("1.20"))
+                    .build();
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.update(ingredientId, updateRequest);
+
+            then(ingredientRepository).should()
+                    .save(argThat(i -> "pistache".equals(i.getCanonicalName())));
+        }
+
+        @Test
         @DisplayName("deve lançar IngredientNotFoundException ao atualizar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForUpdate() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.findByIdAndOwnerId(ingredientId, ownerId)).willReturn(Optional.empty());
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> ingredientService.update(ingredientId, ingredientRequest))
                     .isInstanceOf(IngredientNotFoundException.class);
@@ -227,10 +288,6 @@ class IngredientServiceTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // delete()
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("delete()")
     class Delete {
@@ -238,25 +295,25 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve deletar ingrediente existente sem lançar exceção")
         void shouldDeleteExistingIngredient() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.existsByIdAndOwnerId(ingredientId, ownerId)).willReturn(true);
-            willDoNothing().given(ingredientRepository).deleteByIdAndOwnerId(ingredientId, ownerId);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByIdAndMerchantId(ingredientId, merchantId)).willReturn(true);
+            willDoNothing().given(ingredientRepository).deleteByIdAndMerchantId(ingredientId, merchantId);
 
             assertThatNoException().isThrownBy(() -> ingredientService.delete(ingredientId));
 
-            then(ingredientRepository).should().deleteByIdAndOwnerId(ingredientId, ownerId);
+            then(ingredientRepository).should().deleteByIdAndMerchantId(ingredientId, merchantId);
         }
 
         @Test
         @DisplayName("deve lançar IngredientNotFoundException ao deletar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForDelete() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(ingredientRepository.existsByIdAndOwnerId(ingredientId, ownerId)).willReturn(false);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByIdAndMerchantId(ingredientId, merchantId)).willReturn(false);
 
             assertThatThrownBy(() -> ingredientService.delete(ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
 
-            then(ingredientRepository).should(never()).deleteByIdAndOwnerId(any(), any());
+            then(ingredientRepository).should(never()).deleteByIdAndMerchantId(any(), any());
         }
     }
 }

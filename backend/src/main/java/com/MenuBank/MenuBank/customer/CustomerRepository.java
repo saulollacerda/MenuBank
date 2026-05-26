@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.customer;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -8,12 +10,15 @@ import java.util.UUID;
 
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
-	Optional<Customer> findByIdAndOwnerId(UUID id, UUID ownerId);
+	Optional<Customer> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-	List<Customer> findAllByOwnerId(UUID ownerId);
+	List<Customer> findAllByMerchantId(UUID merchantId);
 
-	boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+	Page<Customer> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-	void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+	boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
+
+	void deleteByIdAndMerchantId(UUID id, UUID merchantId);
+
+	Optional<Customer> findByPhoneAndMerchantId(String phone, UUID merchantId);
 }
-

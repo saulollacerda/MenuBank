@@ -1,11 +1,13 @@
 package com.MenuBank.MenuBank.customer;
 
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,9 +33,10 @@ public class CustomerController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CustomerResponse>> findAll() {
-        List<CustomerResponse> responses = customerService.findAll();
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<Page<CustomerResponse>> findAll(
+            @RequestParam(required = false, defaultValue = "") String search,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(customerService.findAll(search, pageable));
     }
 
     @PutMapping("/{id}")

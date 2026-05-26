@@ -16,25 +16,36 @@ describe('orderService', () => {
     vi.clearAllMocks()
   })
 
-  it('findAll should GET /orders', async () => {
-    const mockData = [
-      {
-        id: '1',
-        dateTime: '2026-03-24T10:00:00',
-        customerId: 'c1',
-        customerName: 'João',
-        status: 'PENDING',
-        totalValue: 50.0,
-        estimatedProfit: 20.0,
-        items: [],
-      },
-    ]
-    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+  it('findAll should GET /orders with pagination params', async () => {
+    const mockPage = {
+      content: [
+        {
+          id: '1',
+          dateTime: '2026-03-24T10:00:00',
+          customerId: 'c1',
+          customerName: 'João',
+          status: 'PENDING',
+          totalValue: 50.0,
+          estimatedProfit: 20.0,
+          items: [],
+        },
+      ],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    }
+    vi.mocked(api.get).mockResolvedValue({ data: mockPage })
 
     const result = await orderService.findAll()
 
-    expect(api.get).toHaveBeenCalledWith('/orders')
-    expect(result).toEqual(mockData)
+    expect(api.get).toHaveBeenCalledWith('/orders', {
+      params: { search: '', page: 0, size: 20 },
+    })
+    expect(result).toEqual(mockPage)
   })
 
   it('create should POST /orders', async () => {

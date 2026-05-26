@@ -1,4 +1,5 @@
 export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED'
+export type OrderOrigin = 'MENUBANK' | 'ANOTA_AI' | 'IFOOD'
 
 export interface OrderItemExtraIngredientRequest {
   ingredientId: string
@@ -21,6 +22,15 @@ export interface OrderItemRequest {
   extraIngredients?: OrderItemExtraIngredientRequest[]
 }
 
+export interface OrderItemInsumoResponse {
+  id: string
+  productId: string
+  name: string
+  cost: number
+  quantity: number
+  totalCost: number
+}
+
 export interface OrderItemResponse {
   id: string
   productId: string
@@ -29,13 +39,14 @@ export interface OrderItemResponse {
   unitPrice: number
   unitCost: number
   totalCost: number
+  insumos?: OrderItemInsumoResponse[]
   extraIngredients?: OrderItemExtraIngredientResponse[]
 }
 
 export interface OrderRequest {
   customerId: string
   status?: OrderStatus
-  paymentMethodId?: string
+  feeId?: string
   items: OrderItemRequest[]
 }
 
@@ -47,9 +58,12 @@ export interface OrderResponse {
   status: OrderStatus
   totalValue: number
   estimatedProfit: number
-  paymentMethodId?: string
-  paymentMethodName?: string
+  deliveryFee?: number
+  totalCost?: number
+  feeId?: string
+  feeName?: string
   feeRate?: number
   items: OrderItemResponse[]
+  origin?: OrderOrigin
 }
 

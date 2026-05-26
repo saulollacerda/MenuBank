@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-1",
+      "title": "Bebidas",
+      "is_additional": false,
+      "itens": [
+        {
+          "id": "item-1",
+          "title": "Refrigerante 1L",
+          "out": false,
+          "week_prices": [
+            { "price": 10.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "item-2",
+          "title": "Suco 500ml",
+          "out": false,
+          "week_prices": [
+            { "price": 7.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.customer;
 
+import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,8 +18,11 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "owner_id")
-    private UUID ownerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merchant_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Merchant merchant;
 
     @Column(nullable = false)
     private String name;
@@ -26,5 +30,8 @@ public class Customer {
     private String phone;
 
     private String email;
+
+    @Column(name = "external_id")
+    private String externalId;
 }
 

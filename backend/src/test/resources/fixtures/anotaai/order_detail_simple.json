@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "info": {
+    "_id": "ORDER_ID_PLACEHOLDER",
+    "check": 1,
+    "type": "LOCAL",
+    "salesChannel": "anotaai",
+    "from": "menu-share-adm",
+    "shortReference": 5173,
+    "createdAt": "2026-05-20T19:19:38.368Z",
+    "total": 10.0,
+    "deliveryFee": 0,
+    "additionalFees": [],
+    "discounts": [],
+    "customer": {
+      "id": "cust-1",
+      "name": "Teste",
+      "phone": "43123456789"
+    },
+    "items": [
+      {
+        "_id": "oi-1",
+        "name": "Refrigerante 1L",
+        "quantity": 1,
+        "price": 10.0,
+        "total": 10.0,
+        "internalId": "65d4a428f784bb001956f919",
+        "externalId": ""
+      }
+    ],
+    "payments": [
+      {
+        "name": "money",
+        "code": "money",
+        "value": "10",
+        "prepaid": false
+      }
+    ],
+    "observation": null
+  }
+}

@@ -16,16 +16,25 @@ describe('ingredientService', () => {
     vi.clearAllMocks()
   })
 
-  it('findAll should GET /ingredients', async () => {
-    const mockData = [
-      { id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' },
-    ]
-    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+  it('findAll should GET /ingredients with pagination params', async () => {
+    const mockPage = {
+      content: [{ id: '1', name: 'Farinha', unit: 'kg', costPerUnit: 5.0, status: 'ACTIVE' }],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    }
+    vi.mocked(api.get).mockResolvedValue({ data: mockPage })
 
     const result = await ingredientService.findAll()
 
-    expect(api.get).toHaveBeenCalledWith('/ingredients')
-    expect(result).toEqual(mockData)
+    expect(api.get).toHaveBeenCalledWith('/ingredients', {
+      params: { search: '', page: 0, size: 20 },
+    })
+    expect(result).toEqual(mockPage)
   })
 
   it('create should POST /ingredients', async () => {

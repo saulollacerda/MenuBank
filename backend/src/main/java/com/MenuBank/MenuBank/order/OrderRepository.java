@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.order;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,24 +18,47 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             LEFT JOIN FETCH o.customer
             LEFT JOIN FETCH o.items i
             LEFT JOIN FETCH i.product
-            WHERE o.id = :id AND o.ownerId = :ownerId
+            WHERE o.id = :id AND o.merchant.id = :merchantId
             """)
-    Optional<Order> findByIdAndOwnerId(@Param("id") UUID id, @Param("ownerId") UUID ownerId);
+    Optional<Order> findByIdAndMerchantId(@Param("id") UUID id, @Param("merchantId") UUID merchantId);
 
     @Query("""
             SELECT DISTINCT o FROM Order o
             LEFT JOIN FETCH o.customer
             LEFT JOIN FETCH o.items i
             LEFT JOIN FETCH i.product
-            WHERE o.ownerId = :ownerId
+            WHERE o.merchant.id = :merchantId
             """)
-    List<Order> findAllByOwnerId(@Param("ownerId") UUID ownerId);
+    List<Order> findAllByMerchantId(@Param("merchantId") UUID merchantId);
 
-    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+    @Query(
+            value = """
+                    SELECT o FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """,
+            countQuery = """
+                    SELECT COUNT(o) FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """
+    )
+    Page<Order> findPageByMerchantIdAndCustomerNameContaining(
+            @Param("merchantId") UUID merchantId,
+            @Param("search") String search,
+            Pageable pageable);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Order> findByOwnerIdAndDateTimeBetween(UUID ownerId, LocalDateTime start, LocalDateTime end);
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Order> findByOwnerIdAndDateTimeBetweenAndStatus(UUID ownerId, LocalDateTime start, LocalDateTime end, OrderStatus status);
+    List<Order> findByMerchantIdAndDateTimeBetween(UUID merchantId, LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByMerchantIdAndDateTimeBetweenAndStatus(UUID merchantId, LocalDateTime start, LocalDateTime end, OrderStatus status);
+
+    boolean existsByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
+
+    Optional<Order> findByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
 }

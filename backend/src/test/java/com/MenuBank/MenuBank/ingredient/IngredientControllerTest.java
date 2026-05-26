@@ -190,26 +190,34 @@ class IngredientControllerTest {
     class GetAllIngredients {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de ingredientes")
-        void shouldReturn200WithIngredientList() throws Exception {
-            given(ingredientService.findAll()).willReturn(List.of(ingredientResponse));
+        @DisplayName("deve retornar 200 com página de ingredientes")
+        void shouldReturn200WithIngredientPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(ingredientService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(ingredientResponse), pageable, 1));
 
             mockMvc.perform(get("/api/ingredients"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(ingredientId.toString()))
-                    .andExpect(jsonPath("$[0].defaultQuantity").value(0.20));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(ingredientId.toString()))
+                    .andExpect(jsonPath("$.content[0].defaultQuantity").value(0.20))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há ingredientes")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(ingredientService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(ingredientService.findAll(eq("bac"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(ingredientResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/ingredients"))
+            mockMvc.perform(get("/api/ingredients").param("search", "bac"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].id").value(ingredientId.toString()));
         }
     }
 
@@ -289,4 +297,63 @@ class IngredientControllerTest {
                     .andExpect(status().isNotFound());
         }
     }
+
+    // -------------------------------------------------------------------------
+    // PUT /api/ingredients/{id}/cost
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("PUT /api/ingredients/{id}/cost")
+    class UpdateIngredientCost {
+
+        private IngredientCostRequest buildValidCostRequest() {
+            return IngredientCostRequest.builder()
+                    .costPerUnit(new BigDecimal("0.08"))
+                    .defaultQuantity(new BigDecimal("1"))
+                    .unit("g")
+                    .build();
+        }
+
+        @Test
+        @DisplayName("deve retornar 200 com ingrediente atualizado")
+        void shouldReturn200WithUpdatedIngredient() throws Exception {
+            given(ingredientService.updateCost(eq(ingredientId), any(IngredientCostRequest.class)))
+                    .willReturn(ingredientResponse);
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(buildValidCostRequest())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(ingredientId.toString()));
+        }
+
+        @Test
+        @DisplayName("deve retornar 404 quando ingrediente não existe")
+        void shouldReturn404WhenIngredientNotFound() throws Exception {
+            given(ingredientService.updateCost(eq(ingredientId), any(IngredientCostRequest.class)))
+                    .willThrow(new IngredientNotFoundException(ingredientId));
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(buildValidCostRequest())))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando costPerUnit é negativo")
+        void shouldReturn400WhenCostPerUnitIsNegative() throws Exception {
+            IngredientCostRequest invalid = IngredientCostRequest.builder()
+                    .costPerUnit(new BigDecimal("-1"))
+                    .build();
+
+            mockMvc.perform(put("/api/ingredients/{id}/cost", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalid)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
 }

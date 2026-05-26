@@ -15,6 +15,7 @@ public class IngredientResponse {
     private String name;
     private String unit;
     private BigDecimal costPerUnit;
+    private BigDecimal salePrice;
     private BigDecimal defaultQuantity;
     private IngredientStatus status;
 }

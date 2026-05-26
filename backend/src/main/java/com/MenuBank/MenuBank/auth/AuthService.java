@@ -1,6 +1,6 @@
 package com.MenuBank.MenuBank.auth;
 
-import com.MenuBank.MenuBank.user.*;
+import com.MenuBank.MenuBank.merchant.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -16,69 +16,69 @@ public class AuthService {
 
     private static final long TOKEN_EXPIRATION_HOURS = 24;
 
-    private final UserRepository userRepository;
-    private final UserService userService;
+    private final MerchantRepository merchantRepository;
+    private final MerchantService merchantService;
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
 
-    public AuthService(UserRepository userRepository,
-                       UserService userService,
+    public AuthService(MerchantRepository merchantRepository,
+                       MerchantService merchantService,
                        PasswordEncoder passwordEncoder,
                        JwtEncoder jwtEncoder) {
-        this.userRepository = userRepository;
-        this.userService = userService;
+        this.merchantRepository = merchantRepository;
+        this.merchantService = merchantService;
         this.passwordEncoder = passwordEncoder;
         this.jwtEncoder = jwtEncoder;
     }
 
     public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        Merchant merchant = merchantRepository.findByEmail(request.getEmail())
                 .orElseThrow(InvalidCredentialsException::new);
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), merchant.getPassword())) {
             throw new InvalidCredentialsException();
         }
 
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new InactiveUserException();
+        if (merchant.getStatus() != MerchantStatus.ACTIVE) {
+            throw new InactiveMerchantException();
         }
 
-        String token = generateToken(user.getId(), user.getEmail(), user.getRestaurantName());
+        String token = generateToken(merchant.getId(), merchant.getEmail(), merchant.getMerchantName());
 
         return LoginResponse.builder()
                 .token(token)
-                .userId(user.getId())
-                .email(user.getEmail())
-                .restaurantName(user.getRestaurantName())
+                .merchantId(merchant.getId())
+                .email(merchant.getEmail())
+                .merchantName(merchant.getMerchantName())
                 .build();
     }
 
-    public LoginResponse register(UserRequest request) {
-        UserResponse userResponse = userService.create(request);
+    public LoginResponse register(MerchantRequest request) {
+        MerchantResponse merchantResponse = merchantService.create(request);
 
         String token = generateToken(
-                userResponse.getId(),
-                userResponse.getEmail(),
-                userResponse.getRestaurantName()
+                merchantResponse.getId(),
+                merchantResponse.getEmail(),
+                merchantResponse.getMerchantName()
         );
 
         return LoginResponse.builder()
                 .token(token)
-                .userId(userResponse.getId())
-                .email(userResponse.getEmail())
-                .restaurantName(userResponse.getRestaurantName())
+                .merchantId(merchantResponse.getId())
+                .email(merchantResponse.getEmail())
+                .merchantName(merchantResponse.getMerchantName())
                 .build();
     }
 
-    private String generateToken(UUID userId, String email, String restaurantName) {
+    private String generateToken(UUID merchantId, String email, String merchantName) {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("menubank")
                 .issuedAt(now)
                 .expiresAt(now.plus(TOKEN_EXPIRATION_HOURS, ChronoUnit.HOURS))
-                .subject(userId.toString())
+                .subject(merchantId.toString())
                 .claim("email", email)
-                .claim("restaurantName", restaurantName)
+                .claim("merchantName", merchantName)
                 .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
     }

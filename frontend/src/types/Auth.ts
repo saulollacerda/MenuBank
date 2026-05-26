@@ -5,8 +5,8 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string
-  userId: string
+  merchantId: string
   email: string
-  restaurantName: string
+  merchantName: string
 }
 

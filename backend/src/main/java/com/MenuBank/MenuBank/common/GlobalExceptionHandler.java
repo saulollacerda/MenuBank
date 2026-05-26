@@ -1,20 +1,22 @@
 package com.MenuBank.MenuBank.common;
 
-import com.MenuBank.MenuBank.auth.InactiveUserException;
+import com.MenuBank.MenuBank.auth.InactiveMerchantException;
 import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
+import com.MenuBank.MenuBank.integration.anotaai.AnotaAIIntegrationException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
+import com.MenuBank.MenuBank.notification.NotificationNotFoundException;
 import com.MenuBank.MenuBank.order.OrderNotFoundException;
 import com.MenuBank.MenuBank.product.DuplicateProductException;
 import com.MenuBank.MenuBank.product.ProductNotFoundException;
-import com.MenuBank.MenuBank.payment.DuplicatePaymentMethodException;
-import com.MenuBank.MenuBank.payment.PaymentMethodNotFoundException;
-import com.MenuBank.MenuBank.product.RecipeItemNotFoundException;
-import com.MenuBank.MenuBank.user.DuplicateUserException;
-import com.MenuBank.MenuBank.user.UserNotFoundException;
+import com.MenuBank.MenuBank.fee.DuplicateFeeException;
+import com.MenuBank.MenuBank.fee.FeeNotFoundException;
+import com.MenuBank.MenuBank.product.IncludeNotFoundException;
+import com.MenuBank.MenuBank.merchant.DuplicateMerchantException;
+import com.MenuBank.MenuBank.merchant.MerchantNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -32,8 +34,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
     }
 
-    @ExceptionHandler(InactiveUserException.class)
-    public ResponseEntity<ProblemDetail> handleInactiveUser(InactiveUserException ex) {
+    @ExceptionHandler(InactiveMerchantException.class)
+    public ResponseEntity<ProblemDetail> handleInactiveUser(InactiveMerchantException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
         problem.setTitle("Conta inativa");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
@@ -46,8 +48,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleUserNotFound(UserNotFoundException ex) {
+    @ExceptionHandler(MerchantNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFound(MerchantNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Usuário não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
@@ -60,8 +62,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
-    @ExceptionHandler(DuplicateUserException.class)
-    public ResponseEntity<ProblemDetail> handleDuplicateUser(DuplicateUserException ex) {
+    @ExceptionHandler(DuplicateMerchantException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateUser(DuplicateMerchantException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
@@ -124,24 +126,38 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
-    @ExceptionHandler(RecipeItemNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleRecipeItemNotFound(RecipeItemNotFoundException ex) {
+    @ExceptionHandler(IncludeNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleIncludeNotFound(IncludeNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setTitle("Item da ficha técnica não encontrado");
+        problem.setTitle("Complemento não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
-    @ExceptionHandler(PaymentMethodNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handlePaymentMethodNotFound(PaymentMethodNotFoundException ex) {
+    @ExceptionHandler(FeeNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleFeeNotFound(FeeNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setTitle("Forma de pagamento não encontrada");
+        problem.setTitle("Taxa não encontrada");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
-    @ExceptionHandler(DuplicatePaymentMethodException.class)
-    public ResponseEntity<ProblemDetail> handleDuplicatePaymentMethod(DuplicatePaymentMethodException ex) {
+    @ExceptionHandler(DuplicateFeeException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateFee(DuplicateFeeException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(AnotaAIIntegrationException.class)
+    public ResponseEntity<ProblemDetail> handleAnotaAIIntegration(AnotaAIIntegrationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Erro na integração com Anota.AI");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleNotificationNotFound(NotificationNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Notificação não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 }

@@ -1,9 +1,17 @@
 import api from './api'
-import type { IngredientRequest, IngredientResponse } from '@/types/Ingredient'
+import type { IngredientRequest, IngredientResponse, IngredientProductUsageResponse } from '@/types/Ingredient'
+import type { Page, PageParams } from '@/types/Page'
+import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 
 export const ingredientService = {
-  async findAll(): Promise<IngredientResponse[]> {
-    const { data } = await api.get<IngredientResponse[]>('/ingredients')
+  async findAll(params: PageParams = {}): Promise<Page<IngredientResponse>> {
+    const { data } = await api.get<Page<IngredientResponse>>('/ingredients', {
+      params: {
+        search: params.search ?? '',
+        page: params.page ?? 0,
+        size: params.size ?? DEFAULT_PAGE_SIZE,
+      },
+    })
     return data
   },
 
@@ -25,5 +33,10 @@ export const ingredientService = {
   async remove(id: string): Promise<void> {
     await api.delete(`/ingredients/${id}`)
   },
-}
 
+  async fetchUsages(id: string): Promise<IngredientProductUsageResponse[]> {
+    const { data } = await api.get<IngredientProductUsageResponse[]>(`/ingredients/${id}/usages`)
+    return data
+  },
+
+}

@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "info": {
+    "docs": [
+      {
+        "_id": "ORDER_ID_PLACEHOLDER",
+        "check": 1,
+        "from": "menu-share-adm",
+        "salesChannel": "anotaai",
+        "updatedAt": "2026-05-20T20:57:32.968Z"
+      }
+    ],
+    "count": 1
+  }
+}

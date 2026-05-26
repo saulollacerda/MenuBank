@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-frutas-1",
+      "title": "Frutas Inclusas",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "fruta-acai-1",
+          "title": "Açaí",
+          "out": false,
+          "week_prices": [{ "price": 0.0, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-frutas-2",
+      "title": "Frutas Extras",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "fruta-acai-2",
+          "title": "ACAI",
+          "out": false,
+          "week_prices": [{ "price": 1.5, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

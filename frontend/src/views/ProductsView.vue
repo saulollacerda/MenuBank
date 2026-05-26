@@ -1,21 +1,34 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
-import { useIngredientStore } from '@/stores/ingredientStore'
 import { useCategoryStore } from '@/stores/categoryStore'
-import type { ProductRequest, ProductResponse, RecipeItemRequest } from '@/types/Product'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import PageControls from '@/components/PageControls.vue'
+import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
 
 const productStore = useProductStore()
-const ingredientStore = useIngredientStore()
 const categoryStore = useCategoryStore()
+const anotaAIStore = useAnotaAIStore()
+
+const syncClearRecipes = ref(false)
+
+async function handleSyncCatalog() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncCatalog({ clearRecipes: syncClearRecipes.value })
+  } catch {
+    // erro fica em anotaAIStore.error
+  }
+}
 
 const showModal = ref(false)
 const showRecipeModal = ref(false)
 const editing = ref<ProductResponse | null>(null)
 const selectedProduct = ref<ProductResponse | null>(null)
 const form = ref<ProductRequest>({ name: '', price: 0, categoryId: '' })
-const recipeForm = ref<RecipeItemRequest>({ ingredientId: '', quantity: 0 })
+const recipeForm = ref<IncludeRequest>({ name: '', cost: 0, quantity: 1 })
 const confirmDeleteId = ref<string | null>(null)
+const confirmClearRecipe = ref(false)
 
 function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -70,16 +83,9 @@ async function handleSubmit() {
 
 async function openRecipeModal(product: ProductResponse) {
   selectedProduct.value = product
-  recipeForm.value = { ingredientId: '', quantity: 0 }
+  recipeForm.value = { name: '', cost: 0, quantity: 1 }
   showRecipeModal.value = true
-  await productStore.fetchRecipeItems(product.id)
-}
-
-function handleRecipeIngredientChange() {
-  const selected = ingredientStore.items.find(
-    (ingredient) => ingredient.id === recipeForm.value.ingredientId,
-  )
-  recipeForm.value.quantity = selected?.defaultQuantity ?? 0
+  await productStore.fetchIncludes(product.id)
 }
 
 function closeRecipeModal() {
@@ -90,17 +96,28 @@ function closeRecipeModal() {
 async function handleAddRecipeItem() {
   if (!selectedProduct.value) return
   try {
-    await productStore.addRecipeItem(selectedProduct.value.id, recipeForm.value)
-    recipeForm.value = { ingredientId: '', quantity: 0 }
+    await productStore.addInclude(selectedProduct.value.id, recipeForm.value)
+    recipeForm.value = { name: '', cost: 0, quantity: 1 }
   } catch {
     // Error is handled by the store
   }
 }
 
-async function handleRemoveRecipeItem(recipeItemId: string) {
+async function handleClearRecipe() {
   if (!selectedProduct.value) return
   try {
-    await productStore.removeRecipeItem(selectedProduct.value.id, recipeItemId)
+    await productStore.clearRecipe(selectedProduct.value.id)
+  } catch {
+    // Error is handled by the store
+  } finally {
+    confirmClearRecipe.value = false
+  }
+}
+
+async function handleRemoveRecipeItem(includeId: string) {
+  if (!selectedProduct.value) return
+  try {
+    await productStore.removeInclude(selectedProduct.value.id, includeId)
   } catch {
     // Error is handled by the store
   }
@@ -120,9 +137,16 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  productStore.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  productStore.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  productStore.fetchAll()
-  ingredientStore.fetchAll()
+  productStore.fetchPage({ page: 0, search: '' })
   categoryStore.fetchAll()
 })
 </script>
@@ -131,24 +155,75 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Produtos</h1>
-      <button
-        class="btn btn-primary"
-        data-testid="new-product-button"
-        @click="openCreateModal"
-      >
-        + Novo Produto
-      </button>
+      <div class="page-header-actions">
+        <label
+          style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #475569"
+          title="Apaga todos os itens das fichas técnicas antes de re-importar"
+        >
+          <input
+            v-model="syncClearRecipes"
+            type="checkbox"
+            data-testid="sync-clear-recipes-checkbox"
+          />
+          Limpar fichas técnicas
+        </label>
+        <button
+          class="btn btn-secondary"
+          data-testid="sync-anotaai-catalog-button"
+          :disabled="anotaAIStore.syncingCatalog"
+          @click="handleSyncCatalog"
+        >
+          <span v-if="anotaAIStore.syncingCatalog" class="spinner spinner-sm"></span>
+          <span v-else>🔄 Sincronizar Cardápio</span>
+        </button>
+        <button
+          class="btn btn-primary"
+          data-testid="new-product-button"
+          @click="openCreateModal"
+        >
+          + Novo Produto
+        </button>
+      </div>
+    </div>
+
+    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
+    <div
+      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+      class="alert alert-success"
+    >
+      Categorias: {{ anotaAIStore.lastResult.categoriesCreated }} criada(s),
+      {{ anotaAIStore.lastResult.categoriesUpdated }} atualizada(s).
+      Produtos: {{ anotaAIStore.lastResult.productsCreated }} criado(s),
+      {{ anotaAIStore.lastResult.productsUpdated }} atualizado(s).
+      <div style="margin-top: 4px; font-size: 0.8rem; color: #475569">
+        Ingredientes do cardápio são cadastrados manualmente em "Ingredientes".
+      </div>
     </div>
 
     <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
+
+    <PageControls
+      v-if="!showRecipeModal"
+      v-model="productStore.search"
+      :page="productStore.page"
+      :total-pages="productStore.totalPages"
+      :total-elements="productStore.totalElements"
+      :loading="productStore.loading"
+      placeholder="Buscar produto por nome..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
 
     <div v-if="productStore.loading && !showRecipeModal" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="productStore.items.length === 0 && !showRecipeModal" class="empty-state">
-      <p>Nenhum produto cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">Criar primeiro produto</button>
+      <p v-if="productStore.search">Nenhum produto encontrado para "{{ productStore.search }}".</p>
+      <template v-else>
+        <p>Nenhum produto cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro produto</button>
+      </template>
     </div>
 
     <div v-else-if="!showRecipeModal" class="table-container">
@@ -158,9 +233,6 @@ onMounted(() => {
             <th>Nome</th>
             <th>Categoria</th>
             <th>Preço</th>
-            <th>Custo Estimado</th>
-            <th>Margem</th>
-            <th>CMV</th>
             <th>Status</th>
             <th style="width: 220px">Ações</th>
           </tr>
@@ -170,9 +242,6 @@ onMounted(() => {
             <td>{{ product.name }}</td>
             <td>{{ product.categoryName }}</td>
             <td>{{ formatCurrency(product.price) }}</td>
-            <td>{{ formatCurrency(product.estimatedCost) }}</td>
-            <td>{{ formatCurrency(product.margin) }}</td>
-            <td>{{ formatCurrency(product.cmv) }}</td>
             <td>
               <span :class="statusClass(product.status)">
                 {{ statusLabel(product.status) }}
@@ -272,36 +341,54 @@ onMounted(() => {
           <button class="modal-close" @click="closeRecipeModal">✕</button>
         </div>
         <div class="modal-body">
-          <!-- Add ingredient form -->
+          <div
+            v-if="productStore.includes.length > 0"
+            style="display: flex; justify-content: flex-end; margin-bottom: 12px"
+          >
+            <button
+              class="btn btn-danger btn-sm"
+              data-testid="clear-recipe-button"
+              style="margin-bottom: 0"
+              @click="confirmClearRecipe = true"
+            >
+              🗑 Limpar Ficha Técnica
+            </button>
+          </div>
+          <!-- Add include form -->
           <form @submit.prevent="handleAddRecipeItem" class="order-items-row" style="margin-bottom: 16px">
             <div class="form-group">
-              <label>Ingrediente</label>
-              <select
-                v-model="recipeForm.ingredientId"
+              <label>Nome</label>
+              <input
+                v-model="recipeForm.name"
+                type="text"
                 class="form-control"
-                data-testid="recipe-ingredient-select"
+                placeholder="Ex.: Copo, Colher, Açaí Base"
+                data-testid="recipe-name-input"
                 required
-                @change="handleRecipeIngredientChange"
-              >
-                <option value="" disabled>Selecione...</option>
-                <option
-                  v-for="ingredient in ingredientStore.items"
-                  :key="ingredient.id"
-                  :value="ingredient.id"
-                >
-                  {{ ingredient.name }} ({{ ingredient.unit }})
-                </option>
-              </select>
+              />
+            </div>
+            <div class="form-group">
+              <label>Custo (R$)</label>
+              <input
+                v-model.number="recipeForm.cost"
+                type="number"
+                step="0.0001"
+                min="0"
+                class="form-control"
+                placeholder="0,00"
+                data-testid="recipe-cost-input"
+                required
+              />
             </div>
             <div class="form-group">
               <label>Quantidade</label>
               <input
                 v-model.number="recipeForm.quantity"
                 type="number"
-                step="0.001"
-                min="0.001"
+                step="0.0001"
+                min="0.0001"
                 class="form-control"
-                placeholder="0"
+                placeholder="1"
                 data-testid="recipe-quantity-input"
                 required
               />
@@ -312,27 +399,25 @@ onMounted(() => {
           </form>
 
           <!-- Recipe items table -->
-          <div v-if="productStore.recipeItems.length === 0" class="empty-state">
-            <p>Nenhum ingrediente na ficha técnica.</p>
+          <div v-if="productStore.includes.length === 0" class="empty-state">
+            <p>Nenhum item na ficha técnica.</p>
           </div>
           <div v-else class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Ingrediente</th>
-                  <th>Unidade</th>
+                  <th>Nome</th>
+                  <th>Custo</th>
                   <th>Quantidade</th>
-                  <th>Custo/Unidade</th>
                   <th>Custo Total</th>
                   <th style="width: 80px">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in productStore.recipeItems" :key="item.id">
-                  <td>{{ item.ingredientName }}</td>
-                  <td>{{ item.ingredientUnit }}</td>
+                <tr v-for="item in productStore.includes" :key="item.id">
+                  <td>{{ item.name }}</td>
+                  <td>{{ formatCurrency(item.cost) }}</td>
                   <td>{{ item.quantity }}</td>
-                  <td>{{ formatCurrency(item.costPerUnit) }}</td>
                   <td>{{ formatCurrency(item.totalCost) }}</td>
                   <td>
                     <button
@@ -345,6 +430,33 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clear Recipe Confirmation Modal -->
+    <div v-if="confirmClearRecipe" class="modal-overlay" @click.self="confirmClearRecipe = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Limpar Ficha Técnica</h2>
+          <button class="modal-close" @click="confirmClearRecipe = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Tem certeza que deseja remover <strong>todos</strong> os itens da ficha técnica
+            de <strong>{{ selectedProduct?.name }}</strong>?
+          </p>
+          <p style="font-size: 0.85rem; color: #64748b">Essa ação não pode ser desfeita.</p>
+          <div class="form-actions">
+            <button class="btn btn-secondary" @click="confirmClearRecipe = false">Cancelar</button>
+            <button
+              class="btn btn-danger"
+              data-testid="confirm-clear-recipe-button"
+              @click="handleClearRecipe"
+            >
+              Limpar tudo
+            </button>
           </div>
         </div>
       </div>
@@ -369,4 +481,9 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.page-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+</style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useCustomerStore } from '@/stores/customerStore'
+import PageControls from '@/components/PageControls.vue'
 import type { CustomerRequest, CustomerResponse } from '@/types/Customer'
 
 const store = useCustomerStore()
@@ -58,8 +59,16 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  store.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  store.fetchPage({ page: p })
+}
+
 onMounted(() => {
-  store.fetchAll()
+  store.fetchPage({ page: 0, search: '' })
 })
 </script>
 
@@ -72,13 +81,27 @@ onMounted(() => {
 
     <div v-if="store.error" class="alert alert-error">{{ store.error }}</div>
 
+    <PageControls
+      v-model="store.search"
+      :page="store.page"
+      :total-pages="store.totalPages"
+      :total-elements="store.totalElements"
+      :loading="store.loading"
+      placeholder="Buscar cliente por nome..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
+
     <div v-if="store.loading" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="store.items.length === 0" class="empty-state">
-      <p>Nenhum cliente cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">Cadastrar primeiro cliente</button>
+      <p v-if="store.search">Nenhum cliente encontrado para "{{ store.search }}".</p>
+      <template v-else>
+        <p>Nenhum cliente cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">Cadastrar primeiro cliente</button>
+      </template>
     </div>
 
     <div v-else class="table-container">

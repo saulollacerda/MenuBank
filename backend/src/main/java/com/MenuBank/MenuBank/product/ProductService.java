@@ -3,11 +3,12 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -15,38 +16,34 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
-    private final UserContext userContext;
+    private final MerchantRepository merchantRepository;
+    private final MerchantContext merchantContext;
 
     public ProductService(ProductRepository productRepository,
                           CategoryRepository categoryRepository,
-                          UserContext userContext) {
+                          MerchantRepository merchantRepository,
+                          MerchantContext merchantContext) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
-        this.userContext = userContext;
+        this.merchantRepository = merchantRepository;
+        this.merchantContext = merchantContext;
     }
 
     public ProductResponse create(ProductRequest request) {
-        UUID ownerId = userContext.getUserId();
+        UUID merchantId = merchantContext.getMerchantId();
 
-        if (productRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
+        if (productRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateProductException("nome");
         }
 
-        Category category = categoryRepository.findByIdAndOwnerId(request.getCategoryId(), ownerId)
+        Category category = categoryRepository.findByIdAndMerchantId(request.getCategoryId(), merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
 
-        BigDecimal price = request.getPrice();
-        BigDecimal estimatedCost = BigDecimal.ZERO;
-        BigDecimal margin = price.subtract(estimatedCost);
-
         Product product = Product.builder()
-                .ownerId(ownerId)
+                .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
-                .price(price)
-                .estimatedCost(estimatedCost)
-                .margin(margin)
+                .price(request.getPrice())
                 .status(ProductStatus.ACTIVE)
-                .cmv(BigDecimal.ZERO)
                 .category(category)
                 .build();
 
@@ -55,31 +52,29 @@ public class ProductService {
     }
 
     public ProductResponse findById(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        Product product = productRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Product product = productRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
         return toResponse(product);
     }
 
-    public List<ProductResponse> findAll() {
-        UUID ownerId = userContext.getUserId();
-        return productRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<ProductResponse> findAll(String search, Pageable pageable) {
+        UUID merchantId = merchantContext.getMerchantId();
+        String term = search == null ? "" : search;
+        return productRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
+                .map(this::toResponse);
     }
 
     public ProductResponse update(UUID id, ProductRequest request) {
-        UUID ownerId = userContext.getUserId();
-        Product product = productRepository.findByIdAndOwnerId(id, ownerId)
+        UUID merchantId = merchantContext.getMerchantId();
+        Product product = productRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 
-        Category category = categoryRepository.findByIdAndOwnerId(request.getCategoryId(), ownerId)
+        Category category = categoryRepository.findByIdAndMerchantId(request.getCategoryId(), merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
 
         product.setName(request.getName());
         product.setPrice(request.getPrice());
-        product.setMargin(request.getPrice().subtract(
-                product.getEstimatedCost() != null ? product.getEstimatedCost() : BigDecimal.ZERO));
         product.setCategory(category);
 
         Product saved = productRepository.save(product);
@@ -87,11 +82,11 @@ public class ProductService {
     }
 
     public void delete(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        if (!productRepository.existsByIdAndOwnerId(id, ownerId)) {
+        UUID merchantId = merchantContext.getMerchantId();
+        if (!productRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new ProductNotFoundException(id);
         }
-        productRepository.deleteByIdAndOwnerId(id, ownerId);
+        productRepository.deleteByIdAndMerchantId(id, merchantId);
     }
 
     private ProductResponse toResponse(Product product) {
@@ -100,10 +95,7 @@ public class ProductService {
                 .id(product.getId())
                 .name(product.getName())
                 .price(product.getPrice())
-                .estimatedCost(product.getEstimatedCost())
-                .margin(product.getMargin())
                 .status(product.getStatus())
-                .cmv(product.getCmv())
                 .categoryId(category != null ? category.getId() : null)
                 .categoryName(category != null ? category.getName() : null)
                 .build();

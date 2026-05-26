@@ -247,26 +247,34 @@ class OrderControllerTest {
     class GetAllOrders {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de pedidos")
-        void shouldReturn200WithOrderList() throws Exception {
-            given(orderService.findAll()).willReturn(List.of(orderResponse));
+        @DisplayName("deve retornar 200 com página de pedidos")
+        void shouldReturn200WithOrderPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(orderService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(orderResponse), pageable, 1));
 
             mockMvc.perform(get("/api/orders"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(orderId.toString()))
-                    .andExpect(jsonPath("$[0].status").value("PAID"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(orderId.toString()))
+                    .andExpect(jsonPath("$.content[0].status").value("PAID"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há pedidos")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(orderService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(orderService.findAll(eq("maria"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(orderResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/orders"))
+            mockMvc.perform(get("/api/orders").param("search", "maria"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].id").value(orderId.toString()));
         }
     }
 

@@ -1,9 +1,17 @@
 import api from './api'
 import type { CustomerRequest, CustomerResponse } from '@/types/Customer'
+import type { Page, PageParams } from '@/types/Page'
+import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 
 export const customerService = {
-  async findAll(): Promise<CustomerResponse[]> {
-    const { data } = await api.get<CustomerResponse[]>('/customers')
+  async findAll(params: PageParams = {}): Promise<Page<CustomerResponse>> {
+    const { data } = await api.get<Page<CustomerResponse>>('/customers', {
+      params: {
+        search: params.search ?? '',
+        page: params.page ?? 0,
+        size: params.size ?? DEFAULT_PAGE_SIZE,
+      },
+    })
     return data
   },
 
@@ -26,4 +34,3 @@ export const customerService = {
     await api.delete(`/customers/${id}`)
   },
 }
-

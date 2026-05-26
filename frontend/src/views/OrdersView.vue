@@ -4,22 +4,41 @@ import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
-import { usePaymentMethodStore } from '@/stores/paymentMethodStore'
+import { useFeeStore } from '@/stores/feeStore'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import { useNotificationStore } from '@/stores/notificationStore'
+import PageControls from '@/components/PageControls.vue'
 import type {
   OrderRequest,
   OrderResponse,
   OrderItemRequest,
   OrderItemExtraIngredientRequest,
+  OrderOrigin,
 } from '@/types/Order'
 
 const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
-const paymentMethodStore = usePaymentMethodStore()
+const feeStore = useFeeStore()
+const anotaAIStore = useAnotaAIStore()
+const notificationStore = useNotificationStore()
+
+async function handleSyncAnotaAI() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncOrders()
+  } catch {
+    // erro fica em anotaAIStore.error
+  } finally {
+    // Refresh notification badge — sync may have created MISSING_INGREDIENT entries.
+    notificationStore.refreshCount()
+  }
+}
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
+const loadingDetail = ref(false)
 const selectedOrder = ref<OrderResponse | null>(null)
 const confirmDeleteId = ref<string | null>(null)
 const editingOrderId = ref<string | null>(null)
@@ -73,6 +92,24 @@ function statusLabel(status: string): string {
   return map[status] ?? status
 }
 
+function originLabel(origin: OrderOrigin | undefined): string {
+  const map: Record<OrderOrigin, string> = {
+    MENUBANK: 'MenuBank',
+    ANOTA_AI: 'Anota.AI',
+    IFOOD: 'iFood',
+  }
+  return map[origin ?? 'MENUBANK']
+}
+
+function originClass(origin: OrderOrigin | undefined): string {
+  const map: Record<OrderOrigin, string> = {
+    MENUBANK: 'badge badge-origin badge-origin-menubank',
+    ANOTA_AI: 'badge badge-origin badge-origin-anotaai',
+    IFOOD: 'badge badge-origin badge-origin-ifood',
+  }
+  return map[origin ?? 'MENUBANK']
+}
+
 function statusClass(status: string): string {
   const map: Record<string, string> = {
     PENDING: 'badge badge-pending',
@@ -96,7 +133,7 @@ function openEditModal(order: OrderResponse) {
   form.value = {
     customerId: order.customerId,
     status: order.status,
-    paymentMethodId: order.paymentMethodId,
+    feeId: order.feeId,
     items: order.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -156,9 +193,17 @@ async function handleSubmit() {
   }
 }
 
-function viewDetail(order: OrderResponse) {
-  selectedOrder.value = order
+async function viewDetail(order: OrderResponse) {
   showDetailModal.value = true
+  loadingDetail.value = true
+  selectedOrder.value = null
+  try {
+    selectedOrder.value = await orderStore.findById(order.id)
+  } catch {
+    showDetailModal.value = false
+  } finally {
+    loadingDetail.value = false
+  }
 }
 
 function closeDetailModal() {
@@ -180,12 +225,24 @@ async function handleDelete() {
   confirmDeleteId.value = null
 }
 
+function onSearch(term: string) {
+  orderStore.fetchPage({ search: term, page: 0 })
+}
+
+function onPageChange(p: number) {
+  orderStore.fetchPage({ page: p })
+}
+
+function onSortChange(value: string) {
+  orderStore.fetchPage({ sort: value, page: 0 })
+}
+
 onMounted(() => {
-  orderStore.fetchAll()
+  orderStore.fetchPage({ page: 0, search: '' })
   customerStore.fetchAll()
   productStore.fetchAll()
   ingredientStore.fetchAll()
-  paymentMethodStore.fetchAll()
+  feeStore.fetchAll()
 })
 </script>
 
@@ -193,20 +250,85 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <h1>Pedidos</h1>
-      <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
-        + Novo Pedido
-      </button>
+      <div class="page-header-actions">
+        <button
+          class="btn btn-secondary"
+          data-testid="sync-anotaai-orders-button"
+          :disabled="anotaAIStore.syncingOrders"
+          @click="handleSyncAnotaAI"
+        >
+          <span v-if="anotaAIStore.syncingOrders" class="spinner spinner-sm"></span>
+          <span v-else>📥 Importar do Anota.AI</span>
+        </button>
+        <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
+          + Novo Pedido
+        </button>
+      </div>
+    </div>
+
+    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
+    <div
+      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+      class="alert alert-success"
+    >
+      {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
+      {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
+      <span v-if="anotaAIStore.lastResult.errors.length > 0">
+        ({{ anotaAIStore.lastResult.errors.length }} erro(s) ignorado(s))
+      </span>
+    </div>
+    <div
+      v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
+      class="alert alert-warning"
+      data-testid="missing-ingredients-alert"
+    >
+      ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não
+      encontrado(s) e descartado(s) dos pedidos:
+      <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
+      Abra o sino de notificações para cadastrá-los.
     </div>
 
     <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
+
+    <div class="order-filters">
+      <div class="filter-group">
+        <label for="order-sort">Ordenar por</label>
+        <select
+          id="order-sort"
+          class="form-control"
+          data-testid="order-sort-select"
+          :value="orderStore.sort"
+          @change="onSortChange(($event.target as HTMLSelectElement).value)"
+        >
+          <option value="dateTime,desc">Data: mais recentes primeiro</option>
+          <option value="dateTime,asc">Data: mais antigos primeiro</option>
+          <option value="totalValue,desc">Valor: maior → menor</option>
+          <option value="totalValue,asc">Valor: menor → maior</option>
+        </select>
+      </div>
+    </div>
+
+    <PageControls
+      v-model="orderStore.search"
+      :page="orderStore.page"
+      :total-pages="orderStore.totalPages"
+      :total-elements="orderStore.totalElements"
+      :loading="orderStore.loading"
+      placeholder="Buscar pedido pelo nome do cliente..."
+      @search="onSearch"
+      @page-change="onPageChange"
+    />
 
     <div v-if="orderStore.loading" class="loading-container">
       <div class="spinner" />
     </div>
 
     <div v-else-if="orderStore.items.length === 0" class="empty-state">
-      <p>Nenhum pedido cadastrado.</p>
-      <button class="btn btn-primary" @click="openCreateModal">Criar primeiro pedido</button>
+      <p v-if="orderStore.search">Nenhum pedido encontrado para "{{ orderStore.search }}".</p>
+      <template v-else>
+        <p>Nenhum pedido cadastrado.</p>
+        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro pedido</button>
+      </template>
     </div>
 
     <div v-else class="table-container">
@@ -224,7 +346,12 @@ onMounted(() => {
         <tbody>
           <tr v-for="order in orderStore.items" :key="order.id">
             <td>{{ formatDateTime(order.dateTime) }}</td>
-            <td>{{ order.customerName }}</td>
+            <td>
+              {{ order.customerName }}
+              <span :class="originClass(order.origin)" :data-testid="`order-${order.id}-origin-badge`">
+                {{ originLabel(order.origin) }}
+              </span>
+            </td>
             <td>
               <span :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span>
             </td>
@@ -302,19 +429,19 @@ onMounted(() => {
             </div>
 
             <div class="form-group">
-              <label>Forma de Pagamento</label>
+              <label>Taxa</label>
               <select
-                v-model="form.paymentMethodId"
+                v-model="form.feeId"
                 class="form-control"
-                data-testid="order-payment-method-select"
+                data-testid="order-fee-select"
               >
                 <option :value="undefined">Nenhuma</option>
                 <option
-                  v-for="pm in paymentMethodStore.items"
-                  :key="pm.id"
-                  :value="pm.id"
+                  v-for="fee in feeStore.items"
+                  :key="fee.id"
+                  :value="fee.id"
                 >
-                  {{ pm.name }} ({{ pm.feeRate }}%)
+                  {{ fee.name }} ({{ fee.feeRate }}%)
                 </option>
               </select>
             </div>
@@ -457,7 +584,7 @@ onMounted(() => {
 
     <!-- Order Detail Modal -->
     <div
-      v-if="showDetailModal && selectedOrder"
+      v-if="showDetailModal"
       class="modal-overlay"
       data-testid="order-detail-modal"
       @click.self="closeDetailModal"
@@ -468,6 +595,10 @@ onMounted(() => {
           <button class="modal-close" @click="closeDetailModal">✕</button>
         </div>
         <div class="modal-body">
+          <div v-if="loadingDetail" class="loading-container">
+            <div class="spinner" />
+          </div>
+          <template v-else-if="selectedOrder">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px">
             <div>
               <strong>Cliente:</strong> {{ selectedOrder.customerName }}
@@ -484,11 +615,23 @@ onMounted(() => {
             <div>
               <strong>Valor Total:</strong> {{ formatCurrency(selectedOrder.totalValue) }}
             </div>
+            <div v-if="selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0">
+              <strong>Taxa de Entrega:</strong>
+              <span
+                data-testid="order-detail-delivery-fee"
+                title="Repassada ao entregador/plataforma — descontada da receita no cálculo do lucro"
+              >
+                {{ formatCurrency(selectedOrder.deliveryFee) }}
+              </span>
+            </div>
             <div>
               <strong>Total de custos:</strong>
               <span data-testid="order-detail-total-cost">
-                {{ formatCurrency(orderTotalCost(selectedOrder)) }}
+                {{ formatCurrency(selectedOrder.totalCost ?? orderTotalCost(selectedOrder)) }}
               </span>
+              <small v-if="selectedOrder.totalCost != null" style="color: #64748b; margin-left: 4px">
+                (snapshot)
+              </small>
             </div>
             <div>
               <strong>Lucro Estimado:</strong>
@@ -502,9 +645,9 @@ onMounted(() => {
                 {{ formatPercent(orderMargin(selectedOrder)) }}
               </span>
             </div>
-            <div v-if="selectedOrder.paymentMethodName">
-              <strong>Forma de Pagamento:</strong>
-              {{ selectedOrder.paymentMethodName }} ({{ selectedOrder.feeRate }}%)
+            <div v-if="selectedOrder.feeName">
+              <strong>Taxa:</strong>
+              {{ selectedOrder.feeName }} ({{ selectedOrder.feeRate }}%)
             </div>
           </div>
 
@@ -534,6 +677,32 @@ onMounted(() => {
                   <strong>Lucro do item:</strong>
                   {{ formatCurrency(item.unitPrice * item.quantity - item.totalCost) }}
                 </div>
+              </div>
+
+              <div
+                v-if="item.insumos && item.insumos.length"
+                :data-testid="`order-detail-insumos-${item.id}`"
+                style="margin-top: 10px"
+              >
+                <div style="font-weight: 600; margin-bottom: 4px">Insumos</div>
+                <table style="width: 100%; font-size: 0.875rem">
+                  <thead>
+                    <tr>
+                      <th style="text-align: left">Insumo</th>
+                      <th style="text-align: right">Quantidade</th>
+                      <th style="text-align: right">Custo Unit.</th>
+                      <th style="text-align: right">Custo Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="insumo in item.insumos" :key="insumo.id">
+                      <td>{{ insumo.name }}</td>
+                      <td style="text-align: right">{{ insumo.quantity }}</td>
+                      <td style="text-align: right">{{ formatCurrency(insumo.cost) }}</td>
+                      <td style="text-align: right">{{ formatCurrency(insumo.totalCost) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               <div
@@ -568,6 +737,7 @@ onMounted(() => {
           <div class="form-actions">
             <button class="btn btn-secondary" @click="closeDetailModal">Fechar</button>
           </div>
+          </template>
         </div>
       </div>
     </div>
@@ -591,5 +761,59 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.page-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge-origin {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 999px;
+}
+
+.badge-origin-anotaai {
+  background: #2563eb; /* azul */
+}
+
+.badge-origin-ifood {
+  background: #ef4444; /* vermelho */
+}
+
+.badge-origin-menubank {
+  background: #8b5cf6; /* roxo */
+}
+
+.order-filters {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.order-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.order-filters .filter-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.order-filters .filter-group .form-control {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  min-width: 240px;
+}
+</style>
 

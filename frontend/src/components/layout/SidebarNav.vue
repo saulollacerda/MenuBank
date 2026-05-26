@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -13,8 +14,11 @@ function handleLogout() {
 
 <template>
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      Menu<span>Bank</span>
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        Menu<span>Bank</span>
+      </div>
+      <NotificationBell />
     </div>
     <nav class="sidebar-nav">
       <RouterLink to="/">
@@ -41,9 +45,13 @@ function handleLogout() {
         <span class="nav-icon">👤</span>
         <span>Clientes</span>
       </RouterLink>
-      <RouterLink to="/payment-methods">
+      <RouterLink to="/fees">
         <span class="nav-icon">💳</span>
-        <span>Formas de Pagamento</span>
+        <span>Taxas</span>
+      </RouterLink>
+      <RouterLink to="/settings">
+        <span class="nav-icon">⚙️</span>
+        <span>Configurações</span>
       </RouterLink>
     </nav>
     <div class="sidebar-footer">
@@ -59,4 +67,11 @@ function handleLogout() {
   </aside>
 </template>
 
-<style scoped></style>
+<style scoped>
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+}
+</style>

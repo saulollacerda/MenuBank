@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.category;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -8,16 +10,19 @@ import java.util.UUID;
 
 public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
-    boolean existsByNameAndOwnerId(String name, UUID ownerId);
+    boolean existsByNameAndMerchantId(String name, UUID merchantId);
 
-    Optional<Category> findByNameAndOwnerId(String name, UUID ownerId);
+    Optional<Category> findByNameAndMerchantId(String name, UUID merchantId);
 
-    Optional<Category> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Category> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Category> findAllByOwnerId(UUID ownerId);
+    List<Category> findAllByMerchantId(UUID merchantId);
 
-    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+    Page<Category> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
+
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
+
+    Optional<Category> findByExternalIdAndMerchantId(String externalId, UUID merchantId);
 }
-

@@ -34,7 +34,7 @@ function mountView() {
 
 async function fillForm(wrapper: ReturnType<typeof mountView>, overrides?: Partial<Record<string, string>>) {
   const values = {
-    restaurantName: 'Restaurante Teste',
+    merchantName: 'Restaurante Teste',
     cnpj: '12345678000195',
     email: 'teste@email.com',
     password: 'senha123',
@@ -43,7 +43,7 @@ async function fillForm(wrapper: ReturnType<typeof mountView>, overrides?: Parti
     ...overrides,
   }
 
-  await wrapper.find('#restaurantName').setValue(values.restaurantName)
+  await wrapper.find('#merchantName').setValue(values.merchantName)
   await wrapper.find('#cnpj').setValue(values.cnpj)
   await wrapper.find('#email').setValue(values.email)
   await wrapper.find('#password').setValue(values.password)
@@ -86,7 +86,7 @@ describe('RegisterView', () => {
       token: 'token',
       userId: '123',
       email: 'teste@email.com',
-      restaurantName: 'Restaurante Teste',
+      merchantName: 'Restaurante Teste',
     })
 
     await fillForm(wrapper)
@@ -95,7 +95,7 @@ describe('RegisterView', () => {
 
     expect(registerMock).toHaveBeenCalledOnce()
     expect(registerMock).toHaveBeenCalledWith({
-      restaurantName: 'Restaurante Teste',
+      merchantName: 'Restaurante Teste',
       cnpj: '12345678000195',
       email: 'teste@email.com',
       password: 'senha123',

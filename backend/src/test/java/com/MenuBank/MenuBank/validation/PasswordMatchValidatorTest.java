@@ -1,6 +1,6 @@
 package com.MenuBank.MenuBank.validation;
 
-import com.MenuBank.MenuBank.user.UserRequest;
+import com.MenuBank.MenuBank.merchant.MerchantRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +14,7 @@ class PasswordMatchValidatorTest {
     @Test
     @DisplayName("deve aceitar quando senha e confirmação são iguais")
     void shouldAcceptWhenPasswordsMatch() {
-        UserRequest request = UserRequest.builder()
+        MerchantRequest request = MerchantRequest.builder()
                 .password("senha123")
                 .confirmPassword("senha123")
                 .build();
@@ -25,7 +25,7 @@ class PasswordMatchValidatorTest {
     @Test
     @DisplayName("deve rejeitar quando senha e confirmação são diferentes")
     void shouldRejectWhenPasswordsDoNotMatch() {
-        UserRequest request = UserRequest.builder()
+        MerchantRequest request = MerchantRequest.builder()
                 .password("senha123")
                 .confirmPassword("outraSenha")
                 .build();
@@ -36,7 +36,7 @@ class PasswordMatchValidatorTest {
     @Test
     @DisplayName("deve ignorar validação quando senha está ausente")
     void shouldIgnoreWhenPasswordIsMissing() {
-        UserRequest request = UserRequest.builder()
+        MerchantRequest request = MerchantRequest.builder()
                 .confirmPassword("senha123")
                 .build();
 

@@ -1,7 +1,9 @@
 package com.MenuBank.MenuBank.export;
 
+import com.MenuBank.MenuBank.merchant.Merchant;
+
 import com.MenuBank.MenuBank.category.Category;
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
@@ -9,7 +11,7 @@ import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.order.OrderStatus;
-import com.MenuBank.MenuBank.payment.PaymentMethod;
+import com.MenuBank.MenuBank.fee.Fee;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductStatus;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -40,64 +42,63 @@ class ExportServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private UserContext userContext;
+    private MerchantContext merchantContext;
 
     @InjectMocks
     private ExportService exportService;
 
-    private UUID ownerId;
+    private UUID merchantId;
     private LocalDate startDate;
     private LocalDate endDate;
     private Customer customer;
-    private PaymentMethod paymentMethod;
+    private Fee fee;
     private Category category;
     private Product product;
 
     @BeforeEach
     void setUp() {
-        ownerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
         startDate = LocalDate.of(2026, 3, 1);
         endDate = LocalDate.of(2026, 3, 31);
 
         customer = Customer.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("João Silva")
                 .build();
 
-        paymentMethod = PaymentMethod.builder()
+        fee = Fee.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Cartão de Crédito")
                 .feeRate(new BigDecimal("2.99"))
                 .build();
 
         category = Category.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Lanches")
                 .build();
 
         product = Product.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("X-Burguer")
                 .price(new BigDecimal("25.00"))
-                .estimatedCost(new BigDecimal("10.00"))
                 .status(ProductStatus.ACTIVE)
                 .category(category)
                 .build();
     }
 
     private Order buildOrder(LocalDateTime dateTime, BigDecimal totalValue,
-                             BigDecimal estimatedProfit, PaymentMethod pm,
+                             BigDecimal estimatedProfit, Fee f,
                              List<OrderItem> items) {
         return Order.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .dateTime(dateTime)
                 .customer(customer)
-                .paymentMethod(pm)
+                .fee(f)
                 .status(OrderStatus.PAID)
                 .totalValue(totalValue)
                 .estimatedProfit(estimatedProfit)
@@ -125,8 +126,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar byte array não-vazio para um workbook válido")
         void shouldReturnNonEmptyByteArray() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -137,8 +138,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar um arquivo .xlsx válido (legível pelo Apache POI)")
         void shouldReturnValidXlsxFile() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -153,8 +154,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve gerar workbook com 3 abas")
         void shouldGenerateWorkbookWithThreeSheets() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -176,8 +177,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Resumo Financeiro' como primeira aba")
         void shouldCreateResumoFinanceiroAsFirstSheet() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -193,13 +194,13 @@ class ExportServiceTest {
             OrderItem item = buildItem(product, 2, new BigDecimal("25.00"));
             List<Order> orders = List.of(
                     buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
-                            new BigDecimal("30.00"), paymentMethod, List.of(item)),
+                            new BigDecimal("30.00"), fee, List.of(item)),
                     buildOrder(startDate.atTime(14, 0), new BigDecimal("200.00"),
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -213,18 +214,18 @@ class ExportServiceTest {
         }
 
         @Test
-        @DisplayName("deve calcular taxaTotal apenas para pedidos com método de pagamento")
-        void shouldCalculateFeeOnlyForOrdersWithPaymentMethod() throws Exception {
+        @DisplayName("deve calcular taxaTotal apenas para pedidos com taxa")
+        void shouldCalculateFeeOnlyForOrdersWithFee() throws Exception {
             OrderItem item = buildItem(product, 1, new BigDecimal("100.00"));
             List<Order> orders = List.of(
                     buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
-                            new BigDecimal("30.00"), paymentMethod, List.of(item)),
+                            new BigDecimal("30.00"), fee, List.of(item)),
                     buildOrder(startDate.atTime(14, 0), new BigDecimal("200.00"),
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -250,8 +251,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Pedidos' como segunda aba")
         void shouldCreatePedidosAsSecondSheet() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -267,13 +268,13 @@ class ExportServiceTest {
             OrderItem item = buildItem(product, 1, new BigDecimal("25.00"));
             List<Order> orders = List.of(
                     buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
-                            new BigDecimal("30.00"), paymentMethod, List.of(item)),
+                            new BigDecimal("30.00"), fee, List.of(item)),
                     buildOrder(startDate.atTime(14, 0), new BigDecimal("200.00"),
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -290,11 +291,11 @@ class ExportServiceTest {
         void shouldFillCustomerName() throws Exception {
             List<Order> orders = List.of(
                     buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
-                            new BigDecimal("30.00"), paymentMethod, List.of())
+                            new BigDecimal("30.00"), fee, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -319,8 +320,8 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Desempenho por Produto' como terceira aba")
         void shouldCreateDesempenhoPorProdutoAsThirdSheet() throws Exception {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -342,8 +343,8 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -367,8 +368,8 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
@@ -406,6 +407,7 @@ class ExportServiceTest {
                     .product(product)
                     .quantity(2)
                     .unitPrice(new BigDecimal("25.00"))
+                    .unitCost(new BigDecimal("10.00"))
                     .extraIngredients(new ArrayList<>(List.of(extra)))
                     .build();
 
@@ -414,8 +416,8 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item))
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(startDate, endDate);
