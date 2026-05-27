@@ -90,7 +90,7 @@ describe('App', () => {
     })
 
     expect(wrapper.find('.app-layout').exists()).toBe(true)
-    expect(wrapper.find('.sidebar').exists()).toBe(true)
+    expect(wrapper.find('aside').exists()).toBe(true)
     expect(wrapper.find('.main-content').exists()).toBe(true)
   })
 
@@ -105,6 +105,6 @@ describe('App', () => {
     })
 
     expect(wrapper.find('.app-layout').exists()).toBe(false)
-    expect(wrapper.find('.sidebar').exists()).toBe(false)
+    expect(wrapper.find('aside').exists()).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
@@ -7,7 +7,20 @@ import { useIngredientStore } from '@/stores/ingredientStore'
 import { useFeeStore } from '@/stores/feeStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
 import { useNotificationStore } from '@/stores/notificationStore'
-import PageControls from '@/components/PageControls.vue'
+import {
+  UI,
+  UITopbar,
+  UIBtn,
+  UIPill,
+  UISearch,
+  UIField,
+  UIInput,
+  UISelect,
+  UIModal,
+  UIIcon,
+  UIRowAction,
+  brl,
+} from '@/design'
 import type {
   OrderRequest,
   OrderResponse,
@@ -24,18 +37,6 @@ const feeStore = useFeeStore()
 const anotaAIStore = useAnotaAIStore()
 const notificationStore = useNotificationStore()
 
-async function handleSyncAnotaAI() {
-  anotaAIStore.clearResult()
-  try {
-    await anotaAIStore.syncOrders()
-  } catch {
-    // erro fica em anotaAIStore.error
-  } finally {
-    // Refresh notification badge — sync may have created MISSING_INGREDIENT entries.
-    notificationStore.refreshCount()
-  }
-}
-
 const showModal = ref(false)
 const showDetailModal = ref(false)
 const loadingDetail = ref(false)
@@ -48,78 +49,91 @@ const form = ref<OrderRequest>({
   items: [{ productId: '', quantity: 1, extraIngredients: [] }],
 })
 
-function ensureExtrasArray(item: OrderItemRequest): OrderItemExtraIngredientRequest[] {
+function ensureExtras(item: OrderItemRequest): OrderItemExtraIngredientRequest[] {
   if (!item.extraIngredients) item.extraIngredients = []
   return item.extraIngredients
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(value ?? 0)
+function formatDateTime(s: string): string {
+  return new Date(s).toLocaleString('pt-BR')
+}
+function timeOf(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+function pctFmt(v: number): string {
+  return (v * 100).toFixed(1).replace('.', ',') + '%'
 }
 
-function formatPercent(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'percent',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue'; label: string }> = {
+  PENDING: { color: 'amber', label: 'Pendente' },
+  PAID: { color: 'emerald', label: 'Pago' },
+  CANCELLED: { color: 'rose', label: 'Cancelado' },
 }
 
-function orderTotalCost(order: OrderResponse): number {
-  return order.items.reduce((sum, item) => sum + (item.totalCost ?? 0), 0)
+function originLabel(o: OrderOrigin | undefined): string {
+  if (o === 'ANOTA_AI') return 'Anota.AI'
+  if (o === 'IFOOD') return 'iFood'
+  return 'MenuBank'
+}
+function originColor(o: OrderOrigin | undefined): 'blue' | 'rose' | 'violet' {
+  if (o === 'ANOTA_AI') return 'blue'
+  if (o === 'IFOOD') return 'rose'
+  return 'violet'
 }
 
-function orderMargin(order: OrderResponse): number {
-  if (!order.totalValue) return 0
-  return order.estimatedProfit / order.totalValue
+function orderTotalCost(o: OrderResponse): number {
+  return o.items.reduce((s, it) => s + (Number(it.totalCost) || 0), 0)
+}
+function orderMargin(o: OrderResponse): number {
+  if (!o.totalValue) return 0
+  return Number(o.estimatedProfit) / Number(o.totalValue)
 }
 
-function formatDateTime(dateTime: string): string {
-  return new Date(dateTime).toLocaleString('pt-BR')
-}
-
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    PENDING: 'Pendente',
-    PAID: 'Pago',
-    CANCELLED: 'Cancelado',
+const counts = computed(() => {
+  const items = orderStore.items
+  return {
+    total: orderStore.totalElements,
+    pending: items.filter((o) => o.status === 'PENDING').length,
+    paid: items.filter((o) => o.status === 'PAID').length,
+    cancelled: items.filter((o) => o.status === 'CANCELLED').length,
   }
-  return map[status] ?? status
+})
+
+const filterStatus = ref<'todos' | 'PENDING' | 'PAID' | 'CANCELLED'>('todos')
+const filteredItems = computed(() => {
+  if (filterStatus.value === 'todos') return orderStore.items
+  return orderStore.items.filter((o) => o.status === filterStatus.value)
+})
+
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+function onSearchInput(value: string) {
+  orderStore.search = value
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    orderStore.fetchPage({ search: value, page: 0 })
+  }, 300)
+}
+function onSortChange(value: string) {
+  orderStore.fetchPage({ sort: value, page: 0 })
+}
+function onPageChange(p: number) {
+  if (p < 0 || p >= orderStore.totalPages) return
+  orderStore.fetchPage({ page: p })
 }
 
-function originLabel(origin: OrderOrigin | undefined): string {
-  const map: Record<OrderOrigin, string> = {
-    MENUBANK: 'MenuBank',
-    ANOTA_AI: 'Anota.AI',
-    IFOOD: 'iFood',
+async function handleSyncAnotaAI() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncOrders()
+  } catch {
+    /* error in store */
+  } finally {
+    notificationStore.refreshCount()
   }
-  return map[origin ?? 'MENUBANK']
 }
 
-function originClass(origin: OrderOrigin | undefined): string {
-  const map: Record<OrderOrigin, string> = {
-    MENUBANK: 'badge badge-origin badge-origin-menubank',
-    ANOTA_AI: 'badge badge-origin badge-origin-anotaai',
-    IFOOD: 'badge badge-origin badge-origin-ifood',
-  }
-  return map[origin ?? 'MENUBANK']
-}
-
-function statusClass(status: string): string {
-  const map: Record<string, string> = {
-    PENDING: 'badge badge-pending',
-    PAID: 'badge badge-paid',
-    CANCELLED: 'badge badge-cancelled',
-  }
-  return map[status] ?? 'badge'
-}
-
-function openCreateModal() {
+function openCreate() {
   editingOrderId.value = null
   form.value = {
     customerId: '',
@@ -127,14 +141,13 @@ function openCreateModal() {
   }
   showModal.value = true
 }
-
-function openEditModal(order: OrderResponse) {
-  editingOrderId.value = order.id
+function openEdit(o: OrderResponse) {
+  editingOrderId.value = o.id
   form.value = {
-    customerId: order.customerId,
-    status: order.status,
-    feeId: order.feeId,
-    items: order.items.map((item) => ({
+    customerId: o.customerId,
+    status: o.status,
+    feeId: o.feeId,
+    items: o.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
       extraIngredients: (item.extraIngredients ?? []).map((extra) => ({
@@ -145,41 +158,27 @@ function openEditModal(order: OrderResponse) {
   }
   showModal.value = true
 }
-
 function closeModal() {
   showModal.value = false
   editingOrderId.value = null
 }
-
 function addItem() {
   form.value.items.push({ productId: '', quantity: 1, extraIngredients: [] })
 }
-
-function removeItem(index: number) {
-  if (form.value.items.length > 1) {
-    form.value.items.splice(index, 1)
-  }
+function removeItem(i: number) {
+  if (form.value.items.length > 1) form.value.items.splice(i, 1)
 }
-
-function addExtraIngredient(itemIndex: number) {
-  const item = form.value.items[itemIndex]
-  if (!item) return
-  ensureExtrasArray(item).push({ ingredientId: '', quantity: 1 })
+function addExtra(i: number) {
+  ensureExtras(form.value.items[i]!).push({ ingredientId: '', quantity: 1 })
 }
-
-function onExtraIngredientChange(extra: OrderItemExtraIngredientRequest, ingredientId: string) {
-  extra.ingredientId = ingredientId
-  const ingredient = ingredientStore.items.find((i) => i.id === ingredientId)
-  extra.quantity = ingredient?.defaultQuantity ?? 1
+function removeExtra(i: number, j: number) {
+  ensureExtras(form.value.items[i]!).splice(j, 1)
 }
-
-function removeExtraIngredient(itemIndex: number, extraIndex: number) {
-  const item = form.value.items[itemIndex]
-  if (!item) return
-  const extras = ensureExtrasArray(item)
-  extras.splice(extraIndex, 1)
+function onExtraChange(extra: OrderItemExtraIngredientRequest, id: string) {
+  extra.ingredientId = id
+  const ing = ingredientStore.items.find((x) => x.id === id)
+  extra.quantity = ing?.defaultQuantity ?? 1
 }
-
 async function handleSubmit() {
   try {
     if (editingOrderId.value) {
@@ -189,53 +188,43 @@ async function handleSubmit() {
     }
     closeModal()
   } catch {
-    // Error is handled by the store
+    /* store has error */
   }
 }
-
-async function viewDetail(order: OrderResponse) {
+async function viewDetail(o: OrderResponse) {
   showDetailModal.value = true
   loadingDetail.value = true
   selectedOrder.value = null
   try {
-    selectedOrder.value = await orderStore.findById(order.id)
+    selectedOrder.value = await orderStore.findById(o.id)
   } catch {
     showDetailModal.value = false
   } finally {
     loadingDetail.value = false
   }
 }
-
-function closeDetailModal() {
+function closeDetail() {
   showDetailModal.value = false
   selectedOrder.value = null
 }
-
-function confirmDelete(id: string) {
-  confirmDeleteId.value = id
-}
-
 async function handleDelete() {
   if (!confirmDeleteId.value) return
   try {
     await orderStore.remove(confirmDeleteId.value)
   } catch {
-    // Error is handled by the store
+    /* store has error */
   }
   confirmDeleteId.value = null
 }
 
-function onSearch(term: string) {
-  orderStore.fetchPage({ search: term, page: 0 })
-}
+const cols = '70px 1.5fr 100px 110px 110px 110px 90px 130px'
 
-function onPageChange(p: number) {
-  orderStore.fetchPage({ page: p })
-}
-
-function onSortChange(value: string) {
-  orderStore.fetchPage({ sort: value, page: 0 })
-}
+const statusPills = computed(() => [
+  { id: 'todos', label: 'Todos', count: counts.value.total, dot: undefined },
+  { id: 'PENDING', label: 'Pendentes', count: counts.value.pending, dot: UI.amber },
+  { id: 'PAID', label: 'Pagos', count: counts.value.paid, dot: UI.emerald2 },
+  { id: 'CANCELLED', label: 'Cancelados', count: counts.value.cancelled, dot: UI.rose },
+])
 
 onMounted(() => {
   orderStore.fetchPage({ page: 0, search: '' })
@@ -247,573 +236,920 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="page-header">
-      <h1>Pedidos</h1>
-      <div class="page-header-actions">
-        <button
-          class="btn btn-secondary"
-          data-testid="sync-anotaai-orders-button"
+  <div style="display: flex; flex-direction: column; flex: 1">
+    <UITopbar
+      title="Pedidos"
+      :subtitle="`${counts.total} pedidos no total`"
+    >
+      <template #actions>
+        <UIBtn
+          icon="download"
+          variant="secondary"
           :disabled="anotaAIStore.syncingOrders"
           @click="handleSyncAnotaAI"
         >
-          <span v-if="anotaAIStore.syncingOrders" class="spinner spinner-sm"></span>
-          <span v-else>📥 Importar do Anota.AI</span>
-        </button>
-        <button class="btn btn-primary" data-testid="new-order-button" @click="openCreateModal">
-          + Novo Pedido
-        </button>
+          {{ anotaAIStore.syncingOrders ? 'Importando…' : 'Importar do Anota.AI' }}
+        </UIBtn>
+        <UIBtn icon="plus" variant="dark" data-testid="new-order-button" @click="openCreate">
+          Novo Pedido
+        </UIBtn>
+      </template>
+    </UITopbar>
+
+    <div
+      style="
+        flex: 1;
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      "
+    >
+      <!-- Anota.AI sync alerts -->
+      <div
+        v-if="anotaAIStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.roseBg,
+          color: UI.rose2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        {{ anotaAIStore.error }}
       </div>
-    </div>
+      <div
+        v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.emeraldBg,
+          color: UI.emerald2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
+        {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
+      </div>
+      <div
+        v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
+        :style="{
+          padding: '10px 14px',
+          background: UI.amberBg,
+          color: UI.amber2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não encontrado(s):
+        <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
+        Abra o sino para cadastrá-los.
+      </div>
 
-    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
-    <div
-      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
-      class="alert alert-success"
-    >
-      {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
-      {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
-      <span v-if="anotaAIStore.lastResult.errors.length > 0">
-        ({{ anotaAIStore.lastResult.errors.length }} erro(s) ignorado(s))
-      </span>
-    </div>
-    <div
-      v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
-      class="alert alert-warning"
-      data-testid="missing-ingredients-alert"
-    >
-      ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não
-      encontrado(s) e descartado(s) dos pedidos:
-      <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
-      Abra o sino de notificações para cadastrá-los.
-    </div>
+      <div
+        v-if="orderStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.roseBg,
+          color: UI.rose2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        {{ orderStore.error }}
+      </div>
 
-    <div v-if="orderStore.error" class="alert alert-error">{{ orderStore.error }}</div>
-
-    <div class="order-filters">
-      <div class="filter-group">
-        <label for="order-sort">Ordenar por</label>
-        <select
-          id="order-sort"
-          class="form-control"
-          data-testid="order-sort-select"
-          :value="orderStore.sort"
-          @change="onSortChange(($event.target as HTMLSelectElement).value)"
+      <!-- Filter row -->
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap">
+        <div
+          :style="{
+            display: 'flex',
+            background: UI.panel,
+            border: `1px solid ${UI.border}`,
+            borderRadius: '10px',
+            padding: '4px',
+            gap: '2px',
+          }"
         >
-          <option value="dateTime,desc">Data: mais recentes primeiro</option>
-          <option value="dateTime,asc">Data: mais antigos primeiro</option>
+          <div
+            v-for="s in statusPills"
+            :key="s.id"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '6px 12px',
+              borderRadius: '7px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              background: filterStatus === s.id ? UI.bg : 'transparent',
+              color: filterStatus === s.id ? UI.text : UI.textSub,
+              cursor: 'pointer',
+            }"
+            @click="filterStatus = (s.id as typeof filterStatus)"
+          >
+            <span
+              v-if="s.dot"
+              :style="{ width: '6px', height: '6px', borderRadius: '3px', background: s.dot }"
+            />
+            {{ s.label }}
+            <span
+              :style="{
+                fontSize: '10.5px',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: filterStatus === s.id ? UI.panel : UI.bg,
+                color: UI.textMute,
+                fontWeight: 600,
+              }"
+            >
+              {{ s.count }}
+            </span>
+          </div>
+        </div>
+        <div style="flex: 1" />
+        <UISearch
+          :model-value="orderStore.search"
+          placeholder="Buscar por cliente…"
+          :width="260"
+          @update:model-value="onSearchInput"
+        />
+        <UISelect
+          :model-value="orderStore.sort"
+          :width="220"
+          @update:model-value="onSortChange"
+        >
+          <option value="dateTime,desc">Data: mais recentes</option>
+          <option value="dateTime,asc">Data: mais antigos</option>
           <option value="totalValue,desc">Valor: maior → menor</option>
           <option value="totalValue,asc">Valor: menor → maior</option>
-        </select>
+        </UISelect>
+      </div>
+
+      <!-- Table -->
+      <div
+        :style="{
+          background: UI.panel,
+          border: `1px solid ${UI.border}`,
+          borderRadius: '14px',
+          overflow: 'hidden',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }"
+      >
+        <div
+          :style="{
+            display: 'grid',
+            gridTemplateColumns: cols,
+            gap: '12px',
+            padding: '12px 18px',
+            background: UI.bgSoft,
+            borderBottom: `1px solid ${UI.border}`,
+            fontSize: '10.5px',
+            color: UI.textSub,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            flexShrink: 0,
+          }"
+        >
+          <span>Hora</span>
+          <span>Cliente</span>
+          <span>Canal</span>
+          <span>Status</span>
+          <span style="text-align: right">Valor</span>
+          <span style="text-align: right">Lucro</span>
+          <span style="text-align: right">Margem</span>
+          <span style="text-align: right">Ações</span>
+        </div>
+
+        <div style="flex: 1; overflow: auto">
+          <div
+            v-if="orderStore.loading"
+            :style="{
+              padding: '32px',
+              textAlign: 'center',
+              color: UI.textMute,
+            }"
+          >
+            Carregando…
+          </div>
+          <div
+            v-else-if="!filteredItems.length"
+            :style="{
+              padding: '60px 32px',
+              textAlign: 'center',
+              color: UI.textMute,
+              fontSize: '13px',
+            }"
+          >
+            Nenhum pedido encontrado.
+          </div>
+          <div
+            v-for="(o, i) in filteredItems"
+            v-else
+            :key="o.id"
+            class="ui-row"
+            :style="{
+              display: 'grid',
+              gridTemplateColumns: cols,
+              gap: '12px',
+              padding: '12px 18px',
+              borderBottom: i === filteredItems.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+              fontSize: '13px',
+              color: UI.text,
+              alignItems: 'center',
+            }"
+          >
+            <span :style="{ color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">{{ timeOf(o.dateTime) }}</span>
+            <span style="min-width: 0">
+              <span
+                :style="{
+                  display: 'block',
+                  fontWeight: 600,
+                  color: UI.text,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }"
+              >
+                {{ o.customerName }}
+              </span>
+              <span :style="{ display: 'block', fontSize: '11px', color: UI.textMute }">
+                {{ o.items.length }} {{ o.items.length === 1 ? 'item' : 'itens' }}
+              </span>
+            </span>
+            <span>
+              <UIPill :color="originColor(o.origin)" size="sm">{{ originLabel(o.origin) }}</UIPill>
+            </span>
+            <span>
+              <UIPill :color="STATUS_PILL[o.status]?.color ?? 'gray'" dot>
+                {{ STATUS_PILL[o.status]?.label ?? o.status }}
+              </UIPill>
+            </span>
+            <span
+              :style="{
+                textAlign: 'right',
+                fontWeight: 600,
+                color: UI.text,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ brl(Number(o.totalValue)) }}
+            </span>
+            <span
+              :style="{
+                textAlign: 'right',
+                color: UI.emerald2,
+                fontWeight: 600,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ brl(Number(o.estimatedProfit)) }}
+            </span>
+            <span
+              :style="{
+                textAlign: 'right',
+                color: UI.textSub,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ pctFmt(orderMargin(o)) }}
+            </span>
+            <span style="display: flex; gap: 5px; justify-content: flex-end">
+              <UIRowAction
+                icon="eye"
+                color="gray"
+                label="Detalhes"
+                :data-testid="`order-${o.id}-detail-button`"
+                @click="viewDetail(o)"
+              />
+              <UIRowAction
+                icon="edit"
+                color="blue"
+                label="Editar"
+                :data-testid="`order-${o.id}-edit-button`"
+                @click="openEdit(o)"
+              />
+              <UIRowAction
+                icon="trash"
+                color="rose"
+                label="Excluir"
+                :data-testid="`order-${o.id}-delete-button`"
+                @click="confirmDeleteId = o.id"
+              />
+            </span>
+          </div>
+        </div>
+
+        <div
+          :style="{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 18px',
+            borderTop: `1px solid ${UI.border}`,
+            background: UI.bgSoft,
+            fontSize: '12px',
+            color: UI.textSub,
+            flexShrink: 0,
+          }"
+        >
+          <span>
+            Página {{ orderStore.page + 1 }} de {{ Math.max(orderStore.totalPages, 1) }}
+            · {{ orderStore.totalElements }} pedidos
+          </span>
+          <div style="display: flex; gap: 6px; align-items: center">
+            <UIBtn
+              size="sm"
+              icon="chevLeft"
+              variant="secondary"
+              :disabled="orderStore.page === 0 || orderStore.loading"
+              @click="onPageChange(orderStore.page - 1)"
+            >
+              Anterior
+            </UIBtn>
+            <span
+              :style="{
+                padding: '5px 10px',
+                background: UI.text,
+                color: '#fff',
+                borderRadius: '6px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }"
+            >
+              {{ orderStore.page + 1 }}
+            </span>
+            <UIBtn
+              size="sm"
+              icon="chevRight"
+              variant="secondary"
+              :disabled="orderStore.page >= orderStore.totalPages - 1 || orderStore.loading"
+              @click="onPageChange(orderStore.page + 1)"
+            >
+              Próximo
+            </UIBtn>
+          </div>
+        </div>
       </div>
     </div>
 
-    <PageControls
-      v-model="orderStore.search"
-      :page="orderStore.page"
-      :total-pages="orderStore.totalPages"
-      :total-elements="orderStore.totalElements"
-      :loading="orderStore.loading"
-      placeholder="Buscar pedido pelo nome do cliente..."
-      @search="onSearch"
-      @page-change="onPageChange"
-    />
-
-    <div v-if="orderStore.loading" class="loading-container">
-      <div class="spinner" />
-    </div>
-
-    <div v-else-if="orderStore.items.length === 0" class="empty-state">
-      <p v-if="orderStore.search">Nenhum pedido encontrado para "{{ orderStore.search }}".</p>
-      <template v-else>
-        <p>Nenhum pedido cadastrado.</p>
-        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro pedido</button>
-      </template>
-    </div>
-
-    <div v-else class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Data/Hora</th>
-            <th>Cliente</th>
-            <th>Status</th>
-            <th>Valor Total</th>
-            <th>Lucro Estimado</th>
-            <th style="width: 200px">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="order in orderStore.items" :key="order.id">
-            <td>{{ formatDateTime(order.dateTime) }}</td>
-            <td>
-              {{ order.customerName }}
-              <span :class="originClass(order.origin)" :data-testid="`order-${order.id}-origin-badge`">
-                {{ originLabel(order.origin) }}
-              </span>
-            </td>
-            <td>
-              <span :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span>
-            </td>
-            <td>{{ formatCurrency(order.totalValue) }}</td>
-            <td>{{ formatCurrency(order.estimatedProfit) }}</td>
-            <td>
-              <div class="table-actions">
-                <button
-                  class="btn btn-secondary btn-sm"
-                  :data-testid="`order-${order.id}-detail-button`"
-                  @click="viewDetail(order)"
-                >
-                  Detalhes
-                </button>
-                <button
-                  class="btn btn-primary btn-sm"
-                  :data-testid="`order-${order.id}-edit-button`"
-                  @click="openEditModal(order)"
-                >
-                  Editar
-                </button>
-                <button
-                  class="btn btn-danger btn-sm"
-                  :data-testid="`order-${order.id}-delete-button`"
-                  @click="confirmDelete(order.id)"
-                >
-                  Excluir
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Create Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal modal-wide">
-        <div class="modal-header">
-          <h2 data-testid="order-form-title">{{ editingOrderId ? 'Editar Pedido' : 'Novo Pedido' }}</h2>
-          <button class="modal-close" @click="closeModal">✕</button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="handleSubmit">
-            <div class="form-group">
-              <label>Cliente</label>
-              <select
+    <!-- Create/Edit modal -->
+    <UIModal
+      v-if="showModal"
+      :title="editingOrderId ? 'Editar Pedido' : 'Novo Pedido'"
+      :subtitle="editingOrderId ? 'Atualize os detalhes do pedido' : 'Preencha os detalhes para registrar'"
+      :width="680"
+      title-test-id="order-form-title"
+      @close="closeModal"
+    >
+      <form id="order-form" @submit.prevent="handleSubmit">
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <div
+            :style="{
+              display: 'grid',
+              gridTemplateColumns: editingOrderId ? '1fr 1fr 1fr' : '1fr 1fr',
+              gap: '12px',
+            }"
+          >
+            <UIField label="Cliente">
+              <UISelect
                 v-model="form.customerId"
-                class="form-control"
+                placeholder="Selecione o cliente…"
                 data-testid="order-customer-select"
-                required
               >
-                <option value="" disabled>Selecione o cliente...</option>
-                <option
-                  v-for="customer in customerStore.items"
-                  :key="customer.id"
-                  :value="customer.id"
-                >
-                  {{ customer.name }}
+                <option v-for="c in customerStore.items" :key="c.id" :value="c.id">
+                  {{ c.name }}
                 </option>
-              </select>
-            </div>
-
-            <div v-if="editingOrderId" class="form-group">
-              <label>Status</label>
-              <select
-                v-model="form.status"
-                class="form-control"
-                data-testid="order-status-select"
-              >
+              </UISelect>
+            </UIField>
+            <UIField v-if="editingOrderId" label="Status">
+              <UISelect v-model="form.status" data-testid="order-status-select">
                 <option value="PENDING">Pendente</option>
                 <option value="PAID">Pago</option>
                 <option value="CANCELLED">Cancelado</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Taxa</label>
-              <select
-                v-model="form.feeId"
-                class="form-control"
-                data-testid="order-fee-select"
-              >
+              </UISelect>
+            </UIField>
+            <UIField label="Taxa de entrega">
+              <UISelect v-model="form.feeId" data-testid="order-fee-select">
                 <option :value="undefined">Nenhuma</option>
-                <option
-                  v-for="fee in feeStore.items"
-                  :key="fee.id"
-                  :value="fee.id"
-                >
-                  {{ fee.name }} ({{ fee.feeRate }}%)
+                <option v-for="f in feeStore.items" :key="f.id" :value="f.id">
+                  {{ f.name }} ({{ f.feeRate }}%)
                 </option>
-              </select>
+              </UISelect>
+            </UIField>
+          </div>
+
+          <div>
+            <div
+              :style="{
+                fontSize: '13px',
+                color: UI.text,
+                fontWeight: 600,
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }"
+            >
+              <span>Itens do pedido</span>
+              <UIBtn size="sm" icon="plus" variant="secondary" @click="addItem">
+                Adicionar item
+              </UIBtn>
             </div>
-
-            <div style="margin-bottom: 16px">
-              <label style="font-weight: 600; margin-bottom: 8px; display: block">
-                Itens do Pedido
-              </label>
+            <div style="display: flex; flex-direction: column; gap: 10px">
               <div
-                v-for="(item, index) in form.items"
-                :key="index"
-                class="order-items-row"
+                v-for="(item, i) in form.items"
+                :key="i"
+                :style="{
+                  background: UI.bgSoft,
+                  border: `1px solid ${UI.border}`,
+                  borderRadius: '11px',
+                  padding: '14px',
+                  position: 'relative',
+                }"
               >
-                <div class="form-group">
-                  <label>Produto</label>
-                  <select
-                    v-model="item.productId"
-                    class="form-control"
-                    :data-testid="`order-item-${index}-product-select`"
-                    required
-                  >
-                    <option value="" disabled>Selecione...</option>
-                    <option
-                      v-for="product in productStore.items"
-                      :key="product.id"
-                      :value="product.id"
+                <div style="display: flex; gap: 10px; align-items: flex-end">
+                  <UIField label="Produto" width="100%">
+                    <UISelect
+                      v-model="item.productId"
+                      placeholder="Selecionar…"
+                      :data-testid="`order-item-${i}-product-select`"
                     >
-                      {{ product.name }} — {{ formatCurrency(product.price) }}
-                    </option>
-                  </select>
-                </div>
-                <div class="form-group" style="max-width: 120px">
-                  <label>Qtd</label>
-                  <input
-                    v-model.number="item.quantity"
-                    type="number"
-                    min="1"
-                    class="form-control"
-                    :data-testid="`order-item-${index}-quantity-input`"
-                    required
-                  />
-                </div>
-                <button
-                  v-if="form.items.length > 1"
-                  type="button"
-                  class="btn btn-danger btn-sm"
-                  style="margin-bottom: 0"
-                  @click="removeItem(index)"
-                >
-                  ✕
-                </button>
-
-                <div class="order-extras" style="grid-column: 1 / -1">
-                  <label style="font-weight: 600; margin-bottom: 6px; display: block">
-                    Ingredientes extras
-                  </label>
-
+                      <option v-for="p in productStore.items" :key="p.id" :value="p.id">
+                        {{ p.name }} — {{ brl(Number(p.price)) }}
+                      </option>
+                    </UISelect>
+                  </UIField>
+                  <UIField label="Qtd" :width="80">
+                    <UIInput
+                      v-model.number="item.quantity"
+                      type="number"
+                      :data-testid="`order-item-${i}-quantity-input`"
+                    />
+                  </UIField>
                   <div
-                    v-for="(extra, extraIndex) in ensureExtrasArray(item)"
-                    :key="extraIndex"
-                    class="order-extras-row"
-                    style="display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px"
+                    v-if="form.items.length > 1"
+                    :style="{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '9px',
+                      background: UI.roseBg,
+                      color: UI.rose,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }"
+                    @click="removeItem(i)"
                   >
-                    <div class="form-group" style="flex: 1">
-                      <label>Ingrediente</label>
-                      <select
-                        :value="extra.ingredientId"
-                        class="form-control"
-                        :data-testid="`order-item-${index}-extra-${extraIndex}-ingredient-select`"
-                        required
-                        @change="
-                          onExtraIngredientChange(extra, ($event.target as HTMLSelectElement).value)
-                        "
+                    <UIIcon name="trash" :size="14" />
+                  </div>
+                </div>
+                <div
+                  :style="{
+                    marginTop: '14px',
+                    paddingTop: '12px',
+                    borderTop: `1px dashed ${UI.border}`,
+                  }"
+                >
+                  <div
+                    :style="{
+                      fontSize: '11.5px',
+                      color: UI.textSub,
+                      fontWeight: 600,
+                      marginBottom: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }"
+                  >
+                    <span>Ingredientes extras</span>
+                    <span
+                      :style="{ color: UI.blue, fontSize: '11px', cursor: 'pointer' }"
+                      :data-testid="`order-item-${i}-add-extra-button`"
+                      @click="addExtra(i)"
+                    >
+                      + Adicionar extra
+                    </span>
+                  </div>
+                  <div
+                    v-if="!ensureExtras(item).length"
+                    :style="{ fontSize: '11.5px', color: UI.textMute, fontStyle: 'italic' }"
+                  >
+                    Nenhum extra
+                  </div>
+                  <div v-else style="display: flex; flex-direction: column; gap: 6px">
+                    <div
+                      v-for="(extra, j) in ensureExtras(item)"
+                      :key="j"
+                      style="display: flex; gap: 8px; align-items: center"
+                    >
+                      <UISelect
+                        :model-value="extra.ingredientId"
+                        width="100%"
+                        :data-testid="`order-item-${i}-extra-${j}-ingredient-select`"
+                        @update:model-value="(v) => onExtraChange(extra, v as string)"
                       >
-                        <option value="" disabled>Selecione...</option>
-                        <option
-                          v-for="ingredient in ingredientStore.items"
-                          :key="ingredient.id"
-                          :value="ingredient.id"
-                        >
-                          {{ ingredient.name }} ({{ ingredient.unit }})
+                        <option v-for="ing in ingredientStore.items" :key="ing.id" :value="ing.id">
+                          {{ ing.name }} ({{ ing.unit }})
                         </option>
-                      </select>
-                    </div>
-
-                    <div class="form-group" style="max-width: 160px">
-                      <label>Quantidade</label>
-                      <input
+                      </UISelect>
+                      <UIInput
                         v-model.number="extra.quantity"
                         type="number"
-                        step="0.0001"
-                        min="0.0001"
-                        class="form-control"
-                        :data-testid="`order-item-${index}-extra-${extraIndex}-quantity-input`"
-                        required
+                        :width="80"
+                        :data-testid="`order-item-${i}-extra-${j}-quantity-input`"
                       />
+                      <div
+                        :style="{
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '7px',
+                          background: UI.bg,
+                          color: UI.rose,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }"
+                        @click="removeExtra(i, j)"
+                      >
+                        <UIIcon name="x" :size="12" />
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      class="btn btn-danger btn-sm"
-                      @click="removeExtraIngredient(index, extraIndex)"
-                    >
-                      ✕
-                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-sm"
-                    :data-testid="`order-item-${index}-add-extra-button`"
-                    @click="addExtraIngredient(index)"
-                  >
-                    + Adicionar ingrediente extra
-                  </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-secondary btn-sm" @click="addItem">
-                + Adicionar Item
-              </button>
             </div>
+          </div>
 
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                data-testid="order-submit-button"
-                :disabled="orderStore.loading"
-              >
-                {{ editingOrderId ? 'Salvar Alterações' : 'Criar Pedido' }}
-              </button>
-            </div>
-          </form>
+          <div
+            :style="{
+              padding: '14px',
+              background: UI.bg,
+              borderRadius: '10px',
+              fontSize: '12.5px',
+              color: UI.textSub,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }"
+          >
+            <UIIcon name="info" :size="16" />
+            O lucro estimado será calculado automaticamente a partir das fichas técnicas.
+          </div>
         </div>
-      </div>
-    </div>
+      </form>
 
-    <!-- Order Detail Modal -->
-    <div
+      <template #footer>
+        <UIBtn variant="secondary" @click="closeModal">Cancelar</UIBtn>
+        <UIBtn
+          variant="primary"
+          icon="check"
+          :disabled="orderStore.loading"
+          @click="handleSubmit"
+        >
+          {{ editingOrderId ? 'Salvar alterações' : 'Criar pedido' }}
+        </UIBtn>
+      </template>
+    </UIModal>
+
+    <!-- Detail modal -->
+    <UIModal
       v-if="showDetailModal"
-      class="modal-overlay"
+      title="Detalhes do Pedido"
+      :subtitle="
+        selectedOrder
+          ? `${selectedOrder.customerName} · ${originLabel(selectedOrder.origin)} · ${formatDateTime(selectedOrder.dateTime)}`
+          : ''
+      "
+      :width="720"
       data-testid="order-detail-modal"
-      @click.self="closeDetailModal"
+      @close="closeDetail"
     >
-      <div class="modal modal-wide">
-        <div class="modal-header">
-          <h2>Detalhes do Pedido</h2>
-          <button class="modal-close" @click="closeDetailModal">✕</button>
+      <div v-if="loadingDetail" style="padding: 40px; text-align: center; color: #94a3b8">
+        Carregando…
+      </div>
+      <div
+        v-else-if="selectedOrder"
+        style="display: flex; flex-direction: column; gap: 18px"
+      >
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px">
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Status
+            </div>
+            <UIPill :color="STATUS_PILL[selectedOrder.status]?.color ?? 'gray'" dot>
+              {{ STATUS_PILL[selectedOrder.status]?.label ?? selectedOrder.status }}
+            </UIPill>
+          </div>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Valor total
+            </div>
+            <span :style="{ fontSize: '17px', fontWeight: 700 }">
+              {{ brl(Number(selectedOrder.totalValue)) }}
+            </span>
+          </div>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Custo
+            </div>
+            <span
+              data-testid="order-detail-total-cost"
+              :style="{ fontSize: '17px', fontWeight: 700, color: UI.textSub }"
+            >
+              {{ brl(Number(selectedOrder.totalCost ?? orderTotalCost(selectedOrder))) }}
+            </span>
+          </div>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Lucro · margem
+            </div>
+            <span
+              data-testid="order-detail-estimated-profit"
+              :style="{ fontSize: '17px', fontWeight: 700, color: UI.emerald2 }"
+            >
+              {{ brl(Number(selectedOrder.estimatedProfit)) }}
+            </span>
+            <span
+              data-testid="order-detail-margin"
+              :style="{ fontSize: '11px', color: UI.textSub, marginLeft: '6px' }"
+            >
+              {{ pctFmt(orderMargin(selectedOrder)) }}
+            </span>
+          </div>
         </div>
-        <div class="modal-body">
-          <div v-if="loadingDetail" class="loading-container">
-            <div class="spinner" />
-          </div>
-          <template v-else-if="selectedOrder">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px">
-            <div>
-              <strong>Cliente:</strong> {{ selectedOrder.customerName }}
-            </div>
-            <div>
-              <strong>Data:</strong> {{ formatDateTime(selectedOrder.dateTime) }}
-            </div>
-            <div>
-              <strong>Status:</strong>
-              <span :class="statusClass(selectedOrder.status)" style="margin-left: 4px">
-                {{ statusLabel(selectedOrder.status) }}
-              </span>
-            </div>
-            <div>
-              <strong>Valor Total:</strong> {{ formatCurrency(selectedOrder.totalValue) }}
-            </div>
-            <div v-if="selectedOrder.deliveryFee && selectedOrder.deliveryFee > 0">
-              <strong>Taxa de Entrega:</strong>
-              <span
-                data-testid="order-detail-delivery-fee"
-                title="Repassada ao entregador/plataforma — descontada da receita no cálculo do lucro"
-              >
-                {{ formatCurrency(selectedOrder.deliveryFee) }}
-              </span>
-            </div>
-            <div>
-              <strong>Total de custos:</strong>
-              <span data-testid="order-detail-total-cost">
-                {{ formatCurrency(selectedOrder.totalCost ?? orderTotalCost(selectedOrder)) }}
-              </span>
-              <small v-if="selectedOrder.totalCost != null" style="color: #64748b; margin-left: 4px">
-                (snapshot)
-              </small>
-            </div>
-            <div>
-              <strong>Lucro Estimado:</strong>
-              <span data-testid="order-detail-estimated-profit">
-                {{ formatCurrency(selectedOrder.estimatedProfit) }}
-              </span>
-            </div>
-            <div>
-              <strong>Margem:</strong>
-              <span data-testid="order-detail-margin">
-                {{ formatPercent(orderMargin(selectedOrder)) }}
-              </span>
-            </div>
-            <div v-if="selectedOrder.feeName">
-              <strong>Taxa:</strong>
-              {{ selectedOrder.feeName }} ({{ selectedOrder.feeRate }}%)
-            </div>
-          </div>
 
-          <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 8px">Itens</h3>
-          <div class="order-detail-items">
+        <div v-if="selectedOrder.deliveryFee && Number(selectedOrder.deliveryFee) > 0">
+          <strong>Taxa de entrega:</strong>
+          {{ brl(Number(selectedOrder.deliveryFee)) }}
+          <span v-if="selectedOrder.feeName" :style="{ color: UI.textSub }">
+            · {{ selectedOrder.feeName }} ({{ selectedOrder.feeRate }}%)
+          </span>
+        </div>
+
+        <div>
+          <div :style="{ fontSize: '13px', fontWeight: 700, color: UI.text, marginBottom: '10px' }">
+            Itens ({{ selectedOrder.items.length }})
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
             <div
               v-for="item in selectedOrder.items"
               :key="item.id"
-              class="order-detail-item"
-              :data-testid="`order-detail-item-${item.id}`"
-              style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px"
+              :style="{
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '11px',
+                overflow: 'hidden',
+              }"
             >
               <div
-                style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px"
+                :style="{
+                  padding: '12px 16px',
+                  borderBottom: `1px solid ${UI.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }"
               >
-                <div><strong>Produto:</strong> {{ item.productName }}</div>
-                <div><strong>Qtd:</strong> {{ item.quantity }}</div>
-                <div><strong>Preço Unit.:</strong> {{ formatCurrency(item.unitPrice) }}</div>
-                <div><strong>Subtotal:</strong> {{ formatCurrency(item.unitPrice * item.quantity) }}</div>
-              </div>
-              <div
-                style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #475569"
-              >
-                <div><strong>Custo Unit.:</strong> {{ formatCurrency(item.unitCost) }}</div>
-                <div><strong>Custo Total:</strong> {{ formatCurrency(item.totalCost) }}</div>
-                <div>
-                  <strong>Lucro do item:</strong>
-                  {{ formatCurrency(item.unitPrice * item.quantity - item.totalCost) }}
+                <div
+                  :style="{
+                    width: '4px',
+                    height: '40px',
+                    borderRadius: '2px',
+                    background: UI.violet,
+                    flexShrink: 0,
+                  }"
+                />
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '13.5px', fontWeight: 600 }">{{ item.productName }}</div>
+                  <div :style="{ fontSize: '11px', color: UI.textMute }">
+                    Qtd. {{ item.quantity }} · Unit. {{ brl(Number(item.unitPrice)) }} · Custo
+                    {{ brl(Number(item.unitCost)) }}
+                  </div>
+                </div>
+                <div style="text-align: right">
+                  <div :style="{ fontSize: '14px', fontWeight: 700 }">
+                    {{ brl(Number(item.unitPrice) * Number(item.quantity)) }}
+                  </div>
+                  <div :style="{ fontSize: '11px', color: UI.emerald2, fontWeight: 600 }">
+                    + {{ brl(Number(item.unitPrice) * Number(item.quantity) - Number(item.totalCost)) }}
+                  </div>
                 </div>
               </div>
 
               <div
-                v-if="item.insumos && item.insumos.length"
-                :data-testid="`order-detail-insumos-${item.id}`"
-                style="margin-top: 10px"
+                v-if="(item.insumos && item.insumos.length) || (item.extraIngredients && item.extraIngredients.length)"
+                style="padding: 12px 16px"
               >
-                <div style="font-weight: 600; margin-bottom: 4px">Insumos</div>
-                <table style="width: 100%; font-size: 0.875rem">
-                  <thead>
-                    <tr>
-                      <th style="text-align: left">Insumo</th>
-                      <th style="text-align: right">Quantidade</th>
-                      <th style="text-align: right">Custo Unit.</th>
-                      <th style="text-align: right">Custo Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="insumo in item.insumos" :key="insumo.id">
-                      <td>{{ insumo.name }}</td>
-                      <td style="text-align: right">{{ insumo.quantity }}</td>
-                      <td style="text-align: right">{{ formatCurrency(insumo.cost) }}</td>
-                      <td style="text-align: right">{{ formatCurrency(insumo.totalCost) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div
-                v-if="item.extraIngredients && item.extraIngredients.length"
-                style="margin-top: 10px"
-              >
-                <div style="font-weight: 600; margin-bottom: 4px">Ingredientes extras</div>
-                <table style="width: 100%; font-size: 0.875rem">
-                  <thead>
-                    <tr>
-                      <th style="text-align: left">Ingrediente</th>
-                      <th style="text-align: right">Quantidade</th>
-                      <th style="text-align: right">Custo Unit.</th>
-                      <th style="text-align: right">Custo Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="extra in item.extraIngredients" :key="extra.id">
-                      <td>{{ extra.ingredientName }}</td>
-                      <td style="text-align: right">
-                        {{ extra.quantity }} {{ extra.ingredientUnit }}
-                      </td>
-                      <td style="text-align: right">{{ formatCurrency(extra.costPerUnit) }}</td>
-                      <td style="text-align: right">{{ formatCurrency(extra.totalCost) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div
+                  :style="{
+                    fontSize: '11px',
+                    color: UI.textSub,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '8px',
+                  }"
+                >
+                  Ficha técnica + extras
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px">
+                  <div
+                    v-for="ins in item.insumos ?? []"
+                    :key="'i' + ins.id"
+                    :style="{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 80px 100px',
+                      gap: '10px',
+                      padding: '6px 0',
+                      fontSize: '12px',
+                      alignItems: 'center',
+                    }"
+                  >
+                    <span style="display: flex; align-items: center; gap: 8px">
+                      <span
+                        :style="{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: UI.emerald,
+                        }"
+                      />
+                      {{ ins.name }}
+                    </span>
+                    <span :style="{ color: UI.textSub }">{{ ins.quantity }}</span>
+                    <span
+                      :style="{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: UI.textSub,
+                      }"
+                    >
+                      {{ brl(Number(ins.totalCost)) }}
+                    </span>
+                  </div>
+                  <div
+                    v-for="ex in item.extraIngredients ?? []"
+                    :key="'e' + ex.id"
+                    :style="{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 80px 100px',
+                      gap: '10px',
+                      padding: '6px 0',
+                      fontSize: '12px',
+                      alignItems: 'center',
+                    }"
+                  >
+                    <span style="display: flex; align-items: center; gap: 8px">
+                      <span
+                        :style="{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: UI.textMute,
+                        }"
+                      />
+                      {{ ex.ingredientName }} (extra)
+                    </span>
+                    <span :style="{ color: UI.textSub }">
+                      {{ ex.quantity }} {{ ex.ingredientUnit }}
+                    </span>
+                    <span
+                      :style="{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: UI.textSub,
+                      }"
+                    >
+                      {{ brl(Number(ex.totalCost)) }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          <div class="form-actions">
-            <button class="btn btn-secondary" @click="closeDetailModal">Fechar</button>
-          </div>
-          </template>
         </div>
       </div>
-    </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div v-if="confirmDeleteId" class="modal-overlay" @click.self="confirmDeleteId = null">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Confirmar Exclusão</h2>
-          <button class="modal-close" @click="confirmDeleteId = null">✕</button>
-        </div>
-        <div class="modal-body">
-          <p>Tem certeza que deseja excluir este pedido?</p>
-          <div class="form-actions">
-            <button class="btn btn-secondary" @click="confirmDeleteId = null">Cancelar</button>
-            <button class="btn btn-danger" @click="handleDelete">Excluir</button>
-          </div>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <UIBtn variant="secondary" @click="closeDetail">Fechar</UIBtn>
+        <UIBtn
+          v-if="selectedOrder"
+          variant="primary"
+          icon="edit"
+          @click="
+            () => {
+              const o = selectedOrder!
+              closeDetail()
+              openEdit(o)
+            }
+          "
+        >
+          Editar pedido
+        </UIBtn>
+      </template>
+    </UIModal>
+
+    <!-- Delete confirm modal -->
+    <UIModal
+      v-if="confirmDeleteId"
+      title="Excluir pedido"
+      subtitle="Esta ação não pode ser desfeita"
+      :width="420"
+      @close="confirmDeleteId = null"
+    >
+      <p :style="{ color: UI.textSub, fontSize: '13.5px', lineHeight: 1.6 }">
+        Tem certeza que deseja excluir este pedido?
+      </p>
+      <template #footer>
+        <UIBtn variant="secondary" @click="confirmDeleteId = null">Cancelar</UIBtn>
+        <UIBtn variant="danger" icon="trash" @click="handleDelete">Excluir</UIBtn>
+      </template>
+    </UIModal>
   </div>
 </template>
 
 <style scoped>
-.page-header-actions {
-  display: flex;
-  gap: 0.5rem;
+.ui-row {
+  transition: background 0.12s ease;
 }
-
-.badge-origin {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #fff;
-  border-radius: 999px;
-}
-
-.badge-origin-anotaai {
-  background: #2563eb; /* azul */
-}
-
-.badge-origin-ifood {
-  background: #ef4444; /* vermelho */
-}
-
-.badge-origin-menubank {
-  background: #8b5cf6; /* roxo */
-}
-
-.order-filters {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-end;
-  margin-bottom: 1rem;
-}
-
-.order-filters .filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.order-filters .filter-group label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
-}
-
-.order-filters .filter-group .form-control {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  min-width: 240px;
+.ui-row:hover {
+  background: rgba(15, 23, 42, 0.025);
 }
 </style>
-

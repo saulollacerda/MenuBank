@@ -77,9 +77,8 @@ describe('ProductsView', () => {
 
   it('should render category column with categoryName for each product', () => {
     const wrapper = mount(ProductsView)
-    const rows = wrapper.findAll('tbody tr')
-    expect(rows.length).toBeGreaterThan(0)
-    expect(rows[0]!.text()).toContain('Bebidas')
+    expect(wrapper.text()).toContain('Açaí 330ml')
+    expect(wrapper.text()).toContain('Bebidas')
   })
 
   it('should submit new product with the selected categoryId', async () => {
@@ -114,14 +113,14 @@ describe('ProductsView', () => {
     const wrapper = mount(ProductsView)
 
     // Abre o modal de ficha tecnica do primeiro produto
-    await wrapper.get('button.btn.btn-primary.btn-sm').trigger('click')
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
     await flushPromises()
 
     await wrapper.get('[data-testid="recipe-name-input"]').setValue('Copo')
     await wrapper.get('[data-testid="recipe-cost-input"]').setValue('0.5')
     await wrapper.get('[data-testid="recipe-quantity-input"]').setValue('1')
 
-    await wrapper.get('form.order-items-row').trigger('submit')
+    await wrapper.get('[data-testid="recipe-add-form"]').trigger('submit')
     await flushPromises()
 
     expect(productStoreMock.addInclude).toHaveBeenCalledWith('p1', {

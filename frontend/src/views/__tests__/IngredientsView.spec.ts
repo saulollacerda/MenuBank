@@ -71,7 +71,7 @@ describe('IngredientsView', () => {
   it('should submit ingredient with default quantity', async () => {
     const wrapper = mount(IngredientsView)
 
-    await wrapper.get('button.btn.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
 
     await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Leite Ninho')
     await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
@@ -91,7 +91,7 @@ describe('IngredientsView', () => {
   it('should accept cost per unit with four decimal places', async () => {
     const wrapper = mount(IngredientsView)
 
-    await wrapper.get('button.btn.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
 
     await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Açúcar refinado')
     await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
@@ -106,7 +106,7 @@ describe('IngredientsView', () => {
 
   it('should configure cost per unit input with step of 0.0001', async () => {
     const wrapper = mount(IngredientsView)
-    await wrapper.get('button.btn.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
     const input = wrapper.get('[data-testid="ingredient-cost-per-unit-input"]')
     expect(input.attributes('step')).toBe('0.0001')
   })
@@ -114,7 +114,7 @@ describe('IngredientsView', () => {
   it('should compute costPerUnit from purchase price divided by purchase quantity when auto mode is enabled', async () => {
     const wrapper = mount(IngredientsView)
 
-    await wrapper.get('button.btn.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
 
     await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Açaí GOAT')
     await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
@@ -143,7 +143,7 @@ describe('IngredientsView', () => {
   it('should not submit when auto mode is enabled and purchase quantity is zero', async () => {
     const wrapper = mount(IngredientsView)
 
-    await wrapper.get('button.btn.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
 
     await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Teste')
     await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')

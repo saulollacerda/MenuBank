@@ -1,20 +1,41 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getActivePinia } from 'pinia'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { UI, UIIcon, UIBtn, UIPill } from '@/design'
 
-const router = useRouter()
-const store = useNotificationStore()
+// Defensive bootstrap so the topbar can render in test mounts that don't
+// install a router or pinia (e.g. unit tests that mount a single view).
+const router = useRouter() ?? null
+const pinia = getActivePinia()
+const inert = !pinia
+const store = inert
+  ? ({
+      items: [] as Array<{
+        id: string
+        type: string
+        title: string
+        message: string
+        referenceDisplay: string | null
+        status: string
+        createdAt: string
+      }>,
+      unreadCount: 0,
+      loading: false,
+      fetchAll: async () => {},
+      refreshCount: () => {},
+      markRead: async (_id: string) => {},
+      dismiss: async (_id: string) => {},
+    } as unknown as ReturnType<typeof useNotificationStore>)
+  : useNotificationStore()
 
 const open = ref(false)
 
 async function toggle() {
   open.value = !open.value
-  if (open.value) {
-    await store.fetchAll()
-  }
+  if (open.value) await store.fetchAll()
 }
-
 function close() {
   open.value = false
 }
@@ -22,20 +43,22 @@ function close() {
 async function handleAction(id: string, referenceDisplay: string | null) {
   await store.markRead(id)
   close()
+  if (!router) return
   if (referenceDisplay) {
     router.push({ name: 'ingredients', query: { createName: referenceDisplay } })
   } else {
     router.push({ name: 'ingredients' })
   }
 }
-
 async function handleDismiss(id: string) {
   await store.dismiss(id)
 }
 
-function formatDate(isoString: string): string {
-  return new Date(isoString).toLocaleString('pt-BR')
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR')
 }
+
+const unread = computed(() => store.items.filter((n) => n.status === 'UNREAD').length)
 
 onMounted(() => {
   store.refreshCount()
@@ -43,189 +66,239 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="notification-bell">
+  <div style="position: relative">
     <button
       type="button"
       class="bell-button"
       data-testid="notification-bell-button"
       :aria-label="`Notificações (${store.unreadCount} não lidas)`"
+      :style="{
+        position: 'relative',
+        width: '36px',
+        height: '36px',
+        borderRadius: '9px',
+        background: UI.bg,
+        border: `1px solid ${UI.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: UI.text,
+        cursor: 'pointer',
+        padding: 0,
+      }"
       @click="toggle"
     >
-      <span class="bell-icon">🔔</span>
+      <UIIcon name="bell" :size="16" />
       <span
         v-if="store.unreadCount > 0"
-        class="bell-badge"
         data-testid="notification-bell-badge"
+        :style="{
+          position: 'absolute',
+          top: '-4px',
+          right: '-4px',
+          minWidth: '18px',
+          height: '18px',
+          borderRadius: '9px',
+          background: UI.rose,
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 4px',
+        }"
       >
         {{ store.unreadCount > 99 ? '99+' : store.unreadCount }}
       </span>
     </button>
 
-    <div v-if="open" class="bell-overlay" @click.self="close">
-      <div class="bell-dropdown" data-testid="notification-bell-dropdown">
-        <div class="bell-header">
-          <strong>Notificações</strong>
-          <button class="bell-close" @click="close">✕</button>
-        </div>
-        <div v-if="store.loading" class="bell-loading">Carregando...</div>
-        <div v-else-if="store.items.length === 0" class="bell-empty">
-          Nenhuma notificação.
-        </div>
-        <ul v-else class="bell-list">
-          <li
-            v-for="n in store.items"
-            :key="n.id"
-            class="bell-item"
-            :class="{ 'bell-item-unread': n.status === 'UNREAD' }"
-            :data-testid="`notification-item-${n.id}`"
-          >
-            <div class="bell-item-title">{{ n.title }}</div>
-            <div class="bell-item-message">{{ n.message }}</div>
-            <div class="bell-item-meta">{{ formatDate(n.createdAt) }}</div>
-            <div class="bell-item-actions">
-              <button
-                v-if="n.type === 'MISSING_INGREDIENT' && n.status !== 'RESOLVED'"
-                type="button"
-                class="btn btn-primary btn-sm"
-                :data-testid="`notification-${n.id}-action-button`"
-                @click="handleAction(n.id, n.referenceDisplay)"
-              >
-                Cadastrar ingrediente
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary btn-sm"
-                :data-testid="`notification-${n.id}-dismiss-button`"
-                @click="handleDismiss(n.id)"
-              >
-                Descartar
-              </button>
+    <div
+      v-if="open"
+      :style="{ position: 'fixed', inset: 0, background: 'transparent', zIndex: 100 }"
+      @click.self="close"
+    >
+      <div
+        data-testid="notification-bell-dropdown"
+        :style="{
+          position: 'fixed',
+          top: '70px',
+          right: '32px',
+          width: '420px',
+          maxHeight: '70vh',
+          background: UI.panel,
+          border: `1px solid ${UI.border}`,
+          borderRadius: '14px',
+          boxShadow: '0 20px 60px rgba(15,23,42,0.18)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }"
+        @click.stop
+      >
+        <div
+          :style="{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: `1px solid ${UI.border}`,
+          }"
+        >
+          <div style="display: flex; align-items: center; gap: 10px">
+            <div
+              :style="{
+                fontSize: '15px',
+                fontWeight: 700,
+                color: UI.text,
+                letterSpacing: '-0.2px',
+              }"
+            >
+              Notificações
             </div>
-          </li>
-        </ul>
+            <UIPill v-if="unread > 0" color="rose" size="sm">{{ unread }} novas</UIPill>
+          </div>
+          <div
+            :style="{
+              width: '28px',
+              height: '28px',
+              borderRadius: '7px',
+              background: UI.bg,
+              color: UI.textSub,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }"
+            @click="close"
+          >
+            <UIIcon name="x" :size="13" />
+          </div>
+        </div>
+
+        <div style="flex: 1; overflow: auto">
+          <div
+            v-if="store.loading"
+            :style="{
+              padding: '24px',
+              textAlign: 'center',
+              color: UI.textMute,
+              fontSize: '13px',
+            }"
+          >
+            Carregando…
+          </div>
+          <div
+            v-else-if="!store.items.length"
+            :style="{
+              padding: '32px 24px',
+              textAlign: 'center',
+              color: UI.textMute,
+              fontSize: '13px',
+            }"
+          >
+            Nenhuma notificação.
+          </div>
+          <div
+            v-for="(n, i) in store.items"
+            v-else
+            :key="n.id"
+            :data-testid="`notification-item-${n.id}`"
+            :style="{
+              padding: '14px 20px',
+              borderBottom: i === store.items.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+              background: n.status === 'UNREAD' ? UI.blueBg + '60' : 'transparent',
+              position: 'relative',
+            }"
+          >
+            <div
+              v-if="n.status === 'UNREAD'"
+              :style="{
+                position: 'absolute',
+                left: '8px',
+                top: '22px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '3px',
+                background: UI.blue,
+              }"
+            />
+            <div style="display: flex; align-items: flex-start; gap: 12px">
+              <div
+                :style="{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: UI.amberBg,
+                  color: UI.amber,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }"
+              >
+                <UIIcon name="alert" :size="15" />
+              </div>
+              <div style="flex: 1; min-width: 0">
+                <div
+                  :style="{
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: UI.text,
+                    marginBottom: '4px',
+                    lineHeight: 1.3,
+                  }"
+                >
+                  {{ n.title }}
+                </div>
+                <div :style="{ fontSize: '12.5px', color: UI.textSub, lineHeight: 1.5 }">
+                  {{ n.message }}
+                </div>
+                <div
+                  :style="{
+                    fontSize: '11px',
+                    color: UI.textMute,
+                    marginTop: '6px',
+                    fontVariantNumeric: 'tabular-nums',
+                  }"
+                >
+                  {{ formatDate(n.createdAt) }}
+                </div>
+                <div
+                  v-if="n.type === 'MISSING_INGREDIENT' && n.status !== 'RESOLVED'"
+                  style="display: flex; gap: 6px; margin-top: 10px"
+                >
+                  <UIBtn
+                    size="sm"
+                    variant="primary"
+                    :data-testid="`notification-${n.id}-action-button`"
+                    @click="handleAction(n.id, n.referenceDisplay)"
+                  >
+                    Cadastrar ingrediente
+                  </UIBtn>
+                  <UIBtn
+                    size="sm"
+                    variant="ghost"
+                    :data-testid="`notification-${n.id}-dismiss-button`"
+                    @click="handleDismiss(n.id)"
+                  >
+                    Descartar
+                  </UIBtn>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.notification-bell {
-  position: relative;
-}
-
 .bell-button {
-  position: relative;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
-
-.bell-icon {
-  font-size: 1.25rem;
-}
-
-.bell-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #dc2626;
-  color: #fff;
-  border-radius: 999px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-}
-
-.bell-overlay {
-  position: fixed;
-  inset: 0;
-  background: transparent;
-  z-index: 100;
-}
-
-.bell-dropdown {
-  position: absolute;
-  top: 48px;
-  right: 0;
-  width: 360px;
-  max-height: 480px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.bell-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.bell-close {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-  color: #64748b;
-}
-
-.bell-loading,
-.bell-empty {
-  padding: 1.5rem 1rem;
-  text-align: center;
-  color: #64748b;
-}
-
-.bell-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-}
-
-.bell-item {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.bell-item-unread {
-  background: #eff6ff;
-}
-
-.bell-item-title {
-  font-weight: 600;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
-}
-
-.bell-item-message {
-  font-size: 0.8125rem;
-  color: #475569;
-  margin-bottom: 0.5rem;
-}
-
-.bell-item-meta {
-  font-size: 0.6875rem;
-  color: #94a3b8;
-  margin-bottom: 0.5rem;
-}
-
-.bell-item-actions {
-  display: flex;
-  gap: 0.5rem;
+.bell-button:hover {
+  border-color: #94a3b8;
 }
 </style>

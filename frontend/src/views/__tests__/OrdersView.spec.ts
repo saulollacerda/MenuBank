@@ -212,7 +212,7 @@ describe('OrdersView', () => {
     const html = detail.html()
     expect(html).toContain('Bacon')
     expect(html).toContain('50')
-    expect(html).toMatch(/Total de custos/i)
+    expect(html).toMatch(/Custo/i)
     expect(detail.get('[data-testid="order-detail-total-cost"]').text()).toMatch(/34/)
     expect(detail.get('[data-testid="order-detail-estimated-profit"]').text()).toMatch(/26/)
     expect(detail.get('[data-testid="order-detail-margin"]').text()).toMatch(/43[,.]/)

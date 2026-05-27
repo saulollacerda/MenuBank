@@ -1,9 +1,23 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
-import PageControls from '@/components/PageControls.vue'
+import {
+  UI,
+  UITopbar,
+  UIBtn,
+  UIPill,
+  UISearch,
+  UIField,
+  UIInput,
+  UISelect,
+  UIModal,
+  UIIcon,
+  UIRowAction,
+  UIEmpty,
+  brl,
+} from '@/design'
 import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
 
 const productStore = useProductStore()
@@ -11,15 +25,6 @@ const categoryStore = useCategoryStore()
 const anotaAIStore = useAnotaAIStore()
 
 const syncClearRecipes = ref(false)
-
-async function handleSyncCatalog() {
-  anotaAIStore.clearResult()
-  try {
-    await anotaAIStore.syncCatalog({ clearRecipes: syncClearRecipes.value })
-  } catch {
-    // erro fica em anotaAIStore.error
-  }
-}
 
 const showModal = ref(false)
 const showRecipeModal = ref(false)
@@ -30,44 +35,63 @@ const recipeForm = ref<IncludeRequest>({ name: '', cost: 0, quantity: 1 })
 const confirmDeleteId = ref<string | null>(null)
 const confirmClearRecipe = ref(false)
 
-function formatCurrency(value: number | null | undefined): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(value ?? 0)
+const categoryFilter = ref<string>('')
+const statusFilter = ref<'' | 'ACTIVE' | 'INACTIVE'>('')
+
+// Deterministic color stripe per category — derived from category name hash.
+const PALETTE = ['#fbbf24', '#a78bfa', '#60a5fa', '#34d399', '#f87171', '#e879f9', '#22d3ee', '#94a3b8']
+function colorFor(name?: string | null): string {
+  if (!name) return PALETTE[0]!
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0
+  return PALETTE[Math.abs(h) % PALETTE.length]!
 }
 
-function statusLabel(status: string): string {
-  return status === 'ACTIVE' ? 'Ativo' : 'Inativo'
+const filteredItems = computed(() => {
+  return productStore.items.filter((p) => {
+    if (categoryFilter.value && p.categoryId !== categoryFilter.value) return false
+    if (statusFilter.value && p.status !== statusFilter.value) return false
+    return true
+  })
+})
+
+const activeCount = computed(() => productStore.items.filter((p) => p.status === 'ACTIVE').length)
+
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+function onSearchInput(v: string) {
+  productStore.search = v
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => productStore.fetchPage({ search: v, page: 0 }), 300)
+}
+function onPageChange(p: number) {
+  if (p < 0 || p >= productStore.totalPages) return
+  productStore.fetchPage({ page: p })
 }
 
-function statusClass(status: string): string {
-  return status === 'ACTIVE' ? 'badge badge-active' : 'badge badge-inactive'
+async function handleSyncCatalog() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncCatalog({ clearRecipes: syncClearRecipes.value })
+    await productStore.fetchPage({ page: 0 })
+  } catch {
+    /* error in store */
+  }
 }
 
-function openCreateModal() {
+function openCreate() {
   editing.value = null
   form.value = { name: '', price: 0, categoryId: '' }
   showModal.value = true
 }
-
-function openEditModal(product: ProductResponse) {
-  editing.value = product
-  form.value = {
-    name: product.name,
-    price: product.price,
-    categoryId: product.categoryId,
-  }
+function openEdit(p: ProductResponse) {
+  editing.value = p
+  form.value = { name: p.name, price: Number(p.price), categoryId: p.categoryId }
   showModal.value = true
 }
-
 function closeModal() {
   showModal.value = false
   editing.value = null
 }
-
 async function handleSubmit() {
   try {
     if (editing.value) {
@@ -77,73 +101,67 @@ async function handleSubmit() {
     }
     closeModal()
   } catch {
-    // Error is handled by the store
+    /* error in store */
   }
 }
 
-async function openRecipeModal(product: ProductResponse) {
-  selectedProduct.value = product
+async function openRecipe(p: ProductResponse) {
+  selectedProduct.value = p
   recipeForm.value = { name: '', cost: 0, quantity: 1 }
   showRecipeModal.value = true
-  await productStore.fetchIncludes(product.id)
+  await productStore.fetchIncludes(p.id)
 }
-
-function closeRecipeModal() {
+function closeRecipe() {
   showRecipeModal.value = false
   selectedProduct.value = null
 }
-
 async function handleAddRecipeItem() {
   if (!selectedProduct.value) return
   try {
     await productStore.addInclude(selectedProduct.value.id, recipeForm.value)
     recipeForm.value = { name: '', cost: 0, quantity: 1 }
   } catch {
-    // Error is handled by the store
+    /* error in store */
   }
 }
-
-async function handleClearRecipe() {
-  if (!selectedProduct.value) return
-  try {
-    await productStore.clearRecipe(selectedProduct.value.id)
-  } catch {
-    // Error is handled by the store
-  } finally {
-    confirmClearRecipe.value = false
-  }
-}
-
 async function handleRemoveRecipeItem(includeId: string) {
   if (!selectedProduct.value) return
   try {
     await productStore.removeInclude(selectedProduct.value.id, includeId)
   } catch {
-    // Error is handled by the store
+    /* error in store */
   }
 }
-
-function confirmDelete(id: string) {
-  confirmDeleteId.value = id
+async function handleClearRecipe() {
+  if (!selectedProduct.value) return
+  try {
+    await productStore.clearRecipe(selectedProduct.value.id)
+  } catch {
+    /* error in store */
+  } finally {
+    confirmClearRecipe.value = false
+  }
 }
-
 async function handleDelete() {
   if (!confirmDeleteId.value) return
   try {
     await productStore.remove(confirmDeleteId.value)
   } catch {
-    // Error is handled by the store
+    /* error in store */
   }
   confirmDeleteId.value = null
 }
 
-function onSearch(term: string) {
-  productStore.fetchPage({ search: term, page: 0 })
-}
+const recipeTotalCost = computed(() =>
+  productStore.includes.reduce((s, i) => s + Number(i.totalCost), 0),
+)
+const recipeMargin = computed(() => {
+  const price = Number(selectedProduct.value?.price ?? 0)
+  if (!price) return 0
+  return ((price - recipeTotalCost.value) / price) * 100
+})
 
-function onPageChange(p: number) {
-  productStore.fetchPage({ page: p })
-}
+const cols = '1.5fr 1fr 100px 100px 100px 100px 90px 130px'
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
@@ -152,338 +170,663 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="page-header">
-      <h1>Produtos</h1>
-      <div class="page-header-actions">
+  <div style="display: flex; flex-direction: column; flex: 1">
+    <UITopbar
+      title="Produtos"
+      :subtitle="`${productStore.totalElements} produtos · ${activeCount} ativos nesta página`"
+    >
+      <template #actions>
         <label
-          style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #475569"
+          :style="{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '12px',
+            color: UI.textSub,
+            cursor: 'pointer',
+          }"
           title="Apaga todos os itens das fichas técnicas antes de re-importar"
         >
-          <input
-            v-model="syncClearRecipes"
-            type="checkbox"
-            data-testid="sync-clear-recipes-checkbox"
-          />
+          <input v-model="syncClearRecipes" type="checkbox" data-testid="sync-clear-recipes-checkbox" />
           Limpar fichas técnicas
         </label>
-        <button
-          class="btn btn-secondary"
-          data-testid="sync-anotaai-catalog-button"
+        <UIBtn
+          icon="sync"
+          variant="secondary"
           :disabled="anotaAIStore.syncingCatalog"
           @click="handleSyncCatalog"
         >
-          <span v-if="anotaAIStore.syncingCatalog" class="spinner spinner-sm"></span>
-          <span v-else>🔄 Sincronizar Cardápio</span>
-        </button>
-        <button
-          class="btn btn-primary"
-          data-testid="new-product-button"
-          @click="openCreateModal"
-        >
-          + Novo Produto
-        </button>
-      </div>
-    </div>
-
-    <div v-if="anotaAIStore.error" class="alert alert-error">{{ anotaAIStore.error }}</div>
-    <div
-      v-if="anotaAIStore.lastResult && !anotaAIStore.error"
-      class="alert alert-success"
-    >
-      Categorias: {{ anotaAIStore.lastResult.categoriesCreated }} criada(s),
-      {{ anotaAIStore.lastResult.categoriesUpdated }} atualizada(s).
-      Produtos: {{ anotaAIStore.lastResult.productsCreated }} criado(s),
-      {{ anotaAIStore.lastResult.productsUpdated }} atualizado(s).
-      <div style="margin-top: 4px; font-size: 0.8rem; color: #475569">
-        Ingredientes do cardápio são cadastrados manualmente em "Ingredientes".
-      </div>
-    </div>
-
-    <div v-if="productStore.error" class="alert alert-error">{{ productStore.error }}</div>
-
-    <PageControls
-      v-if="!showRecipeModal"
-      v-model="productStore.search"
-      :page="productStore.page"
-      :total-pages="productStore.totalPages"
-      :total-elements="productStore.totalElements"
-      :loading="productStore.loading"
-      placeholder="Buscar produto por nome..."
-      @search="onSearch"
-      @page-change="onPageChange"
-    />
-
-    <div v-if="productStore.loading && !showRecipeModal" class="loading-container">
-      <div class="spinner" />
-    </div>
-
-    <div v-else-if="productStore.items.length === 0 && !showRecipeModal" class="empty-state">
-      <p v-if="productStore.search">Nenhum produto encontrado para "{{ productStore.search }}".</p>
-      <template v-else>
-        <p>Nenhum produto cadastrado.</p>
-        <button class="btn btn-primary" @click="openCreateModal">Criar primeiro produto</button>
+          {{ anotaAIStore.syncingCatalog ? 'Sincronizando…' : 'Sincronizar Cardápio' }}
+        </UIBtn>
+        <UIBtn icon="plus" variant="dark" data-testid="new-product-button" @click="openCreate">
+          Novo Produto
+        </UIBtn>
       </template>
-    </div>
+    </UITopbar>
 
-    <div v-else-if="!showRecipeModal" class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Categoria</th>
-            <th>Preço</th>
-            <th>Status</th>
-            <th style="width: 220px">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="product in productStore.items" :key="product.id">
-            <td>{{ product.name }}</td>
-            <td>{{ product.categoryName }}</td>
-            <td>{{ formatCurrency(product.price) }}</td>
-            <td>
-              <span :class="statusClass(product.status)">
-                {{ statusLabel(product.status) }}
-              </span>
-            </td>
-            <td>
-              <div class="table-actions">
-                <button class="btn btn-primary btn-sm" @click="openRecipeModal(product)">
-                  Ficha Técnica
-                </button>
-                <button
-                  class="btn btn-secondary btn-sm"
-                  :data-testid="`product-${product.id}-edit-button`"
-                  @click="openEditModal(product)"
-                >
-                  Editar
-                </button>
-                <button class="btn btn-danger btn-sm" @click="confirmDelete(product.id)">
-                  Excluir
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Create/Edit Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>{{ editing ? 'Editar Produto' : 'Novo Produto' }}</h2>
-          <button class="modal-close" @click="closeModal">✕</button>
-        </div>
-        <div class="modal-body">
-          <form data-testid="product-form" @submit.prevent="handleSubmit">
-            <div class="form-group">
-              <label>Nome</label>
-              <input
-                v-model="form.name"
-                type="text"
-                class="form-control"
-                placeholder="Nome do produto"
-                data-testid="product-name-input"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label>Categoria</label>
-              <select
-                v-model="form.categoryId"
-                class="form-control"
-                data-testid="product-category-select"
-                required
-              >
-                <option value="" disabled>Selecione...</option>
-                <option
-                  v-for="category in categoryStore.items"
-                  :key="category.id"
-                  :value="category.id"
-                >
-                  {{ category.name }}
-                </option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Preço (R$)</label>
-              <input
-                v-model.number="form.price"
-                type="number"
-                step="0.01"
-                min="0.01"
-                class="form-control"
-                placeholder="0,00"
-                data-testid="product-price-input"
-                required
-              />
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">
-                Cancelar
-              </button>
-              <button type="submit" class="btn btn-primary" :disabled="productStore.loading">
-                {{ editing ? 'Salvar' : 'Criar' }}
-              </button>
-            </div>
-          </form>
-        </div>
+    <div
+      style="
+        flex: 1;
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      "
+    >
+      <div
+        v-if="anotaAIStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.roseBg,
+          color: UI.rose2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        {{ anotaAIStore.error }}
       </div>
-    </div>
+      <div
+        v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.emeraldBg,
+          color: UI.emerald2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        Categorias: {{ anotaAIStore.lastResult.categoriesCreated }} criada(s),
+        {{ anotaAIStore.lastResult.categoriesUpdated }} atualizada(s) · Produtos:
+        {{ anotaAIStore.lastResult.productsCreated }} criado(s),
+        {{ anotaAIStore.lastResult.productsUpdated }} atualizado(s).
+      </div>
+      <div
+        v-if="productStore.error"
+        :style="{
+          padding: '10px 14px',
+          background: UI.roseBg,
+          color: UI.rose2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        {{ productStore.error }}
+      </div>
 
-    <!-- Recipe Items Modal -->
-    <div v-if="showRecipeModal" class="modal-overlay" @click.self="closeRecipeModal">
-      <div class="modal modal-wide">
-        <div class="modal-header">
-          <h2>Ficha Técnica — {{ selectedProduct?.name }}</h2>
-          <button class="modal-close" @click="closeRecipeModal">✕</button>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap">
+        <UISearch
+          :model-value="productStore.search"
+          placeholder="Buscar produto por nome…"
+          :width="340"
+          @update:model-value="onSearchInput"
+        />
+        <UISelect v-model="categoryFilter" :width="180">
+          <option value="">Todas categorias</option>
+          <option v-for="c in categoryStore.items" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </UISelect>
+        <UISelect v-model="statusFilter" :width="140">
+          <option value="">Todos status</option>
+          <option value="ACTIVE">Ativos</option>
+          <option value="INACTIVE">Inativos</option>
+        </UISelect>
+        <div style="flex: 1" />
+      </div>
+
+      <UIEmpty
+        v-if="!productStore.loading && !filteredItems.length && !productStore.search"
+        icon="burger"
+        accent="emerald"
+        title="Cadastre seu primeiro produto"
+        body="Defina preço, categoria e ficha técnica. Com a ficha cadastrada, o MenuBank calcula automaticamente seu custo e margem em cada pedido."
+        primary="Adicionar produto"
+        secondary="Sincronizar Cardápio"
+        @primary="openCreate"
+        @secondary="handleSyncCatalog"
+      />
+      <div
+        v-else
+        :style="{
+          background: UI.panel,
+          border: `1px solid ${UI.border}`,
+          borderRadius: '14px',
+          overflow: 'hidden',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }"
+      >
+        <div
+          :style="{
+            display: 'grid',
+            gridTemplateColumns: cols,
+            gap: '12px',
+            padding: '12px 18px',
+            background: UI.bgSoft,
+            borderBottom: `1px solid ${UI.border}`,
+            fontSize: '10.5px',
+            color: UI.textSub,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            flexShrink: 0,
+          }"
+        >
+          <span>Nome</span>
+          <span>Categoria</span>
+          <span style="text-align: right">Preço</span>
+          <span style="text-align: right">Custo</span>
+          <span style="text-align: right">Margem</span>
+          <span>Ficha</span>
+          <span>Status</span>
+          <span style="text-align: right">Ações</span>
         </div>
-        <div class="modal-body">
+
+        <div style="flex: 1; overflow: auto">
           <div
-            v-if="productStore.includes.length > 0"
-            style="display: flex; justify-content: flex-end; margin-bottom: 12px"
+            v-if="productStore.loading"
+            :style="{ padding: '32px', textAlign: 'center', color: UI.textMute }"
           >
-            <button
-              class="btn btn-danger btn-sm"
-              data-testid="clear-recipe-button"
-              style="margin-bottom: 0"
-              @click="confirmClearRecipe = true"
+            Carregando…
+          </div>
+          <div
+            v-else-if="!filteredItems.length"
+            :style="{ padding: '60px 32px', textAlign: 'center', color: UI.textMute, fontSize: '13px' }"
+          >
+            Nenhum produto encontrado.
+          </div>
+          <div
+            v-for="(p, i) in filteredItems"
+            v-else
+            :key="p.id"
+            class="ui-row"
+            :style="{
+              display: 'grid',
+              gridTemplateColumns: cols,
+              gap: '12px',
+              padding: '12px 18px',
+              borderBottom: i === filteredItems.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+              fontSize: '13px',
+              color: UI.text,
+              alignItems: 'center',
+            }"
+          >
+            <span style="display: flex; align-items: center; gap: 11px; min-width: 0">
+              <span
+                :style="{
+                  width: '4px',
+                  height: '26px',
+                  borderRadius: '2px',
+                  background: colorFor(p.categoryName),
+                  flexShrink: 0,
+                }"
+              />
+              <span
+                :style="{
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }"
+              >
+                {{ p.name }}
+              </span>
+            </span>
+            <span :style="{ color: UI.textSub }">{{ p.categoryName }}</span>
+            <span
+              :style="{
+                textAlign: 'right',
+                fontWeight: 600,
+                fontVariantNumeric: 'tabular-nums',
+              }"
             >
-              🗑 Limpar Ficha Técnica
-            </button>
-          </div>
-          <!-- Add include form -->
-          <form @submit.prevent="handleAddRecipeItem" class="order-items-row" style="margin-bottom: 16px">
-            <div class="form-group">
-              <label>Nome</label>
-              <input
-                v-model="recipeForm.name"
-                type="text"
-                class="form-control"
-                placeholder="Ex.: Copo, Colher, Açaí Base"
-                data-testid="recipe-name-input"
-                required
+              {{ brl(Number(p.price)) }}
+            </span>
+            <span :style="{ textAlign: 'right', color: UI.textMute, fontVariantNumeric: 'tabular-nums' }">
+              —
+            </span>
+            <span :style="{ textAlign: 'right', color: UI.textMute, fontVariantNumeric: 'tabular-nums' }">
+              —
+            </span>
+            <span>
+              <UIPill color="gray" size="sm">Abrir</UIPill>
+            </span>
+            <span>
+              <UIPill :color="p.status === 'ACTIVE' ? 'emerald' : 'gray'" dot>
+                {{ p.status === 'ACTIVE' ? 'Ativo' : 'Inativo' }}
+              </UIPill>
+            </span>
+            <span style="display: flex; gap: 5px; justify-content: flex-end">
+              <UIRowAction
+                icon="file"
+                color="blue"
+                label="Ficha técnica"
+                :data-testid="`product-${p.id}-recipe-button`"
+                @click="openRecipe(p)"
               />
-            </div>
-            <div class="form-group">
-              <label>Custo (R$)</label>
-              <input
-                v-model.number="recipeForm.cost"
-                type="number"
-                step="0.0001"
-                min="0"
-                class="form-control"
-                placeholder="0,00"
-                data-testid="recipe-cost-input"
-                required
+              <UIRowAction
+                icon="edit"
+                color="gray"
+                label="Editar"
+                :data-testid="`product-${p.id}-edit-button`"
+                @click="openEdit(p)"
               />
-            </div>
-            <div class="form-group">
-              <label>Quantidade</label>
-              <input
-                v-model.number="recipeForm.quantity"
-                type="number"
-                step="0.0001"
-                min="0.0001"
-                class="form-control"
-                placeholder="1"
-                data-testid="recipe-quantity-input"
-                required
+              <UIRowAction
+                icon="trash"
+                color="rose"
+                label="Excluir"
+                :data-testid="`product-${p.id}-delete-button`"
+                @click="confirmDeleteId = p.id"
               />
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom: 0">
-              Adicionar
-            </button>
-          </form>
-
-          <!-- Recipe items table -->
-          <div v-if="productStore.includes.length === 0" class="empty-state">
-            <p>Nenhum item na ficha técnica.</p>
-          </div>
-          <div v-else class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Custo</th>
-                  <th>Quantidade</th>
-                  <th>Custo Total</th>
-                  <th style="width: 80px">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in productStore.includes" :key="item.id">
-                  <td>{{ item.name }}</td>
-                  <td>{{ formatCurrency(item.cost) }}</td>
-                  <td>{{ item.quantity }}</td>
-                  <td>{{ formatCurrency(item.totalCost) }}</td>
-                  <td>
-                    <button
-                      class="btn btn-danger btn-sm"
-                      @click="handleRemoveRecipeItem(item.id)"
-                    >
-                      Remover
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            </span>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Clear Recipe Confirmation Modal -->
-    <div v-if="confirmClearRecipe" class="modal-overlay" @click.self="confirmClearRecipe = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Limpar Ficha Técnica</h2>
-          <button class="modal-close" @click="confirmClearRecipe = false">✕</button>
-        </div>
-        <div class="modal-body">
-          <p>
-            Tem certeza que deseja remover <strong>todos</strong> os itens da ficha técnica
-            de <strong>{{ selectedProduct?.name }}</strong>?
-          </p>
-          <p style="font-size: 0.85rem; color: #64748b">Essa ação não pode ser desfeita.</p>
-          <div class="form-actions">
-            <button class="btn btn-secondary" @click="confirmClearRecipe = false">Cancelar</button>
-            <button
-              class="btn btn-danger"
-              data-testid="confirm-clear-recipe-button"
-              @click="handleClearRecipe"
+        <div
+          :style="{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 18px',
+            borderTop: `1px solid ${UI.border}`,
+            background: UI.bgSoft,
+            fontSize: '12px',
+            color: UI.textSub,
+            flexShrink: 0,
+          }"
+        >
+          <span>
+            Página {{ productStore.page + 1 }} de {{ Math.max(productStore.totalPages, 1) }}
+            · {{ productStore.totalElements }} produtos
+          </span>
+          <div style="display: flex; gap: 6px; align-items: center">
+            <UIBtn
+              size="sm"
+              icon="chevLeft"
+              variant="secondary"
+              :disabled="productStore.page === 0 || productStore.loading"
+              @click="onPageChange(productStore.page - 1)"
             >
-              Limpar tudo
-            </button>
+              Anterior
+            </UIBtn>
+            <span
+              :style="{
+                padding: '5px 10px',
+                background: UI.text,
+                color: '#fff',
+                borderRadius: '6px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }"
+            >
+              {{ productStore.page + 1 }}
+            </span>
+            <UIBtn
+              size="sm"
+              icon="chevRight"
+              variant="secondary"
+              :disabled="productStore.page >= productStore.totalPages - 1 || productStore.loading"
+              @click="onPageChange(productStore.page + 1)"
+            >
+              Próximo
+            </UIBtn>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div v-if="confirmDeleteId" class="modal-overlay" @click.self="confirmDeleteId = null">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Confirmar Exclusão</h2>
-          <button class="modal-close" @click="confirmDeleteId = null">✕</button>
+    <!-- Create/Edit modal -->
+    <UIModal
+      v-if="showModal"
+      :title="editing ? 'Editar Produto' : 'Novo Produto'"
+      :subtitle="editing ? 'Atualize as informações do produto' : 'Preencha os dados do novo produto'"
+      :width="520"
+      @close="closeModal"
+    >
+      <form id="product-form" data-testid="product-form" @submit.prevent="handleSubmit">
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <UIField label="Nome">
+            <UIInput
+              v-model="form.name"
+              placeholder="Nome do produto"
+              data-testid="product-name-input"
+            />
+          </UIField>
+          <UIField label="Categoria">
+            <UISelect
+              v-model="form.categoryId"
+              placeholder="Selecione…"
+              data-testid="product-category-select"
+            >
+              <option v-for="c in categoryStore.items" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </UISelect>
+          </UIField>
+          <UIField label="Preço (R$)" hint="Valor de venda ao cliente">
+            <UIInput
+              v-model.number="form.price"
+              type="number"
+              placeholder="0,00"
+              data-testid="product-price-input"
+            />
+          </UIField>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.blueBg,
+              borderRadius: '9px',
+              fontSize: '12px',
+              color: UI.blue2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }"
+          >
+            <UIIcon name="info" :size="16" />
+            {{
+              editing
+                ? 'Edite a ficha técnica separadamente para alterar o custo.'
+                : 'Após criar, configure a ficha técnica para calcular o custo automaticamente.'
+            }}
+          </div>
         </div>
-        <div class="modal-body">
-          <p>Tem certeza que deseja excluir este produto?</p>
-          <div class="form-actions">
-            <button class="btn btn-secondary" @click="confirmDeleteId = null">Cancelar</button>
-            <button class="btn btn-danger" @click="handleDelete">Excluir</button>
+      </form>
+
+      <template #footer>
+        <UIBtn
+          v-if="editing"
+          variant="softDanger"
+          icon="trash"
+          @click="
+            () => {
+              if (editing) confirmDeleteId = editing.id
+              closeModal()
+            }
+          "
+        >
+          Excluir
+        </UIBtn>
+        <div style="flex: 1" />
+        <UIBtn variant="secondary" @click="closeModal">Cancelar</UIBtn>
+        <UIBtn
+          variant="primary"
+          icon="check"
+          :disabled="productStore.loading"
+          @click="handleSubmit"
+        >
+          {{ editing ? 'Salvar' : 'Criar produto' }}
+        </UIBtn>
+      </template>
+    </UIModal>
+
+    <!-- Recipe modal -->
+    <UIModal
+      v-if="showRecipeModal && selectedProduct"
+      :title="`Ficha Técnica — ${selectedProduct.name}`"
+      :subtitle="`${productStore.includes.length} ${productStore.includes.length === 1 ? 'item' : 'itens'}`"
+      :width="720"
+      @close="closeRecipe"
+    >
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px">
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Preço de venda
+            </div>
+            <div
+              :style="{
+                fontSize: '18px',
+                fontWeight: 700,
+                color: UI.text,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ brl(Number(selectedProduct.price)) }}
+            </div>
+          </div>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Custo total
+            </div>
+            <div
+              :style="{
+                fontSize: '18px',
+                fontWeight: 700,
+                color: UI.textSub,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ brl(recipeTotalCost) }}
+            </div>
+          </div>
+          <div
+            :style="{
+              padding: '12px',
+              background: UI.bg,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '10px',
+            }"
+          >
+            <div
+              :style="{
+                fontSize: '10.5px',
+                color: UI.textMute,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '6px',
+              }"
+            >
+              Margem estimada
+            </div>
+            <div
+              :style="{
+                fontSize: '18px',
+                fontWeight: 700,
+                color: UI.emerald2,
+                fontVariantNumeric: 'tabular-nums',
+              }"
+            >
+              {{ recipeMargin.toFixed(1).replace('.', ',') }}%
+            </div>
+          </div>
+        </div>
+
+        <form
+          data-testid="recipe-add-form"
+          :style="{
+            padding: '12px 14px',
+            background: UI.bgSoft,
+            border: `1px dashed ${UI.border}`,
+            borderRadius: '10px',
+            display: 'grid',
+            gridTemplateColumns: '1fr 120px 100px auto',
+            gap: '10px',
+            alignItems: 'flex-end',
+          }"
+          @submit.prevent="handleAddRecipeItem"
+        >
+          <UIField label="Item">
+            <UIInput
+              v-model="recipeForm.name"
+              placeholder="Ex.: Copo, Colher, Açaí Base…"
+              data-testid="recipe-name-input"
+            />
+          </UIField>
+          <UIField label="Custo (R$)">
+            <UIInput
+              v-model.number="recipeForm.cost"
+              type="number"
+              placeholder="0,00"
+              data-testid="recipe-cost-input"
+            />
+          </UIField>
+          <UIField label="Qtd.">
+            <UIInput
+              v-model.number="recipeForm.quantity"
+              type="number"
+              placeholder="1"
+              data-testid="recipe-quantity-input"
+            />
+          </UIField>
+          <UIBtn variant="primary" icon="plus" type="submit">Adicionar</UIBtn>
+        </form>
+
+        <div
+          :style="{
+            background: UI.panel,
+            border: `1px solid ${UI.border}`,
+            borderRadius: '11px',
+            overflow: 'hidden',
+          }"
+        >
+          <div
+            :style="{
+              display: 'grid',
+              gridTemplateColumns: '1fr 90px 110px 50px',
+              gap: '10px',
+              padding: '10px 14px',
+              background: UI.bgSoft,
+              borderBottom: `1px solid ${UI.border}`,
+              fontSize: '10.5px',
+              color: UI.textSub,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }"
+          >
+            <span>Item</span>
+            <span style="text-align: right">Qtd</span>
+            <span style="text-align: right">Custo total</span>
+            <span />
+          </div>
+          <div
+            v-if="!productStore.includes.length"
+            :style="{ padding: '24px', textAlign: 'center', color: UI.textMute, fontSize: '13px' }"
+          >
+            Nenhum item na ficha técnica.
+          </div>
+          <div
+            v-for="(it, i) in productStore.includes"
+            v-else
+            :key="it.id"
+            :style="{
+              display: 'grid',
+              gridTemplateColumns: '1fr 90px 110px 50px',
+              gap: '10px',
+              padding: '11px 14px',
+              alignItems: 'center',
+              fontSize: '13px',
+              borderBottom: i === productStore.includes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+            }"
+          >
+            <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
+            <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
+              {{ it.quantity }}
+            </span>
+            <span
+              :style="{
+                textAlign: 'right',
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+              }"
+            >
+              {{ brl(Number(it.totalCost)) }}
+            </span>
+            <span style="display: flex; justify-content: flex-end">
+              <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
+            </span>
           </div>
         </div>
       </div>
-    </div>
+
+      <template #footer>
+        <UIBtn
+          v-if="productStore.includes.length"
+          variant="softDanger"
+          icon="trash"
+          @click="confirmClearRecipe = true"
+        >
+          Limpar ficha
+        </UIBtn>
+        <div style="flex: 1" />
+        <UIBtn variant="secondary" @click="closeRecipe">Fechar</UIBtn>
+      </template>
+    </UIModal>
+
+    <UIModal
+      v-if="confirmClearRecipe"
+      title="Limpar ficha técnica"
+      :subtitle="`Remove todos os itens da ficha de ${selectedProduct?.name ?? ''}`"
+      :width="420"
+      @close="confirmClearRecipe = false"
+    >
+      <p :style="{ color: UI.textSub, fontSize: '13.5px', lineHeight: 1.6 }">
+        Essa ação não pode ser desfeita.
+      </p>
+      <template #footer>
+        <UIBtn variant="secondary" @click="confirmClearRecipe = false">Cancelar</UIBtn>
+        <UIBtn variant="danger" icon="trash" @click="handleClearRecipe">Limpar tudo</UIBtn>
+      </template>
+    </UIModal>
+
+    <UIModal
+      v-if="confirmDeleteId"
+      title="Excluir produto"
+      subtitle="Esta ação não pode ser desfeita"
+      :width="420"
+      @close="confirmDeleteId = null"
+    >
+      <p :style="{ color: UI.textSub, fontSize: '13.5px', lineHeight: 1.6 }">
+        Tem certeza que deseja excluir este produto?
+      </p>
+      <template #footer>
+        <UIBtn variant="secondary" @click="confirmDeleteId = null">Cancelar</UIBtn>
+        <UIBtn variant="danger" icon="trash" @click="handleDelete">Excluir</UIBtn>
+      </template>
+    </UIModal>
   </div>
 </template>
 
 <style scoped>
-.page-header-actions {
-  display: flex;
-  gap: 0.5rem;
+.ui-row {
+  transition: background 0.12s ease;
+}
+.ui-row:hover {
+  background: rgba(15, 23, 42, 0.025);
 }
 </style>
