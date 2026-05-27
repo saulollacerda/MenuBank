@@ -12,6 +12,15 @@ public interface IncludeRepository extends JpaRepository<Include, UUID> {
 
     List<Include> findByProductIdAndProductMerchantId(UUID productId, UUID merchantId);
 
+    List<Include> findByProductIdAndProductMerchantIdOrderBySortOrderAsc(UUID productId, UUID merchantId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT COALESCE(MAX(i.sortOrder), 0) FROM Include i WHERE i.product.id = :productId AND i.product.merchant.id = :merchantId"
+    )
+    Integer findMaxSortOrderByProductIdAndProductMerchantId(
+            @org.springframework.data.repository.query.Param("productId") UUID productId,
+            @org.springframework.data.repository.query.Param("merchantId") UUID merchantId);
+
     Optional<Include> findByIdAndProductIdAndProductMerchantId(UUID id, UUID productId, UUID merchantId);
 
     @Modifying

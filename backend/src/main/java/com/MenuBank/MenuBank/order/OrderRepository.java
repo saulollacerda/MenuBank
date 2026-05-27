@@ -148,4 +148,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("merchantId") UUID merchantId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT p.category.id, COALESCE(SUM(i.unitPrice * i.quantity), 0)
+            FROM Order o JOIN o.items i JOIN i.product p
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            AND p.category.id IS NOT NULL
+            GROUP BY p.category.id
+            """)
+    List<Object[]> sumRevenueByCategoryForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }

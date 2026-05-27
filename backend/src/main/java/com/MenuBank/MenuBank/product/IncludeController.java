@@ -52,6 +52,13 @@ public class IncludeController {
         return ResponseEntity.ok(includeService.update(productId, includeId, request));
     }
 
+    @PutMapping("/reorder")
+    public ResponseEntity<List<IncludeResponse>> reorder(
+            @PathVariable UUID productId,
+            @RequestBody List<@Valid IncludeReorderRequest> items) {
+        return ResponseEntity.ok(includeService.reorder(productId, items));
+    }
+
     @Transactional
     @DeleteMapping
     public ResponseEntity<Map<String, Long>> deleteAll(@PathVariable UUID productId) {

@@ -17,4 +17,6 @@ public class IncludeResponse {
     private BigDecimal cost;
     private BigDecimal quantity;
     private BigDecimal totalCost;
+    private IncludeKind kind;
+    private Integer sortOrder;
 }

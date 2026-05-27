@@ -29,5 +29,8 @@ public class Category {
 
     @Column(name = "external_id")
     private String externalId;
+
+    @Column(name = "color_hex", length = 7)
+    private String colorHex;
 }
 
