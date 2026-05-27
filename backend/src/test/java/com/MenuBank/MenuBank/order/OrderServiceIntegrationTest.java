@@ -198,7 +198,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                         .productId(product.getId()).quantity(1).build()))
                 .build());
 
-        var page = orderService.findAll("Maria", PageRequest.of(0, 10));
+        var page = orderService.findAll("Maria", null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getCustomerName()).isEqualTo("Maria");

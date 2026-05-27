@@ -105,11 +105,27 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> findAll(String search, Pageable pageable) {
+    public Page<OrderResponse> findAll(String search, OrderStatus status, Pageable pageable) {
         UUID merchantId = merchantContext.getMerchantId();
         String term = search == null ? "" : search;
-        return orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
-                .map(this::toResponse);
+        Page<Order> page = status == null
+                ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
+                : orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(merchantId, status, term, pageable);
+        return page.map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<OrderStatus, Long> statusCounts(LocalDateTime start, LocalDateTime end, String search) {
+        UUID merchantId = merchantContext.getMerchantId();
+        String term = search == null ? "" : search;
+        java.util.Map<OrderStatus, Long> counts = new java.util.EnumMap<>(OrderStatus.class);
+        for (OrderStatus s : OrderStatus.values()) {
+            counts.put(s, 0L);
+        }
+        for (Object[] row : orderRepository.countByStatusForMerchant(merchantId, start, end, term)) {
+            counts.put((OrderStatus) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     @Transactional

@@ -612,7 +612,7 @@ class OrderServiceTest {
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
 
             org.springframework.data.domain.Page<OrderResponse> result =
-                    orderService.findAll("client", pageable);
+                    orderService.findAll("client", null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getId()).isEqualTo(orderId);
@@ -629,9 +629,51 @@ class OrderServiceTest {
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<OrderResponse> result =
-                    orderService.findAll(null, pageable);
+                    orderService.findAll(null, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("deve filtrar por status quando informado")
+        void shouldFilterByStatusWhenProvided() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(
+                    merchantId, OrderStatus.READY, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
+
+            org.springframework.data.domain.Page<OrderResponse> result =
+                    orderService.findAll(null, OrderStatus.READY, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            then(orderRepository).should(never())
+                    .findPageByMerchantIdAndCustomerNameContaining(any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("statusCounts(start, end, search)")
+    class StatusCounts {
+
+        @Test
+        @DisplayName("deve retornar contagens por status, preenchendo zeros para valores ausentes")
+        void shouldReturnCountsByStatusWithZeroFill() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.countByStatusForMerchant(eq(merchantId), any(), any(), eq("")))
+                    .willReturn(List.of(
+                            new Object[]{OrderStatus.PENDING, 5L},
+                            new Object[]{OrderStatus.READY, 2L}
+                    ));
+
+            java.util.Map<OrderStatus, Long> result = orderService.statusCounts(null, null, null);
+
+            assertThat(result).containsEntry(OrderStatus.PENDING, 5L);
+            assertThat(result).containsEntry(OrderStatus.READY, 2L);
+            assertThat(result).containsEntry(OrderStatus.DELIVERED, 0L);
+            assertThat(result).containsEntry(OrderStatus.PAID, 0L);
+            assertThat(result).containsEntry(OrderStatus.CANCELLED, 0L);
         }
     }
 

@@ -290,6 +290,8 @@ public class ExportService {
         return switch (status) {
             case PAID -> "Pago";
             case PENDING -> "Pendente";
+            case READY -> "Pronto";
+            case DELIVERED -> "Entregue";
             case CANCELLED -> "Cancelado";
         };
     }

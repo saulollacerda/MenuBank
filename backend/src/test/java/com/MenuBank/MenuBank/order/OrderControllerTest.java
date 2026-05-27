@@ -251,7 +251,7 @@ class OrderControllerTest {
         void shouldReturn200WithOrderPage() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(orderService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+            given(orderService.findAll(eq(""), eq(null), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(orderResponse), pageable, 1));
 
@@ -268,13 +268,49 @@ class OrderControllerTest {
         void shouldPassSearchParamToService() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(orderService.findAll(eq("maria"), any(org.springframework.data.domain.Pageable.class)))
+            given(orderService.findAll(eq("maria"), eq(null), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(orderResponse), pageable, 1));
 
             mockMvc.perform(get("/api/orders").param("search", "maria"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].id").value(orderId.toString()));
+        }
+
+        @Test
+        @DisplayName("deve repassar parâmetro status ao service")
+        void shouldPassStatusParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(orderService.findAll(eq(""), eq(OrderStatus.READY), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(orderResponse), pageable, 1));
+
+            mockMvc.perform(get("/api/orders").param("status", "READY"))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/orders/status-counts")
+    class StatusCounts {
+
+        @Test
+        @DisplayName("deve retornar contagens por status")
+        void shouldReturnCountsByStatus() throws Exception {
+            java.util.Map<OrderStatus, Long> counts = new java.util.EnumMap<>(OrderStatus.class);
+            counts.put(OrderStatus.PENDING, 3L);
+            counts.put(OrderStatus.READY, 1L);
+            counts.put(OrderStatus.DELIVERED, 0L);
+            counts.put(OrderStatus.PAID, 2L);
+            counts.put(OrderStatus.CANCELLED, 0L);
+            given(orderService.statusCounts(any(), any(), eq(""))).willReturn(counts);
+
+            mockMvc.perform(get("/api/orders/status-counts"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.PENDING").value(3))
+                    .andExpect(jsonPath("$.READY").value(1))
+                    .andExpect(jsonPath("$.PAID").value(2));
         }
     }
 

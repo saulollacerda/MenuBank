@@ -74,4 +74,41 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("merchantId") UUID merchantId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query(
+            value = """
+                    SELECT o FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND o.status = :status
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """,
+            countQuery = """
+                    SELECT COUNT(o) FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND o.status = :status
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """
+    )
+    Page<Order> findPageByMerchantIdAndStatusAndCustomerNameContaining(
+            @Param("merchantId") UUID merchantId,
+            @Param("status") OrderStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
+            SELECT o.status, COUNT(o) FROM Order o
+            JOIN o.customer c
+            WHERE o.merchant.id = :merchantId
+            AND (:start IS NULL OR o.dateTime >= :start)
+            AND (:end   IS NULL OR o.dateTime <= :end)
+            AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            GROUP BY o.status
+            """)
+    List<Object[]> countByStatusForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("search") String search);
 }

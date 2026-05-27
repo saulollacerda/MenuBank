@@ -5,10 +5,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -36,8 +40,19 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<Page<OrderResponse>> findAll(
             @RequestParam(required = false, defaultValue = "") String search,
+            @RequestParam(required = false) OrderStatus status,
             @PageableDefault(size = 20, sort = "dateTime", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(orderService.findAll(search, pageable));
+        return ResponseEntity.ok(orderService.findAll(search, status, pageable));
+    }
+
+    @GetMapping("/status-counts")
+    public ResponseEntity<Map<OrderStatus, Long>> statusCounts(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "") String search) {
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end = endDate != null ? endDate.atTime(23, 59, 59) : null;
+        return ResponseEntity.ok(orderService.statusCounts(start, end, search));
     }
 
     @PutMapping("/{id}")
