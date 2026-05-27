@@ -169,6 +169,56 @@ class DashboardServiceTest {
         }
 
         @Test
+        @DisplayName("deve calcular totalSalesChangePct comparando com período anterior")
+        void shouldCalculateTotalSalesChangePct() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(
+                            List.of(buildOrder(startDate.atTime(10, 0), new BigDecimal("200.00"),
+                                    new BigDecimal("60.00"), OrderStatus.PAID, List.of())),
+                            List.of(buildOrder(startDate.minusDays(31).atTime(10, 0), new BigDecimal("100.00"),
+                                    new BigDecimal("30.00"), OrderStatus.PAID, List.of()))
+                    );
+
+            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+
+            // (200 - 100) / 100 * 100 = 100.00
+            assertThat(result.getTotalSalesChangePct()).isEqualByComparingTo(new BigDecimal("100.00"));
+        }
+
+        @Test
+        @DisplayName("deve calcular estimatedMarginPct (estimatedProfit / totalSales × 100)")
+        void shouldCalculateEstimatedMarginPct() {
+            List<Order> paidOrders = List.of(
+                    buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
+                            new BigDecimal("60.00"), OrderStatus.PAID, List.of())
+            );
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(paidOrders);
+
+            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+
+            assertThat(result.getEstimatedMarginPct()).isEqualByComparingTo(new BigDecimal("60.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar customerCount obtido do repository")
+        void shouldReturnCustomerCount() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+            given(orderRepository.countDistinctCustomersByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(7L, 4L);
+
+            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+
+            assertThat(result.getCustomerCount()).isEqualTo(7L);
+            // (7 - 4) / 4 * 100 = 75.00
+            assertThat(result.getCustomerCountChangePct()).isEqualByComparingTo(new BigDecimal("75.00"));
+        }
+
+        @Test
         @DisplayName("deve calcular estimatedProfit como soma dos estimatedProfit dos pedidos PAID")
         void shouldCalculateEstimatedProfit() {
             List<Order> paidOrders = List.of(
@@ -401,12 +451,83 @@ class DashboardServiceTest {
             DashboardResponse result = dashboardService.getDashboard(null, null);
 
             assertThat(result).isNotNull();
-            then(orderRepository).should().findByMerchantIdAndDateTimeBetweenAndStatus(
+            then(orderRepository).should(atLeastOnce()).findByMerchantIdAndDateTimeBetweenAndStatus(
                     eq(merchantId),
                     eq(LocalDate.now().atStartOfDay()),
                     eq(LocalDate.now().atTime(23, 59, 59)),
                     eq(OrderStatus.PAID)
             );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // peakHours()
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("peakHours(startDate, endDate)")
+    class PeakHours {
+
+        @Test
+        @DisplayName("deve retornar items com hour/orderCount/pct calculados")
+        void shouldReturnPeakHoursWithPct() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.peakHoursByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(List.of(
+                            new Object[]{11, 3L},
+                            new Object[]{12, 7L}
+                    ));
+
+            List<PeakHour> result = dashboardService.peakHours(startDate, endDate);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getHour()).isEqualTo(11);
+            assertThat(result.get(0).getOrderCount()).isEqualTo(3L);
+            // 3 / 10 * 100 = 30.00
+            assertThat(result.get(0).getPct()).isEqualByComparingTo(new BigDecimal("30.00"));
+            assertThat(result.get(1).getHour()).isEqualTo(12);
+            assertThat(result.get(1).getPct()).isEqualByComparingTo(new BigDecimal("70.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar lista vazia quando não há pedidos no período")
+        void shouldReturnEmptyWhenNoOrders() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.peakHoursByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(List.of());
+
+            List<PeakHour> result = dashboardService.peakHours(startDate, endDate);
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // channels()
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("channels(startDate, endDate)")
+    class Channels {
+
+        @Test
+        @DisplayName("deve retornar contagem por origin com pct")
+        void shouldReturnChannelsWithPct() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.countByOriginForMerchant(eq(merchantId), any(), any()))
+                    .willReturn(List.of(
+                            new Object[]{com.MenuBank.MenuBank.order.OrderOrigin.MENUBANK, 3L},
+                            new Object[]{com.MenuBank.MenuBank.order.OrderOrigin.ANOTA_AI, 1L}
+                    ));
+
+            List<ChannelBreakdown> result = dashboardService.channels(startDate, endDate);
+
+            assertThat(result).hasSize(2);
+            BigDecimal menubankPct = result.stream()
+                    .filter(c -> c.getOrigin() == com.MenuBank.MenuBank.order.OrderOrigin.MENUBANK)
+                    .findFirst().get().getPct();
+            // 3 / 4 * 100 = 75.00
+            assertThat(menubankPct).isEqualByComparingTo(new BigDecimal("75.00"));
         }
     }
 }

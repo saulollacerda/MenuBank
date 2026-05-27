@@ -111,4 +111,41 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             @Param("search") String search);
+
+    @Query("""
+            SELECT COUNT(DISTINCT o.customer.id) FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            """)
+    Long countDistinctCustomersByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query(
+            value = """
+                SELECT EXTRACT(HOUR FROM o.date_time) AS hour, COUNT(*) AS cnt
+                FROM orders o
+                WHERE o.merchant_id = :merchantId
+                AND o.date_time BETWEEN :start AND :end
+                GROUP BY EXTRACT(HOUR FROM o.date_time)
+                ORDER BY hour ASC
+                """,
+            nativeQuery = true
+    )
+    List<Object[]> peakHoursByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT o.origin, COUNT(o) FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            GROUP BY o.origin
+            """)
+    List<Object[]> countByOriginForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }
