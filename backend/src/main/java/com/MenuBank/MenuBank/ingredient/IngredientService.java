@@ -12,8 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class IngredientService {
@@ -54,6 +57,9 @@ public class IngredientService {
                 .salePrice(request.getSalePrice())
                 .defaultQuantity(request.getDefaultQuantity())
                 .status(request.getStatus() != null ? request.getStatus() : IngredientStatus.ACTIVE)
+                .stockQuantity(request.getStockQuantity())
+                .lastReplenishedAt(request.getLastReplenishedAt())
+                .lowStockThreshold(request.getLowStockThreshold())
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
@@ -71,8 +77,27 @@ public class IngredientService {
     public Page<IngredientResponse> findAll(String search, Pageable pageable) {
         UUID merchantId = merchantContext.getMerchantId();
         String term = search == null ? "" : search;
-        return ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
-                .map(this::toResponse);
+        Page<Ingredient> page = ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
+        Map<String, Long> usageCounts = fetchUsageCounts(page.getContent(), merchantId);
+        return page.map(i -> toResponse(i, (Long) usageCounts.getOrDefault(
+                i.getName() == null ? "" : i.getName().toLowerCase(), 0L)));
+    }
+
+    private Map<String, Long> fetchUsageCounts(List<Ingredient> ingredients, UUID merchantId) {
+        if (ingredients.isEmpty()) {
+            return Map.of();
+        }
+        List<String> names = ingredients.stream()
+                .map(Ingredient::getName)
+                .filter(java.util.Objects::nonNull)
+                .map(String::toLowerCase)
+                .distinct()
+                .toList();
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : includeRepository.countByLowercaseNameInForMerchant(merchantId, names)) {
+            counts.put((String) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     @Transactional
@@ -91,6 +116,15 @@ public class IngredientService {
         }
         if (request.getStatus() != null) {
             ingredient.setStatus(request.getStatus());
+        }
+        if (request.getStockQuantity() != null) {
+            ingredient.setStockQuantity(request.getStockQuantity());
+        }
+        if (request.getLastReplenishedAt() != null) {
+            ingredient.setLastReplenishedAt(request.getLastReplenishedAt());
+        }
+        if (request.getLowStockThreshold() != null) {
+            ingredient.setLowStockThreshold(request.getLowStockThreshold());
         }
 
         return toResponse(ingredientRepository.save(ingredient));
@@ -151,6 +185,15 @@ public class IngredientService {
     }
 
     private IngredientResponse toResponse(Ingredient ingredient) {
+        return toResponse(ingredient, null);
+    }
+
+    private IngredientResponse toResponse(Ingredient ingredient, Long usageCount) {
+        BigDecimal totalStockCost = null;
+        if (ingredient.getStockQuantity() != null && ingredient.getCostPerUnit() != null) {
+            totalStockCost = ingredient.getStockQuantity().multiply(ingredient.getCostPerUnit())
+                    .setScale(4, RoundingMode.HALF_UP);
+        }
         return IngredientResponse.builder()
                 .id(ingredient.getId())
                 .name(ingredient.getName())
@@ -159,6 +202,11 @@ public class IngredientService {
                 .salePrice(ingredient.getSalePrice())
                 .defaultQuantity(ingredient.getDefaultQuantity())
                 .status(ingredient.getStatus())
+                .stockQuantity(ingredient.getStockQuantity())
+                .lastReplenishedAt(ingredient.getLastReplenishedAt())
+                .lowStockThreshold(ingredient.getLowStockThreshold())
+                .totalStockCost(totalStockCost)
+                .usageCount(usageCount)
                 .build();
     }
 }

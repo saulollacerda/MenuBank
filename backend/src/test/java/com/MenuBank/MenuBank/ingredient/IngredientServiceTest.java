@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
 import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.notification.NotificationService;
+import com.MenuBank.MenuBank.product.IncludeRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -36,6 +37,9 @@ class IngredientServiceTest {
 
     @Mock
     private MerchantRepository merchantRepository;
+
+    @Mock
+    private IncludeRepository includeRepository;
 
 
     @InjectMocks
@@ -69,6 +73,9 @@ class IngredientServiceTest {
                 .defaultQuantity(new BigDecimal("0.20"))
                 .status(IngredientStatus.ACTIVE)
                 .build();
+
+        lenient().when(includeRepository.countByLowercaseNameInForMerchant(any(), any()))
+                .thenReturn(java.util.List.of());
     }
 
     @Nested
@@ -121,6 +128,28 @@ class IngredientServiceTest {
             ingredientService.create(req);
 
             then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.INACTIVE));
+        }
+
+        @Test
+        @DisplayName("deve persistir campos de stock no create quando informados")
+        void shouldPersistStockFieldsOnCreate() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .stockQuantity(new BigDecimal("12.50"))
+                    .lowStockThreshold(new BigDecimal("2.00"))
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(req);
+
+            then(ingredientRepository).should().save(argThat(i ->
+                    new BigDecimal("12.50").compareTo(i.getStockQuantity()) == 0
+                            && new BigDecimal("2.00").compareTo(i.getLowStockThreshold()) == 0));
         }
 
         @Test
@@ -197,6 +226,20 @@ class IngredientServiceTest {
     class FindById {
 
         @Test
+        @DisplayName("deve computar totalStockCost como stockQuantity × costPerUnit")
+        void shouldComputeTotalStockCost() {
+            ingredient.setStockQuantity(new BigDecimal("10.00"));
+            ingredient.setCostPerUnit(new BigDecimal("3.50"));
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+
+            IngredientResponse result = ingredientService.findById(ingredientId);
+
+            assertThat(result.getTotalStockCost()).isEqualByComparingTo(new BigDecimal("35.00"));
+        }
+
+        @Test
         @DisplayName("deve retornar IngredientResponse quando ingrediente existe")
         void shouldReturnResponseWhenExists() {
             given(merchantContext.getMerchantId()).willReturn(merchantId);
@@ -242,6 +285,24 @@ class IngredientServiceTest {
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getId()).isEqualTo(ingredientId);
             assertThat(result.getTotalElements()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("deve popular usageCount via query agregada em batch")
+        void shouldPopulateUsageCountInBatch() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(ingredient), pageable, 1));
+            given(includeRepository.countByLowercaseNameInForMerchant(eq(merchantId), any()))
+                    .willReturn(List.<Object[]>of(new Object[]{"farinha de trigo", 4L}));
+
+            org.springframework.data.domain.Page<IngredientResponse> result =
+                    ingredientService.findAll(null, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getUsageCount()).isEqualTo(4L);
         }
 
         @Test

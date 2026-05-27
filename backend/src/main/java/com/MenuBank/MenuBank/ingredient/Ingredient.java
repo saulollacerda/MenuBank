@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -56,4 +57,13 @@ public class Ingredient {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private IngredientStatus status;
+
+    @Column(name = "stock_quantity", precision = 19, scale = 4)
+    private BigDecimal stockQuantity;
+
+    @Column(name = "last_replenished_at")
+    private LocalDateTime lastReplenishedAt;
+
+    @Column(name = "low_stock_threshold", precision = 19, scale = 4)
+    private BigDecimal lowStockThreshold;
 }

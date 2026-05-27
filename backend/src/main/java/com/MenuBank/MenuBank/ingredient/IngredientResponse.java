@@ -18,4 +18,9 @@ public class IngredientResponse {
     private BigDecimal salePrice;
     private BigDecimal defaultQuantity;
     private IngredientStatus status;
+    private BigDecimal stockQuantity;
+    private java.time.LocalDateTime lastReplenishedAt;
+    private BigDecimal lowStockThreshold;
+    private BigDecimal totalStockCost;
+    private Long usageCount;
 }
