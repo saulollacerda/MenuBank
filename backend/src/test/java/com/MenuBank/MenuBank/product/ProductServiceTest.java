@@ -143,6 +143,26 @@ class ProductServiceTest {
         }
 
         @Test
+        @DisplayName("deve criar produto com status informado no request (override do default)")
+        void shouldCreateWithRequestedStatus() {
+            ProductRequest requestWithInactive = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .categoryId(categoryId)
+                    .status(ProductStatus.INACTIVE)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            productService.create(requestWithInactive);
+
+            then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.INACTIVE));
+        }
+
+        @Test
         @DisplayName("deve lançar DuplicateProductException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
             given(merchantContext.getMerchantId()).willReturn(merchantId);
@@ -183,6 +203,79 @@ class ProductServiceTest {
 
             assertThatThrownBy(() -> productService.findById(productId))
                     .isInstanceOf(ProductNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("deve retornar unitCost como soma de cost x quantity dos includes")
+        void shouldReturnUnitCostFromIncludes() {
+            Include i1 = Include.builder().cost(new BigDecimal("2.00")).quantity(new BigDecimal("3")).build();
+            Include i2 = Include.builder().cost(new BigDecimal("1.50")).quantity(new BigDecimal("2")).build();
+            product.setIncludes(List.of(i1, i2));
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            ProductResponse result = productService.findById(productId);
+
+            // 2.00 * 3 + 1.50 * 2 = 9.00
+            assertThat(result.getUnitCost()).isEqualByComparingTo(new BigDecimal("9.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar unitCost zero quando produto não tem includes")
+        void shouldReturnZeroUnitCostWhenNoIncludes() {
+            product.setIncludes(List.of());
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            ProductResponse result = productService.findById(productId);
+
+            assertThat(result.getUnitCost()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("deve calcular marginPct como (price - unitCost) / price x 100")
+        void shouldCalculateMarginPct() {
+            Include i1 = Include.builder().cost(new BigDecimal("10.00")).quantity(new BigDecimal("1")).build();
+            product.setIncludes(List.of(i1));
+            product.setPrice(new BigDecimal("25.00"));
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            ProductResponse result = productService.findById(productId);
+
+            // (25 - 10) / 25 * 100 = 60.00
+            assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("60.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar marginPct null quando price é zero")
+        void shouldReturnNullMarginWhenPriceIsZero() {
+            product.setPrice(BigDecimal.ZERO);
+            product.setIncludes(List.of());
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            ProductResponse result = productService.findById(productId);
+
+            assertThat(result.getMarginPct()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve retornar marginPct 100 quando unitCost é zero e price > 0")
+        void shouldReturnFullMarginWhenNoCost() {
+            product.setIncludes(List.of());
+            product.setPrice(new BigDecimal("10.00"));
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            ProductResponse result = productService.findById(productId);
+
+            assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("100.00"));
         }
     }
 
@@ -283,6 +376,46 @@ class ProductServiceTest {
             assertThat(result.getCategoryName()).isEqualTo("Bebidas");
             then(productRepository).should().save(argThat(p ->
                     p.getCategory() != null && newCategoryId.equals(p.getCategory().getId())));
+        }
+
+        @Test
+        @DisplayName("deve atualizar o status quando informado no request")
+        void shouldUpdateStatusWhenProvided() {
+            ProductRequest req = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .categoryId(categoryId)
+                    .status(ProductStatus.INACTIVE)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            productService.update(productId, req);
+
+            then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.INACTIVE));
+        }
+
+        @Test
+        @DisplayName("não deve mudar status quando request.status é null")
+        void shouldKeepStatusWhenRequestStatusIsNull() {
+            ProductRequest req = ProductRequest.builder()
+                    .name("X-Burguer")
+                    .price(new BigDecimal("25.90"))
+                    .categoryId(categoryId)
+                    .status(null)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            productService.update(productId, req);
+
+            then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.ACTIVE));
         }
 
         @Test

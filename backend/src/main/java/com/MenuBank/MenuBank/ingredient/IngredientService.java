@@ -51,8 +51,9 @@ public class IngredientService {
                 .canonicalName(canonicalName)
                 .unit(request.getUnit())
                 .costPerUnit(request.getCostPerUnit())
+                .salePrice(request.getSalePrice())
                 .defaultQuantity(request.getDefaultQuantity())
-                .status(IngredientStatus.ACTIVE)
+                .status(request.getStatus() != null ? request.getStatus() : IngredientStatus.ACTIVE)
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
@@ -85,6 +86,12 @@ public class IngredientService {
         ingredient.setUnit(request.getUnit());
         ingredient.setCostPerUnit(request.getCostPerUnit());
         ingredient.setDefaultQuantity(request.getDefaultQuantity());
+        if (request.getSalePrice() != null) {
+            ingredient.setSalePrice(request.getSalePrice());
+        }
+        if (request.getStatus() != null) {
+            ingredient.setStatus(request.getStatus());
+        }
 
         return toResponse(ingredientRepository.save(ingredient));
     }

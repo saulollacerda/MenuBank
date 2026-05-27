@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +37,9 @@ public class DashboardService {
 
         List<Order> paidOrders = orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(
                 merchantId, startDateTime, endDateTime, OrderStatus.PAID);
+
+        Integer ordersChange = orderRepository.countByMerchantIdAndDateTimeBetween(
+                merchantId, startDateTime, endDateTime);
 
         BigDecimal totalSales = calculateTotalSales(paidOrders);
         long orderCount = paidOrders.size();
@@ -107,4 +111,5 @@ public class DashboardService {
                 .limit(5)
                 .toList();
     }
+
 }

@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -256,7 +257,18 @@ public class OrderService {
                 .feeRate(fee != null ? fee.getFeeRate() : null)
                 .items(itemResponses)
                 .origin(order.getOrigin())
+                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue()))
                 .build();
+    }
+
+    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue) {
+        if (totalValue == null || totalValue.signum() == 0 || profit == null) {
+            return null;
+        }
+        return profit
+                .divide(totalValue, 4, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal("100"))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId) {

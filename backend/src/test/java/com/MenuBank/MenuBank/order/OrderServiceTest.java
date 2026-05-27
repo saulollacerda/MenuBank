@@ -553,6 +553,45 @@ class OrderServiceTest {
             // 22.49 - (unitCost=0 × qty=1) - fee=0 = 22.49
             assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("22.49"));
         }
+
+        @Test
+        @DisplayName("deve retornar marginPct = estimatedProfit / totalValue * 100")
+        void shouldReturnMarginPct() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            assertThat(result.getMarginPct()).isNotNull();
+            // marginPct = estimatedProfit / totalValue * 100
+            BigDecimal expected = result.getEstimatedProfit()
+                    .divide(result.getTotalValue(), 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            assertThat(result.getMarginPct()).isEqualByComparingTo(expected);
+        }
+
+        @Test
+        @DisplayName("deve retornar marginPct null quando totalValue é zero")
+        void shouldReturnNullMarginWhenTotalValueIsZero() {
+            Order zeroOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PENDING)
+                    .totalValue(BigDecimal.ZERO)
+                    .estimatedProfit(BigDecimal.ZERO)
+                    .items(new ArrayList<>())
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(zeroOrder));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            assertThat(result.getMarginPct()).isNull();
+        }
     }
 
     // -------------------------------------------------------------------------

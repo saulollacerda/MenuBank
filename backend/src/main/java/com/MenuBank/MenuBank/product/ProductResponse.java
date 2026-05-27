@@ -17,4 +17,6 @@ public class ProductResponse {
     private ProductStatus status;
     private UUID categoryId;
     private String categoryName;
+    private BigDecimal unitCost;
+    private BigDecimal marginPct;
 }

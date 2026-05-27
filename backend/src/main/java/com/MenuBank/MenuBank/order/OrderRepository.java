@@ -61,4 +61,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     boolean existsByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
 
     Optional<Order> findByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
+
+    @Query(
+            value = """
+                SELECT COUNT(*) FROM orders o
+                WHERE o.merchant_id = :merchantId
+                AND o.date_time BETWEEN :start AND :end
+                """,
+            nativeQuery = true
+    )
+    Integer countByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }

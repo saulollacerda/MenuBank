@@ -25,4 +25,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findAllByCategoryIsNull();
 
     Optional<Product> findByExternalIdAndMerchantId(String externalId, UUID merchantId);
+
+    long countByCategoryIdAndMerchantId(UUID categoryId, UUID merchantId);
 }

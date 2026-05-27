@@ -105,6 +105,45 @@ class IngredientServiceTest {
         }
 
         @Test
+        @DisplayName("deve criar ingrediente com status informado no request (override do default)")
+        void shouldCreateWithRequestedStatus() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .status(IngredientStatus.INACTIVE)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(req);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.INACTIVE));
+        }
+
+        @Test
+        @DisplayName("deve persistir salePrice no create quando informado")
+        void shouldPersistSalePriceOnCreate() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .salePrice(new BigDecimal("8.50"))
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(req);
+
+            then(ingredientRepository).should().save(argThat(i ->
+                    new BigDecimal("8.50").compareTo(i.getSalePrice()) == 0));
+        }
+
+        @Test
         @DisplayName("deve lançar DuplicateIngredientException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
             given(merchantContext.getMerchantId()).willReturn(merchantId);
@@ -273,6 +312,64 @@ class IngredientServiceTest {
 
             then(ingredientRepository).should()
                     .save(argThat(i -> "pistache".equals(i.getCanonicalName())));
+        }
+
+        @Test
+        @DisplayName("deve atualizar status quando informado no request")
+        void shouldUpdateStatusWhenProvided() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .status(IngredientStatus.INACTIVE)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.update(ingredientId, req);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.INACTIVE));
+        }
+
+        @Test
+        @DisplayName("não deve mudar status quando request.status é null")
+        void shouldKeepStatusWhenRequestStatusIsNull() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .status(null)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.update(ingredientId, req);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.ACTIVE));
+        }
+
+        @Test
+        @DisplayName("deve persistir salePrice quando informado")
+        void shouldPersistSalePriceWhenProvided() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .salePrice(new BigDecimal("9.99"))
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.update(ingredientId, req);
+
+            then(ingredientRepository).should().save(argThat(i ->
+                    new BigDecimal("9.99").compareTo(i.getSalePrice()) == 0));
         }
 
         @Test
