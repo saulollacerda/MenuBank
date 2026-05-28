@@ -71,9 +71,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetail> handleValidationErrors(MethodArgumentNotValidException ex) {
+        java.util.Map<String, String> fieldErrors = new java.util.LinkedHashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(err ->
+                fieldErrors.put(err.getField(), err.getDefaultMessage()));
+
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Dados inválidos");
-        problem.setDetail("Um ou mais campos são inválidos");
+        problem.setDetail(fieldErrors.isEmpty()
+                ? "Um ou mais campos são inválidos"
+                : "Um ou mais campos são inválidos: " + String.join("; ",
+                        fieldErrors.entrySet().stream()
+                                .map(e -> e.getKey() + " — " + e.getValue())
+                                .toList()));
+        problem.setProperty("fieldErrors", fieldErrors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 

@@ -1,7 +1,7 @@
 package com.MenuBank.MenuBank.order;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,7 +20,7 @@ public class OrderItemExtraIngredientRequest {
     private UUID ingredientId;
 
     @NotNull(message = "Quantidade do ingrediente extra é obrigatória")
-    @Positive(message = "Quantidade do ingrediente extra deve ser maior que zero")
+    @PositiveOrZero(message = "Quantidade do ingrediente extra deve ser maior ou igual a zero")
     private BigDecimal quantity;
 }
 
