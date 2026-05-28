@@ -4,6 +4,8 @@ import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
 import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.order.OrderOrigin;
+import com.MenuBank.MenuBank.order.OrderRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +33,9 @@ class CustomerServiceTest {
 
     @Mock
     private MerchantRepository merchantRepository;
+
+    @Mock
+    private OrderRepository orderRepository;
 
 
     @InjectMocks
@@ -60,6 +65,11 @@ class CustomerServiceTest {
                 .phone("11999999999")
                 .email("joao@email.com")
                 .build();
+
+        lenient().when(orderRepository.aggregatesByCustomerForMerchant(any(), any()))
+                .thenReturn(java.util.List.of());
+        lenient().when(orderRepository.originBreakdownByCustomerForMerchant(any(), any()))
+                .thenReturn(java.util.List.of());
     }
 
     // -------------------------------------------------------------------------
@@ -142,6 +152,28 @@ class CustomerServiceTest {
 
             assertThatThrownBy(() -> customerService.findById(customerId))
                     .isInstanceOf(CustomerNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("deve popular orderCount, lifetimeValue e lastOrderAt do aggregate")
+        void shouldPopulateAggregates() {
+            java.time.LocalDateTime when = java.time.LocalDateTime.of(2026, 5, 20, 12, 0);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(orderRepository.aggregatesByCustomerForMerchant(eq(merchantId), any()))
+                    .willReturn(java.util.List.<Object[]>of(
+                            new Object[]{customerId, 5L, new java.math.BigDecimal("250.00"), when}));
+            given(orderRepository.originBreakdownByCustomerForMerchant(eq(merchantId), any()))
+                    .willReturn(java.util.List.<Object[]>of(
+                            new Object[]{customerId, OrderOrigin.ANOTA_AI, 3L},
+                            new Object[]{customerId, OrderOrigin.MENUBANK, 2L}));
+
+            CustomerResponse result = customerService.findById(customerId);
+
+            assertThat(result.getOrderCount()).isEqualTo(5L);
+            assertThat(result.getLifetimeValue()).isEqualByComparingTo("250.00");
+            assertThat(result.getLastOrderAt()).isEqualTo(when);
+            assertThat(result.getPreferredOrigin()).isEqualTo(OrderOrigin.ANOTA_AI);
         }
     }
 

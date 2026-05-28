@@ -161,4 +161,30 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("merchantId") UUID merchantId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT o.customer.id,
+                   COUNT(o),
+                   COALESCE(SUM(o.totalValue), 0),
+                   MAX(o.dateTime)
+            FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.customer.id IN :customerIds
+            GROUP BY o.customer.id
+            """)
+    List<Object[]> aggregatesByCustomerForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("customerIds") java.util.Collection<UUID> customerIds);
+
+    @Query("""
+            SELECT o.customer.id, o.origin, COUNT(o)
+            FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.customer.id IN :customerIds
+            AND o.origin IS NOT NULL
+            GROUP BY o.customer.id, o.origin
+            """)
+    List<Object[]> originBreakdownByCustomerForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("customerIds") java.util.Collection<UUID> customerIds);
 }
