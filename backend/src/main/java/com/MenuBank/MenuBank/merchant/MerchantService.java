@@ -77,6 +77,49 @@ public class MerchantService {
         return toResponse(saved);
     }
 
+    public MerchantResponse findMe() {
+        UUID currentMerchantId = merchantContext.getMerchantId();
+        Merchant merchant = merchantRepository.findById(currentMerchantId)
+                .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
+        return toResponse(merchant);
+    }
+
+    @Transactional
+    public MerchantResponse updateMe(MerchantUpdateRequest request) {
+        UUID currentMerchantId = merchantContext.getMerchantId();
+        Merchant merchant = merchantRepository.findById(currentMerchantId)
+                .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
+
+        if (request.getMerchantName() != null) merchant.setMerchantName(request.getMerchantName());
+        if (request.getPhone() != null) merchant.setPhone(request.getPhone());
+        if (request.getAddress() != null) merchant.setAddress(request.getAddress());
+        if (request.getLogoUrl() != null) merchant.setLogoUrl(request.getLogoUrl());
+        if (request.getOpeningHours() != null) merchant.setOpeningHours(request.getOpeningHours());
+
+        Merchant saved = merchantRepository.save(merchant);
+        return toResponse(saved);
+    }
+
+    public MerchantPreferences getMyPreferences() {
+        UUID currentMerchantId = merchantContext.getMerchantId();
+        Merchant merchant = merchantRepository.findById(currentMerchantId)
+                .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
+        return merchant.getPreferences() != null
+                ? merchant.getPreferences()
+                : MerchantPreferences.builder().build();
+    }
+
+    @Transactional
+    public MerchantPreferences updateMyPreferences(MerchantPreferences preferences) {
+        UUID currentMerchantId = merchantContext.getMerchantId();
+        Merchant merchant = merchantRepository.findById(currentMerchantId)
+                .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
+
+        merchant.setPreferences(preferences);
+        Merchant saved = merchantRepository.save(merchant);
+        return saved.getPreferences();
+    }
+
     @Transactional
     public void delete(UUID id) {
         ensureOwner(id);
@@ -102,6 +145,10 @@ public class MerchantService {
                 .status(merchant.getStatus())
                 .createdAt(merchant.getCreatedAt())
                 .anotaAiApiKey(merchant.getAnotaAiApiKey())
+                .address(merchant.getAddress())
+                .logoUrl(merchant.getLogoUrl())
+                .openingHours(merchant.getOpeningHours())
+                .preferences(merchant.getPreferences())
                 .build();
     }
 }

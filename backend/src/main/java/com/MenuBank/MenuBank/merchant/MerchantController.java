@@ -46,4 +46,24 @@ public class MerchantController {
         MerchantResponse response = merchantService.updateAnotaAIKey(request);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<MerchantResponse> findMe() {
+        return ResponseEntity.ok(merchantService.findMe());
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<MerchantResponse> updateMe(@Valid @RequestBody MerchantUpdateRequest request) {
+        return ResponseEntity.ok(merchantService.updateMe(request));
+    }
+
+    @GetMapping("/me/preferences")
+    public ResponseEntity<MerchantPreferences> getMyPreferences() {
+        return ResponseEntity.ok(merchantService.getMyPreferences());
+    }
+
+    @PutMapping("/me/preferences")
+    public ResponseEntity<MerchantPreferences> updateMyPreferences(@RequestBody MerchantPreferences preferences) {
+        return ResponseEntity.ok(merchantService.updateMyPreferences(preferences));
+    }
 }
