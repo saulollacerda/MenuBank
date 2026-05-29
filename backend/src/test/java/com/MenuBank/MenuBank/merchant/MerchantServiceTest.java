@@ -322,4 +322,122 @@ class MerchantServiceTest {
             then(merchantRepository).should(never()).deleteById(any());
         }
     }
+
+    @Nested
+    @DisplayName("findMe() / updateMe()")
+    class Me {
+
+        @Test
+        @DisplayName("findMe deve retornar o merchant autenticado pelo contexto")
+        void findMeShouldReturnAuthenticated() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+
+            MerchantResponse result = merchantService.findMe();
+
+            assertThat(result.getId()).isEqualTo(merchantId);
+        }
+
+        @Test
+        @DisplayName("updateMe deve aplicar apenas campos não-null e ignorar cnpj/email")
+        void updateMeShouldApplyOnlyNonNullFields() {
+            MerchantUpdateRequest req = MerchantUpdateRequest.builder()
+                    .merchantName("Novo Nome")
+                    .address("Rua A, 100")
+                    .phone(null)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+            given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
+
+            MerchantResponse result = merchantService.updateMe(req);
+
+            assertThat(result.getMerchantName()).isEqualTo("Novo Nome");
+            assertThat(result.getAddress()).isEqualTo("Rua A, 100");
+            // phone permanece (request enviou null)
+            assertThat(result.getPhone()).isEqualTo("11999999999");
+            // cnpj imutável
+            assertThat(result.getCnpj()).isEqualTo("12345678000195");
+        }
+
+        @Test
+        @DisplayName("updateMe deve persistir openingHours")
+        void updateMeShouldPersistOpeningHours() {
+            java.util.List<OpeningHour> hours = java.util.List.of(
+                    OpeningHour.builder()
+                            .dayOfWeek(java.time.DayOfWeek.MONDAY)
+                            .openTime(java.time.LocalTime.of(11, 0))
+                            .closeTime(java.time.LocalTime.of(23, 0))
+                            .closed(false)
+                            .build());
+            MerchantUpdateRequest req = MerchantUpdateRequest.builder()
+                    .openingHours(hours)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+            given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
+
+            MerchantResponse result = merchantService.updateMe(req);
+
+            assertThat(result.getOpeningHours()).hasSize(1);
+            assertThat(result.getOpeningHours().get(0).getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+        }
+    }
+
+    @Nested
+    @DisplayName("getMyPreferences() / updateMyPreferences()")
+    class Preferences {
+
+        @Test
+        @DisplayName("getMyPreferences deve retornar defaults quando merchant não tem prefs salvas")
+        void getMyPreferencesShouldReturnDefaultsWhenNull() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+
+            MerchantPreferences result = merchantService.getMyPreferences();
+
+            assertThat(result).isNotNull();
+            assertThat(result.isRealtimeMarginCalc()).isTrue();
+            assertThat(result.isMarginAlertBelow50Pct()).isFalse();
+        }
+
+        @Test
+        @DisplayName("getMyPreferences deve retornar prefs persistidas quando existem")
+        void getMyPreferencesShouldReturnPersisted() {
+            MerchantPreferences stored = MerchantPreferences.builder()
+                    .realtimeMarginCalc(false)
+                    .marginAlertBelow50Pct(true)
+                    .build();
+            merchant.setPreferences(stored);
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+
+            MerchantPreferences result = merchantService.getMyPreferences();
+
+            assertThat(result.isRealtimeMarginCalc()).isFalse();
+            assertThat(result.isMarginAlertBelow50Pct()).isTrue();
+        }
+
+        @Test
+        @DisplayName("updateMyPreferences deve sobrescrever as prefs e retornar o estado salvo")
+        void updateMyPreferencesShouldOverwrite() {
+            MerchantPreferences toSave = MerchantPreferences.builder()
+                    .realtimeMarginCalc(false)
+                    .warnUnregisteredIngredients(false)
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+            given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
+
+            MerchantPreferences result = merchantService.updateMyPreferences(toSave);
+
+            assertThat(result.isRealtimeMarginCalc()).isFalse();
+            assertThat(result.isWarnUnregisteredIngredients()).isFalse();
+            then(merchantRepository).should().save(argThat(m -> m.getPreferences() == toSave));
+        }
+    }
 }

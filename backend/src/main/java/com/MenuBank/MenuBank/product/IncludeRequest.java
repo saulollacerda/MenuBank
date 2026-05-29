@@ -21,4 +21,8 @@ public class IncludeRequest {
 
     @DecimalMin(value = "0.0", inclusive = false, message = "Quantidade deve ser maior que zero")
     private BigDecimal quantity;
+
+    private IncludeKind kind;
+
+    private Integer sortOrder;
 }

@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Service
@@ -43,7 +45,7 @@ public class ProductService {
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
                 .price(request.getPrice())
-                .status(ProductStatus.ACTIVE)
+                .status(request.getStatus() != null ? request.getStatus() : ProductStatus.ACTIVE)
                 .category(category)
                 .build();
 
@@ -76,6 +78,9 @@ public class ProductService {
         product.setName(request.getName());
         product.setPrice(request.getPrice());
         product.setCategory(category);
+        if (request.getStatus() != null) {
+            product.setStatus(request.getStatus());
+        }
 
         Product saved = productRepository.save(product);
         return toResponse(saved);
@@ -91,6 +96,8 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         Category category = product.getCategory();
+        BigDecimal unitCost = ProductCostCalculator.computeUnitCost(product.getIncludes());
+        BigDecimal marginPct = computeMarginPct(product.getPrice(), unitCost);
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -98,6 +105,19 @@ public class ProductService {
                 .status(product.getStatus())
                 .categoryId(category != null ? category.getId() : null)
                 .categoryName(category != null ? category.getName() : null)
+                .unitCost(unitCost)
+                .marginPct(marginPct)
                 .build();
+    }
+
+    private BigDecimal computeMarginPct(BigDecimal price, BigDecimal unitCost) {
+        if (price == null || price.signum() == 0) {
+            return null;
+        }
+        BigDecimal cost = unitCost != null ? unitCost : BigDecimal.ZERO;
+        return price.subtract(cost)
+                .divide(price, 4, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal("100"))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

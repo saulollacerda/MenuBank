@@ -42,4 +42,11 @@ public class Include {
     @Column(nullable = false, precision = 19, scale = 4)
     @Builder.Default
     private BigDecimal quantity = BigDecimal.ONE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind")
+    private IncludeKind kind;
+
+    @Column(name = "sort_order")
+    private Integer sortOrder;
 }

@@ -33,5 +33,11 @@ public class Customer {
 
     @Column(name = "external_id")
     private String externalId;
+
+    @Column(length = 120)
+    private String neighborhood;
+
+    @Column(columnDefinition = "text")
+    private String notes;
 }
 

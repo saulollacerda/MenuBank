@@ -61,4 +61,130 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     boolean existsByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
 
     Optional<Order> findByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
+
+    @Query(
+            value = """
+                SELECT COUNT(*) FROM orders o
+                WHERE o.merchant_id = :merchantId
+                AND o.date_time BETWEEN :start AND :end
+                """,
+            nativeQuery = true
+    )
+    Integer countByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query(
+            value = """
+                    SELECT o FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND o.status = :status
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """,
+            countQuery = """
+                    SELECT COUNT(o) FROM Order o
+                    JOIN o.customer c
+                    WHERE o.merchant.id = :merchantId
+                    AND o.status = :status
+                    AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    """
+    )
+    Page<Order> findPageByMerchantIdAndStatusAndCustomerNameContaining(
+            @Param("merchantId") UUID merchantId,
+            @Param("status") OrderStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
+            SELECT o.status, COUNT(o) FROM Order o
+            JOIN o.customer c
+            WHERE o.merchant.id = :merchantId
+            AND (:start IS NULL OR o.dateTime >= :start)
+            AND (:end   IS NULL OR o.dateTime <= :end)
+            AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            GROUP BY o.status
+            """)
+    List<Object[]> countByStatusForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("search") String search);
+
+    @Query("""
+            SELECT COUNT(DISTINCT o.customer.id) FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            """)
+    Long countDistinctCustomersByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query(
+            value = """
+                SELECT EXTRACT(HOUR FROM o.date_time) AS hour, COUNT(*) AS cnt
+                FROM orders o
+                WHERE o.merchant_id = :merchantId
+                AND o.date_time BETWEEN :start AND :end
+                GROUP BY EXTRACT(HOUR FROM o.date_time)
+                ORDER BY hour ASC
+                """,
+            nativeQuery = true
+    )
+    List<Object[]> peakHoursByMerchantIdAndDateTimeBetween(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT o.origin, COUNT(o) FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            GROUP BY o.origin
+            """)
+    List<Object[]> countByOriginForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT p.category.id, COALESCE(SUM(i.unitPrice * i.quantity), 0)
+            FROM Order o JOIN o.items i JOIN i.product p
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            AND p.category.id IS NOT NULL
+            GROUP BY p.category.id
+            """)
+    List<Object[]> sumRevenueByCategoryForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query("""
+            SELECT o.customer.id,
+                   COUNT(o),
+                   COALESCE(SUM(o.totalValue), 0),
+                   MAX(o.dateTime)
+            FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.customer.id IN :customerIds
+            GROUP BY o.customer.id
+            """)
+    List<Object[]> aggregatesByCustomerForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("customerIds") java.util.Collection<UUID> customerIds);
+
+    @Query("""
+            SELECT o.customer.id, o.origin, COUNT(o)
+            FROM Order o
+            WHERE o.merchant.id = :merchantId
+            AND o.customer.id IN :customerIds
+            AND o.origin IS NOT NULL
+            GROUP BY o.customer.id, o.origin
+            """)
+    List<Object[]> originBreakdownByCustomerForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("customerIds") java.util.Collection<UUID> customerIds);
 }

@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.merchant;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -19,4 +20,8 @@ public class MerchantResponse {
     private MerchantStatus status;
     private LocalDateTime createdAt;
     private String anotaAiApiKey;
+    private String address;
+    private String logoUrl;
+    private List<OpeningHour> openingHours;
+    private MerchantPreferences preferences;
 }

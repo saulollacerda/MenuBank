@@ -17,5 +17,13 @@ public class DashboardResponse {
     private BigDecimal estimatedProfit;
     private List<DailySales> salesByDay;
     private List<TopProduct> topProducts;
+    private BigDecimal totalSalesChangePct;
+    private BigDecimal orderCountChangePct;
+    private BigDecimal averageTicketChangePct;
+    private BigDecimal estimatedProfitChangePct;
+    private BigDecimal estimatedMarginPct;
+    private BigDecimal estimatedMarginChangePct;
+    private Long customerCount;
+    private BigDecimal customerCountChangePct;
 }
 

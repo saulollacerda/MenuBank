@@ -22,4 +22,6 @@ public class ProductRequest {
 
     @NotNull(message = "Categoria é obrigatória")
     private UUID categoryId;
+
+    private ProductStatus status;
 }

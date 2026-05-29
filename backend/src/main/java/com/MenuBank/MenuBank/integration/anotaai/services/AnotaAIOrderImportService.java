@@ -113,15 +113,18 @@ public class AnotaAIOrderImportService {
             }
         }
 
-        BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal());
         BigDecimal deliveryFee = BigDecimal.valueOf(detail.getDeliveryFee());
+        // Anota.AI puro retorna detail.total já com os subItems, mas SEM a taxa de
+        // entrega — somamos aqui para que totalValue reflita o que o cliente pagou.
+        // O lucro descontará a taxa via OrderCalculations.calculateEstimatedProfit.
+        BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal()).add(deliveryFee);
 
         Order order = Order.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .dateTime(parseCreatedAt(detail.getCreatedAt()))
                 .customer(customer)
                 .fee(fee)
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.PAID)
                 .totalValue(totalValue)
                 .deliveryFee(deliveryFee)
                 .origin(origin)

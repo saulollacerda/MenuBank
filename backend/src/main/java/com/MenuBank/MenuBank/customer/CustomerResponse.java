@@ -1,7 +1,10 @@
 package com.MenuBank.MenuBank.customer;
 
+import com.MenuBank.MenuBank.order.OrderOrigin;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -14,5 +17,11 @@ public class CustomerResponse {
     private String name;
     private String phone;
     private String email;
+    private String neighborhood;
+    private String notes;
+    private Long orderCount;
+    private BigDecimal lifetimeValue;
+    private LocalDateTime lastOrderAt;
+    private OrderOrigin preferredOrigin;
 }
 

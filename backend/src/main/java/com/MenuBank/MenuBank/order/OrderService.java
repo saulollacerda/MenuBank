@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,11 +105,27 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> findAll(String search, Pageable pageable) {
+    public Page<OrderResponse> findAll(String search, OrderStatus status, Pageable pageable) {
         UUID merchantId = merchantContext.getMerchantId();
         String term = search == null ? "" : search;
-        return orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
-                .map(this::toResponse);
+        Page<Order> page = status == null
+                ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
+                : orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(merchantId, status, term, pageable);
+        return page.map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<OrderStatus, Long> statusCounts(LocalDateTime start, LocalDateTime end, String search) {
+        UUID merchantId = merchantContext.getMerchantId();
+        String term = search == null ? "" : search;
+        java.util.Map<OrderStatus, Long> counts = new java.util.EnumMap<>(OrderStatus.class);
+        for (OrderStatus s : OrderStatus.values()) {
+            counts.put(s, 0L);
+        }
+        for (Object[] row : orderRepository.countByStatusForMerchant(merchantId, start, end, term)) {
+            counts.put((OrderStatus) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     @Transactional
@@ -256,7 +273,18 @@ public class OrderService {
                 .feeRate(fee != null ? fee.getFeeRate() : null)
                 .items(itemResponses)
                 .origin(order.getOrigin())
+                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue()))
                 .build();
+    }
+
+    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue) {
+        if (totalValue == null || totalValue.signum() == 0 || profit == null) {
+            return null;
+        }
+        return profit
+                .divide(totalValue, 4, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal("100"))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId) {

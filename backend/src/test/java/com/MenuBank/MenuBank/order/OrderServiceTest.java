@@ -553,6 +553,45 @@ class OrderServiceTest {
             // 22.49 - (unitCost=0 × qty=1) - fee=0 = 22.49
             assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("22.49"));
         }
+
+        @Test
+        @DisplayName("deve retornar marginPct = estimatedProfit / totalValue * 100")
+        void shouldReturnMarginPct() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            assertThat(result.getMarginPct()).isNotNull();
+            // marginPct = estimatedProfit / totalValue * 100
+            BigDecimal expected = result.getEstimatedProfit()
+                    .divide(result.getTotalValue(), 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            assertThat(result.getMarginPct()).isEqualByComparingTo(expected);
+        }
+
+        @Test
+        @DisplayName("deve retornar marginPct null quando totalValue é zero")
+        void shouldReturnNullMarginWhenTotalValueIsZero() {
+            Order zeroOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PENDING)
+                    .totalValue(BigDecimal.ZERO)
+                    .estimatedProfit(BigDecimal.ZERO)
+                    .items(new ArrayList<>())
+                    .build();
+
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(zeroOrder));
+
+            OrderResponse result = orderService.findById(orderId);
+
+            assertThat(result.getMarginPct()).isNull();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -573,7 +612,7 @@ class OrderServiceTest {
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
 
             org.springframework.data.domain.Page<OrderResponse> result =
-                    orderService.findAll("client", pageable);
+                    orderService.findAll("client", null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getId()).isEqualTo(orderId);
@@ -590,9 +629,51 @@ class OrderServiceTest {
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<OrderResponse> result =
-                    orderService.findAll(null, pageable);
+                    orderService.findAll(null, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("deve filtrar por status quando informado")
+        void shouldFilterByStatusWhenProvided() {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(
+                    merchantId, OrderStatus.READY, "", pageable))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(order), pageable, 1));
+
+            org.springframework.data.domain.Page<OrderResponse> result =
+                    orderService.findAll(null, OrderStatus.READY, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            then(orderRepository).should(never())
+                    .findPageByMerchantIdAndCustomerNameContaining(any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("statusCounts(start, end, search)")
+    class StatusCounts {
+
+        @Test
+        @DisplayName("deve retornar contagens por status, preenchendo zeros para valores ausentes")
+        void shouldReturnCountsByStatusWithZeroFill() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(orderRepository.countByStatusForMerchant(eq(merchantId), any(), any(), eq("")))
+                    .willReturn(List.of(
+                            new Object[]{OrderStatus.PENDING, 5L},
+                            new Object[]{OrderStatus.READY, 2L}
+                    ));
+
+            java.util.Map<OrderStatus, Long> result = orderService.statusCounts(null, null, null);
+
+            assertThat(result).containsEntry(OrderStatus.PENDING, 5L);
+            assertThat(result).containsEntry(OrderStatus.READY, 2L);
+            assertThat(result).containsEntry(OrderStatus.DELIVERED, 0L);
+            assertThat(result).containsEntry(OrderStatus.PAID, 0L);
+            assertThat(result).containsEntry(OrderStatus.CANCELLED, 0L);
         }
     }
 

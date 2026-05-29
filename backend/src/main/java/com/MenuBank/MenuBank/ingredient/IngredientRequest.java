@@ -26,4 +26,17 @@ public class IngredientRequest {
 
     @DecimalMin(value = "0.0", inclusive = true, message = "Quantidade padrão deve ser maior ou igual a zero")
     private BigDecimal defaultQuantity;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Preço de venda deve ser maior ou igual a zero")
+    private BigDecimal salePrice;
+
+    private IngredientStatus status;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Quantidade em estoque deve ser maior ou igual a zero")
+    private BigDecimal stockQuantity;
+
+    private java.time.LocalDateTime lastReplenishedAt;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Limite de estoque baixo deve ser maior ou igual a zero")
+    private BigDecimal lowStockThreshold;
 }

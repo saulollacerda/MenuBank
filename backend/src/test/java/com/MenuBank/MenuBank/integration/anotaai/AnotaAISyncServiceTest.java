@@ -256,9 +256,10 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         Order saved = orderCaptor.getValue();
         assertThat(saved.getOrigin()).isEqualTo(OrderOrigin.ANOTA_AI);
-        assertThat(saved.getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(saved.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(saved.getExternalOrderId()).isEqualTo("order-1");
         assertThat(saved.getCustomer()).isEqualTo(existingCustomer);
+        // total=10, deliveryFee=0 → totalValue = 10
         assertThat(saved.getTotalValue()).isEqualByComparingTo("10.00");
         assertThat(saved.getItems()).hasSize(1);
     }
@@ -385,9 +386,10 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         Order saved = orderCaptor.getValue();
         assertThat(saved.getDeliveryFee()).isEqualByComparingTo("6.00");
-        assertThat(saved.getTotalValue()).isEqualByComparingTo("25.80");
-        // estimatedProfit = totalValue (25.80) − deliveryFee (6.00) − totalCost (0) = 19.80
-        assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("19.80");
+        // totalValue = detail.total (25.80) + deliveryFee (6.00) = 31.80
+        assertThat(saved.getTotalValue()).isEqualByComparingTo("31.80");
+        // estimatedProfit = totalValue (31.80) − deliveryFee (6.00) − totalCost (0) = 25.80
+        assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("25.80");
         assertThat(saved.getTotalCost()).isEqualByComparingTo("0");
     }
 

@@ -4,6 +4,7 @@ import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
 import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.product.ProductRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +32,9 @@ class CategoryServiceTest {
 
     @Mock
     private MerchantContext merchantContext;
+
+    @Mock
+    private ProductRepository productRepository;
 
     @InjectMocks
     private CategoryService categoryService;
@@ -125,6 +129,18 @@ class CategoryServiceTest {
 
             assertThatThrownBy(() -> categoryService.findById(categoryId))
                     .isInstanceOf(CategoryNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("deve retornar productCount da categoria")
+        void shouldReturnProductCount() {
+            given(merchantContext.getMerchantId()).willReturn(merchantId);
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.countByCategoryIdAndMerchantId(categoryId, merchantId)).willReturn(7L);
+
+            CategoryResponse result = categoryService.findById(categoryId);
+
+            assertThat(result.getProductCount()).isEqualTo(7L);
         }
     }
 

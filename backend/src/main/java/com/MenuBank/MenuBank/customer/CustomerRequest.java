@@ -20,4 +20,10 @@ public class CustomerRequest {
     @Email(message = "Email inválido")
     @Size(max = 255, message = "Email não pode ter mais de 255 caracteres")
     private String email;
+
+    @Size(max = 120, message = "Bairro não pode ter mais de 120 caracteres")
+    private String neighborhood;
+
+    @Size(max = 2000, message = "Observações não podem ter mais de 2000 caracteres")
+    private String notes;
 }

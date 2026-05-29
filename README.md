@@ -134,6 +134,31 @@ Ingredient 1 ── N RecipeItem
 
 ---
 
+## Integrations
+
+### Anota.AI
+
+MenuBank imports orders and syncs the product catalog from **Anota.AI** (which also relays iFood orders). Authentication uses a per-merchant partner token via `Authorization: Bearer <token>`.
+
+| Purpose        | Base URL                                      |
+| -------------- | --------------------------------------------- |
+| Orders (PDV)   | `https://api-parceiros.anota.ai/partnerauth`  |
+| Menu / Catalog | `https://api-menu.anota.ai/partnerauth`       |
+
+**Sync flow:** poll `/ping/list` → filter `check: 0` (pending) → fetch each via `/ping/get/{id}` → persist → mark as checked (`check: 1`).
+
+**Two order sources** arrive through the same endpoints, distinguished by `from` / `salesChannel`:
+
+| Aspect          | iFood (`ifood-marketplace`)                    | Anota.AI (`menu-share-adm`)                  |
+| --------------- | ---------------------------------------------- | -------------------------------------------- |
+| `total`         | `items + delivery − discounts + fees`          | `item.total` (already includes subItems)     |
+| `internalId`    | empty — extras resolved by canonical name match | MenuBank product ID                          |
+| Fees/discounts  | service fees + iFood promos                    | empty arrays                                  |
+
+See [.claude/docs/integrations/ANOTA_AI.md](.claude/docs/integrations/ANOTA_AI.md) for the full field reference, payload examples, and catalog export details.
+
+---
+
 ## Environment Variables
 
 | Variable      | Description              |

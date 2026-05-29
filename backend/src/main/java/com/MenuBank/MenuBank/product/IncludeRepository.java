@@ -12,6 +12,15 @@ public interface IncludeRepository extends JpaRepository<Include, UUID> {
 
     List<Include> findByProductIdAndProductMerchantId(UUID productId, UUID merchantId);
 
+    List<Include> findByProductIdAndProductMerchantIdOrderBySortOrderAsc(UUID productId, UUID merchantId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT COALESCE(MAX(i.sortOrder), 0) FROM Include i WHERE i.product.id = :productId AND i.product.merchant.id = :merchantId"
+    )
+    Integer findMaxSortOrderByProductIdAndProductMerchantId(
+            @org.springframework.data.repository.query.Param("productId") UUID productId,
+            @org.springframework.data.repository.query.Param("merchantId") UUID merchantId);
+
     Optional<Include> findByIdAndProductIdAndProductMerchantId(UUID id, UUID productId, UUID merchantId);
 
     @Modifying
@@ -28,4 +37,14 @@ public interface IncludeRepository extends JpaRepository<Include, UUID> {
      * cadastrado e referenciado nas fichas tecnicas (matching por nome).
      */
     List<Include> findByNameIgnoreCaseAndProductMerchantId(String name, UUID merchantId);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT LOWER(i.name), COUNT(i) FROM Include i
+            WHERE i.product.merchant.id = :merchantId
+            AND LOWER(i.name) IN :names
+            GROUP BY LOWER(i.name)
+            """)
+    java.util.List<Object[]> countByLowercaseNameInForMerchant(
+            @org.springframework.data.repository.query.Param("merchantId") UUID merchantId,
+            @org.springframework.data.repository.query.Param("names") java.util.Collection<String> names);
 }

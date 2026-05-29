@@ -2,17 +2,15 @@ package com.MenuBank.MenuBank.category;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CategoryResponse {
+public class CategoryRevenueResponse {
 
-    private UUID id;
-    private String name;
-    private Long productCount;
-    private String colorHex;
+    private UUID categoryId;
+    private BigDecimal revenue;
 }
-

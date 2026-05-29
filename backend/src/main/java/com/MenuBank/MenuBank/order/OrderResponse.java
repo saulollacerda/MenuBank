@@ -27,5 +27,6 @@ public class OrderResponse {
     private BigDecimal feeRate;
     private List<OrderItemResponse> items;
     private OrderOrigin origin;
+    private BigDecimal marginPct;
 }
 
