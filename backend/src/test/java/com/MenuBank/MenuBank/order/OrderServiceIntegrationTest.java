@@ -83,7 +83,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                         .build()))
                 .build();
 
-        OrderResponse response = orderService.create(request);
+        OrderResponse response = orderService.create(merchant.getId(), request);
 
         // Assert response
         assertThat(response.getId()).isNotNull();
@@ -110,7 +110,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                         .productId(product.getId()).quantity(1).build()))
                 .build();
 
-        OrderResponse response = orderService.create(request);
+        OrderResponse response = orderService.create(merchant.getId(), request);
 
         Order persisted = orderRepository.findByIdAndMerchantId(response.getId(), merchant.getId()).orElseThrow();
         assertThat(persisted.getItems().get(0).getExtraIngredients()).isEmpty();
@@ -129,16 +129,16 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                         .productId(product.getId()).quantity(1).build()))
                 .build();
 
-        assertThatThrownBy(() -> orderService.create(request))
+        assertThatThrownBy(() -> orderService.create(merchant.getId(), request))
                 .isInstanceOf(OrderNotFoundException.class);
     }
 
     @Test
     @DisplayName("findById deve retornar pedido do merchant autenticado")
     void findById_shouldReturnOrder() {
-        OrderResponse created = orderService.create(simpleRequest());
+        OrderResponse created = orderService.create(merchant.getId(), simpleRequest());
 
-        OrderResponse fetched = orderService.findById(created.getId());
+        OrderResponse fetched = orderService.findById(merchant.getId(), created.getId());
 
         assertThat(fetched.getId()).isEqualTo(created.getId());
         assertThat(fetched.getCustomerName()).isEqualTo("João");
@@ -147,19 +147,19 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findById deve falhar quando o pedido pertence a outro merchant")
     void findById_shouldNotLeakAcrossMerchants() {
-        OrderResponse created = orderService.create(simpleRequest());
+        OrderResponse created = orderService.create(merchant.getId(), simpleRequest());
 
         // Autentica como outro merchant
-        authenticateAs(createMerchant("Outro"));
+        Merchant outro = createMerchant("Outro");
 
-        assertThatThrownBy(() -> orderService.findById(created.getId()))
+        assertThatThrownBy(() -> orderService.findById(outro.getId(), created.getId()))
                 .isInstanceOf(OrderNotFoundException.class);
     }
 
     @Test
     @DisplayName("update deve substituir items e recalcular custos")
     void update_shouldReplaceItemsAndRecalculateCost() {
-        OrderResponse created = orderService.create(simpleRequest());
+        OrderResponse created = orderService.create(merchant.getId(), simpleRequest());
 
         OrderRequest updated = OrderRequest.builder()
                 .customerId(customer.getId())
@@ -168,7 +168,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                 .status(OrderStatus.PENDING)
                 .build();
 
-        OrderResponse response = orderService.update(created.getId(), updated);
+        OrderResponse response = orderService.update(merchant.getId(), created.getId(), updated);
 
         assertThat(response.getTotalValue()).isEqualByComparingTo("100.00"); // 20 × 5
         assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING);
@@ -177,10 +177,10 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover pedido e cascatear items + extras")
     void delete_shouldRemoveOrderAndCascadeItems() {
-        OrderResponse created = orderService.create(simpleRequest());
+        OrderResponse created = orderService.create(merchant.getId(), simpleRequest());
         UUID orderId = created.getId();
 
-        orderService.delete(orderId);
+        orderService.delete(merchant.getId(), orderId);
 
         assertThat(orderRepository.findById(orderId)).isEmpty();
     }
@@ -191,14 +191,14 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
         Customer maria = customerRepository.save(Customer.builder()
                 .merchant(merchant).name("Maria").phone("22222222222").build());
 
-        orderService.create(simpleRequest());
-        orderService.create(OrderRequest.builder()
+        orderService.create(merchant.getId(), simpleRequest());
+        orderService.create(merchant.getId(), OrderRequest.builder()
                 .customerId(maria.getId())
                 .items(List.of(OrderItemRequest.builder()
                         .productId(product.getId()).quantity(1).build()))
                 .build());
 
-        var page = orderService.findAll("Maria", null, PageRequest.of(0, 10));
+        var page = orderService.findAll(merchant.getId(), "Maria", null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getCustomerName()).isEqualTo("Maria");
@@ -217,7 +217,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                         .productId(product.getId()).quantity(1).build()))
                 .build();
 
-        OrderResponse response = orderService.create(request);
+        OrderResponse response = orderService.create(merchant.getId(), request);
 
         Order persisted = orderRepository.findById(response.getId()).orElseThrow();
         assertThat(persisted.getFee().getId()).isEqualTo(fee.getId());

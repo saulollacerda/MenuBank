@@ -1,8 +1,10 @@
 package com.MenuBank.MenuBank.merchant;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -12,9 +14,11 @@ import java.util.UUID;
 public class MerchantController {
 
     private final MerchantService merchantService;
+    private final AuthHelper authHelper;
 
-    public MerchantController(MerchantService merchantService) {
+    public MerchantController(MerchantService merchantService, AuthHelper authHelper) {
         this.merchantService = merchantService;
+        this.authHelper = authHelper;
     }
 
     @PostMapping
@@ -24,46 +28,54 @@ public class MerchantController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<MerchantResponse> findById(@PathVariable UUID id) {
-        MerchantResponse response = merchantService.findById(id);
+    public ResponseEntity<MerchantResponse> findById(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        MerchantResponse response = merchantService.findById(merchantId, id);
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<MerchantResponse> update(@PathVariable UUID id, @Valid @RequestBody MerchantRequest request) {
-        MerchantResponse response = merchantService.update(id, request);
+    public ResponseEntity<MerchantResponse> update(Authentication auth, @PathVariable UUID id, @Valid @RequestBody MerchantRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        MerchantResponse response = merchantService.update(merchantId, id, request);
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        merchantService.delete(id);
+    public ResponseEntity<Void> delete(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        merchantService.delete(merchantId, id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/me/anota-ai-key")
-    public ResponseEntity<MerchantResponse> updateAnotaAIKey(@RequestBody AnotaAIKeyRequest request) {
-        MerchantResponse response = merchantService.updateAnotaAIKey(request);
+    public ResponseEntity<MerchantResponse> updateAnotaAIKey(Authentication auth, @RequestBody AnotaAIKeyRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        MerchantResponse response = merchantService.updateAnotaAIKey(merchantId, request);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<MerchantResponse> findMe() {
-        return ResponseEntity.ok(merchantService.findMe());
+    public ResponseEntity<MerchantResponse> findMe(Authentication auth) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(merchantService.findMe(merchantId));
     }
 
     @PutMapping("/me")
-    public ResponseEntity<MerchantResponse> updateMe(@Valid @RequestBody MerchantUpdateRequest request) {
-        return ResponseEntity.ok(merchantService.updateMe(request));
+    public ResponseEntity<MerchantResponse> updateMe(Authentication auth, @Valid @RequestBody MerchantUpdateRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(merchantService.updateMe(merchantId, request));
     }
 
     @GetMapping("/me/preferences")
-    public ResponseEntity<MerchantPreferences> getMyPreferences() {
-        return ResponseEntity.ok(merchantService.getMyPreferences());
+    public ResponseEntity<MerchantPreferences> getMyPreferences(Authentication auth) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(merchantService.getMyPreferences(merchantId));
     }
 
     @PutMapping("/me/preferences")
-    public ResponseEntity<MerchantPreferences> updateMyPreferences(@RequestBody MerchantPreferences preferences) {
-        return ResponseEntity.ok(merchantService.updateMyPreferences(preferences));
+    public ResponseEntity<MerchantPreferences> updateMyPreferences(Authentication auth, @RequestBody MerchantPreferences preferences) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(merchantService.updateMyPreferences(merchantId, preferences));
     }
 }

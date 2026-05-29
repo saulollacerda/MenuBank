@@ -1,7 +1,8 @@
 package com.MenuBank.MenuBank.merchant;
 
 import com.MenuBank.MenuBank.common.ForbiddenException;
-import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,12 +15,10 @@ public class MerchantService {
 
     private final MerchantRepository merchantRepository;
     private final PasswordEncoder passwordEncoder;
-    private final MerchantContext merchantContext;
 
-    public MerchantService(MerchantRepository merchantRepository, PasswordEncoder passwordEncoder, MerchantContext merchantContext) {
+    public MerchantService(MerchantRepository merchantRepository, PasswordEncoder passwordEncoder) {
         this.merchantRepository = merchantRepository;
         this.passwordEncoder = passwordEncoder;
-        this.merchantContext = merchantContext;
     }
 
     public MerchantResponse create(MerchantRequest request) {
@@ -44,15 +43,16 @@ public class MerchantService {
         return toResponse(saved);
     }
 
-    public MerchantResponse findById(UUID id) {
-        ensureOwner(id);
+    public MerchantResponse findById(UUID currentMerchantId, UUID id) {
+        ensureOwner(currentMerchantId, id);
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new MerchantNotFoundException(id));
         return toResponse(merchant);
     }
 
-    public MerchantResponse update(UUID id, MerchantRequest request) {
-        ensureOwner(id);
+    @CacheEvict(value = CacheConfig.MERCHANT_ID_BY_PROVIDER_USER, allEntries = true)
+    public MerchantResponse update(UUID currentMerchantId, UUID id, MerchantRequest request) {
+        ensureOwner(currentMerchantId, id);
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new MerchantNotFoundException(id));
 
@@ -67,8 +67,8 @@ public class MerchantService {
         return toResponse(saved);
     }
 
-    public MerchantResponse updateAnotaAIKey(AnotaAIKeyRequest request) {
-        UUID currentMerchantId = merchantContext.getMerchantId();
+    @CacheEvict(value = CacheConfig.MERCHANT_ID_BY_PROVIDER_USER, allEntries = true)
+    public MerchantResponse updateAnotaAIKey(UUID currentMerchantId, AnotaAIKeyRequest request) {
         Merchant merchant = merchantRepository.findById(currentMerchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
 
@@ -77,16 +77,15 @@ public class MerchantService {
         return toResponse(saved);
     }
 
-    public MerchantResponse findMe() {
-        UUID currentMerchantId = merchantContext.getMerchantId();
+    public MerchantResponse findMe(UUID currentMerchantId) {
         Merchant merchant = merchantRepository.findById(currentMerchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
         return toResponse(merchant);
     }
 
     @Transactional
-    public MerchantResponse updateMe(MerchantUpdateRequest request) {
-        UUID currentMerchantId = merchantContext.getMerchantId();
+    @CacheEvict(value = CacheConfig.MERCHANT_ID_BY_PROVIDER_USER, allEntries = true)
+    public MerchantResponse updateMe(UUID currentMerchantId, MerchantUpdateRequest request) {
         Merchant merchant = merchantRepository.findById(currentMerchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
 
@@ -100,8 +99,7 @@ public class MerchantService {
         return toResponse(saved);
     }
 
-    public MerchantPreferences getMyPreferences() {
-        UUID currentMerchantId = merchantContext.getMerchantId();
+    public MerchantPreferences getMyPreferences(UUID currentMerchantId) {
         Merchant merchant = merchantRepository.findById(currentMerchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
         return merchant.getPreferences() != null
@@ -110,8 +108,8 @@ public class MerchantService {
     }
 
     @Transactional
-    public MerchantPreferences updateMyPreferences(MerchantPreferences preferences) {
-        UUID currentMerchantId = merchantContext.getMerchantId();
+    @CacheEvict(value = CacheConfig.MERCHANT_ID_BY_PROVIDER_USER, allEntries = true)
+    public MerchantPreferences updateMyPreferences(UUID currentMerchantId, MerchantPreferences preferences) {
         Merchant merchant = merchantRepository.findById(currentMerchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(currentMerchantId));
 
@@ -121,16 +119,17 @@ public class MerchantService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        ensureOwner(id);
+    @CacheEvict(value = CacheConfig.MERCHANT_ID_BY_PROVIDER_USER, allEntries = true)
+    public void delete(UUID currentMerchantId, UUID id) {
+        ensureOwner(currentMerchantId, id);
         if (!merchantRepository.existsById(id)) {
             throw new MerchantNotFoundException(id);
         }
         merchantRepository.deleteById(id);
     }
 
-    private void ensureOwner(UUID id) {
-        if (!merchantContext.getMerchantId().equals(id)) {
+    private void ensureOwner(UUID currentMerchantId, UUID id) {
+        if (!currentMerchantId.equals(id)) {
             throw new ForbiddenException("Acesso negado");
         }
     }

@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.export;
 import com.MenuBank.MenuBank.merchant.Merchant;
 
 import com.MenuBank.MenuBank.category.Category;
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
@@ -40,9 +39,6 @@ class ExportServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @InjectMocks
     private ExportService exportService;
@@ -126,11 +122,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar byte array não-vazio para um workbook válido")
         void shouldReturnNonEmptyByteArray() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             assertThat(result).isNotEmpty();
         }
@@ -138,11 +133,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar um arquivo .xlsx válido (legível pelo Apache POI)")
         void shouldReturnValidXlsxFile() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             assertThatCode(() -> {
                 try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
@@ -154,11 +148,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve gerar workbook com 3 abas")
         void shouldGenerateWorkbookWithThreeSheets() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 assertThat(wb.getNumberOfSheets()).isEqualTo(3);
@@ -177,11 +170,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Resumo Financeiro' como primeira aba")
         void shouldCreateResumoFinanceiroAsFirstSheet() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 assertThat(wb.getSheetAt(0).getSheetName()).isEqualTo("Resumo Financeiro");
@@ -199,11 +191,10 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Resumo Financeiro");
@@ -224,11 +215,10 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Resumo Financeiro");
@@ -251,11 +241,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Pedidos' como segunda aba")
         void shouldCreatePedidosAsSecondSheet() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 assertThat(wb.getSheetAt(1).getSheetName()).isEqualTo("Pedidos");
@@ -273,11 +262,10 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Pedidos");
@@ -294,11 +282,10 @@ class ExportServiceTest {
                             new BigDecimal("30.00"), fee, List.of())
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Pedidos");
@@ -320,11 +307,10 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Desempenho por Produto' como terceira aba")
         void shouldCreateDesempenhoPorProdutoAsThirdSheet() throws Exception {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 assertThat(wb.getSheetAt(2).getSheetName()).isEqualTo("Desempenho por Produto");
@@ -343,11 +329,10 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Desempenho por Produto");
@@ -368,11 +353,10 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Desempenho por Produto");
@@ -416,11 +400,10 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item))
             );
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
-            byte[] result = exportService.generateDashboardExport(startDate, endDate);
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
                 var sheet = wb.getSheet("Desempenho por Produto");

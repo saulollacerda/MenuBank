@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.customer;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,12 +34,18 @@ class CustomerControllerTest {
     @MockitoBean
     private CustomerService customerService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID customerId;
+    private UUID merchantId;
     private CustomerResponse customerResponse;
 
     @BeforeEach
     void setUp() {
         customerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(merchantId);
 
         customerResponse = CustomerResponse.builder()
                 .id(customerId)
@@ -66,7 +74,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 201 com CustomerResponse ao criar cliente válido")
         void shouldReturn201WithCustomerResponse() throws Exception {
-            given(customerService.create(any(CustomerRequest.class))).willReturn(customerResponse);
+            given(customerService.create(any(), any(CustomerRequest.class))).willReturn(customerResponse);
 
             mockMvc.perform(post("/api/customers")
                             .with(csrf())
@@ -123,7 +131,7 @@ class CustomerControllerTest {
                     .name("Maria Souza")
                     .build();
 
-            given(customerService.create(any(CustomerRequest.class))).willReturn(minimalResponse);
+            given(customerService.create(any(), any(CustomerRequest.class))).willReturn(minimalResponse);
 
             mockMvc.perform(post("/api/customers")
                             .with(csrf())
@@ -146,7 +154,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 200 com CustomerResponse quando cliente existe")
         void shouldReturn200WhenCustomerExists() throws Exception {
-            given(customerService.findById(customerId)).willReturn(customerResponse);
+            given(customerService.findById(any(), eq(customerId))).willReturn(customerResponse);
 
             mockMvc.perform(get("/api/customers/{id}", customerId))
                     .andExpect(status().isOk())
@@ -157,7 +165,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando cliente não encontrado")
         void shouldReturn404WhenCustomerNotFound() throws Exception {
-            given(customerService.findById(customerId))
+            given(customerService.findById(any(), eq(customerId)))
                     .willThrow(new CustomerNotFoundException(customerId));
 
             mockMvc.perform(get("/api/customers/{id}", customerId))
@@ -178,7 +186,7 @@ class CustomerControllerTest {
         void shouldReturn200WithCustomerPage() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(customerService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+            given(customerService.findAll(any(), eq(""), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(customerResponse), pageable, 1));
 
@@ -195,7 +203,7 @@ class CustomerControllerTest {
         void shouldPassSearchParamToService() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(customerService.findAll(eq("joão"), any(org.springframework.data.domain.Pageable.class)))
+            given(customerService.findAll(any(), eq("joão"), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(customerResponse), pageable, 1));
 
@@ -216,7 +224,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 200 com CustomerResponse atualizado")
         void shouldReturn200WithUpdatedResponse() throws Exception {
-            given(customerService.update(eq(customerId), any(CustomerRequest.class)))
+            given(customerService.update(any(), eq(customerId), any(CustomerRequest.class)))
                     .willReturn(customerResponse);
 
             mockMvc.perform(put("/api/customers/{id}", customerId)
@@ -230,7 +238,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando cliente não encontrado para atualização")
         void shouldReturn404WhenCustomerNotFoundForUpdate() throws Exception {
-            given(customerService.update(eq(customerId), any(CustomerRequest.class)))
+            given(customerService.update(any(), eq(customerId), any(CustomerRequest.class)))
                     .willThrow(new CustomerNotFoundException(customerId));
 
             mockMvc.perform(put("/api/customers/{id}", customerId)
@@ -263,7 +271,7 @@ class CustomerControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar cliente existente")
         void shouldReturn204WhenDeleted() throws Exception {
-            willDoNothing().given(customerService).delete(customerId);
+            willDoNothing().given(customerService).delete(any(), eq(customerId));
 
             mockMvc.perform(delete("/api/customers/{id}", customerId)
                             .with(csrf()))
@@ -274,7 +282,7 @@ class CustomerControllerTest {
         @DisplayName("deve retornar 404 ao tentar deletar cliente inexistente")
         void shouldReturn404WhenCustomerNotFoundForDelete() throws Exception {
             willThrow(new CustomerNotFoundException(customerId))
-                    .given(customerService).delete(customerId);
+                    .given(customerService).delete(any(), eq(customerId));
 
             mockMvc.perform(delete("/api/customers/{id}", customerId)
                             .with(csrf()))

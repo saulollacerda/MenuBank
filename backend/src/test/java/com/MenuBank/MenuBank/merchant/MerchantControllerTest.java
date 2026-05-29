@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.merchant;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,12 +34,16 @@ class MerchantControllerTest {
     @MockitoBean
     private MerchantService merchantService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID merchantId;
     private MerchantResponse merchantResponse;
 
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(merchantId);
 
         merchantResponse = MerchantResponse.builder()
                 .id(merchantId)
@@ -133,7 +139,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 200 com MerchantResponse quando usuário existe")
         void shouldReturn200WhenUserExists() throws Exception {
-            given(merchantService.findById(merchantId)).willReturn(merchantResponse);
+            given(merchantService.findById(any(), eq(merchantId))).willReturn(merchantResponse);
 
             mockMvc.perform(get("/api/merchants/{id}", merchantId))
                     .andExpect(status().isOk())
@@ -144,7 +150,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando usuário não encontrado")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            given(merchantService.findById(merchantId)).willThrow(new MerchantNotFoundException(merchantId));
+            given(merchantService.findById(any(), eq(merchantId))).willThrow(new MerchantNotFoundException(merchantId));
 
             mockMvc.perform(get("/api/merchants/{id}", merchantId))
                     .andExpect(status().isNotFound());
@@ -162,7 +168,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 200 com MerchantResponse atualizado")
         void shouldReturn200WithUpdatedResponse() throws Exception {
-            given(merchantService.update(eq(merchantId), any(MerchantRequest.class))).willReturn(merchantResponse);
+            given(merchantService.update(any(), eq(merchantId), any(MerchantRequest.class))).willReturn(merchantResponse);
 
             mockMvc.perform(put("/api/merchants/{id}", merchantId)
                             .with(csrf())
@@ -175,7 +181,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando usuário não encontrado para atualização")
         void shouldReturn404WhenUserNotFoundForUpdate() throws Exception {
-            given(merchantService.update(eq(merchantId), any(MerchantRequest.class)))
+            given(merchantService.update(any(), eq(merchantId), any(MerchantRequest.class)))
                     .willThrow(new MerchantNotFoundException(merchantId));
 
             mockMvc.perform(put("/api/merchants/{id}", merchantId)
@@ -207,7 +213,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar usuário existente")
         void shouldReturn204WhenDeleted() throws Exception {
-            willDoNothing().given(merchantService).delete(merchantId);
+            willDoNothing().given(merchantService).delete(any(), eq(merchantId));
 
             mockMvc.perform(delete("/api/merchants/{id}", merchantId)
                             .with(csrf()))
@@ -217,7 +223,7 @@ class MerchantControllerTest {
         @Test
         @DisplayName("deve retornar 404 ao tentar deletar usuário inexistente")
         void shouldReturn404WhenUserNotFoundForDelete() throws Exception {
-            willThrow(new MerchantNotFoundException(merchantId)).given(merchantService).delete(merchantId);
+            willThrow(new MerchantNotFoundException(merchantId)).given(merchantService).delete(any(), eq(merchantId));
 
             mockMvc.perform(delete("/api/merchants/{id}", merchantId)
                             .with(csrf()))
@@ -243,7 +249,7 @@ class MerchantControllerTest {
                     .email(merchantResponse.getEmail())
                     .anotaAiApiKey("new-key")
                     .build();
-            given(merchantService.updateAnotaAIKey(any(AnotaAIKeyRequest.class))).willReturn(withKey);
+            given(merchantService.updateAnotaAIKey(any(), any(AnotaAIKeyRequest.class))).willReturn(withKey);
 
             mockMvc.perform(put("/api/merchants/me/anota-ai-key")
                             .with(csrf())

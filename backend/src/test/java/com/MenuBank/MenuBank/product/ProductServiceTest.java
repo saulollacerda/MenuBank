@@ -6,7 +6,6 @@ import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
-import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,9 +31,6 @@ class ProductServiceTest {
 
     @Mock
     private CategoryRepository categoryRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private MerchantRepository merchantRepository;
@@ -86,12 +82,11 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve criar produto com dados válidos e retornar ProductResponse")
         void shouldCreateProductAndReturnResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(productRequest.getName(), merchantId)).willReturn(false);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
-            ProductResponse result = productService.create(productRequest);
+            ProductResponse result = productService.create(merchantId, productRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(productId);
@@ -103,12 +98,11 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve criar produto com status ACTIVE por padrão")
         void shouldCreateProductWithActiveStatusByDefault() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
-            ProductResponse result = productService.create(productRequest);
+            ProductResponse result = productService.create(merchantId, productRequest);
 
             assertThat(result.getStatus()).isEqualTo(ProductStatus.ACTIVE);
         }
@@ -116,12 +110,11 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve atribuir a categoria ao produto e retornar categoryId/categoryName na resposta")
         void shouldAssignCategoryAndReturnCategoryFieldsInResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(product);
 
-            ProductResponse result = productService.create(productRequest);
+            ProductResponse result = productService.create(merchantId, productRequest);
 
             assertThat(result.getCategoryId()).isEqualTo(categoryId);
             assertThat(result.getCategoryName()).isEqualTo("Lanches");
@@ -132,11 +125,10 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException quando categoria não pertence ao owner")
         void shouldThrowWhenCategoryNotFoundForOwner() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productService.create(productRequest))
+            assertThatThrownBy(() -> productService.create(merchantId, productRequest))
                     .isInstanceOf(CategoryNotFoundException.class);
 
             then(productRepository).should(never()).save(any(Product.class));
@@ -152,12 +144,11 @@ class ProductServiceTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
 
-            productService.create(requestWithInactive);
+            productService.create(merchantId, requestWithInactive);
 
             then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.INACTIVE));
         }
@@ -165,10 +156,9 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateProductException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByNameAndMerchantId(productRequest.getName(), merchantId)).willReturn(true);
 
-            assertThatThrownBy(() -> productService.create(productRequest))
+            assertThatThrownBy(() -> productService.create(merchantId, productRequest))
                     .isInstanceOf(DuplicateProductException.class)
                     .hasMessageContaining("nome");
 
@@ -183,10 +173,9 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve retornar ProductResponse quando produto existe")
         void shouldReturnResponseWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(productId);
@@ -198,10 +187,9 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException quando produto não existe")
         void shouldThrowWhenProductNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productService.findById(productId))
+            assertThatThrownBy(() -> productService.findById(merchantId, productId))
                     .isInstanceOf(ProductNotFoundException.class);
         }
 
@@ -212,10 +200,9 @@ class ProductServiceTest {
             Include i2 = Include.builder().cost(new BigDecimal("1.50")).quantity(new BigDecimal("2")).build();
             product.setIncludes(List.of(i1, i2));
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             // 2.00 * 3 + 1.50 * 2 = 9.00
             assertThat(result.getUnitCost()).isEqualByComparingTo(new BigDecimal("9.00"));
@@ -226,10 +213,9 @@ class ProductServiceTest {
         void shouldReturnZeroUnitCostWhenNoIncludes() {
             product.setIncludes(List.of());
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             assertThat(result.getUnitCost()).isEqualByComparingTo(BigDecimal.ZERO);
         }
@@ -241,10 +227,9 @@ class ProductServiceTest {
             product.setIncludes(List.of(i1));
             product.setPrice(new BigDecimal("25.00"));
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             // (25 - 10) / 25 * 100 = 60.00
             assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("60.00"));
@@ -256,10 +241,9 @@ class ProductServiceTest {
             product.setPrice(BigDecimal.ZERO);
             product.setIncludes(List.of());
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             assertThat(result.getMarginPct()).isNull();
         }
@@ -270,10 +254,9 @@ class ProductServiceTest {
             product.setIncludes(List.of());
             product.setPrice(new BigDecimal("10.00"));
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
 
-            ProductResponse result = productService.findById(productId);
+            ProductResponse result = productService.findById(merchantId, productId);
 
             assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("100.00"));
         }
@@ -288,12 +271,11 @@ class ProductServiceTest {
         void shouldReturnPagedProductsFilteredByName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "burg", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(product), pageable, 1));
 
             org.springframework.data.domain.Page<ProductResponse> result =
-                    productService.findAll("burg", pageable);
+                    productService.findAll(merchantId, "burg", pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getName()).isEqualTo("X-Burguer");
@@ -305,12 +287,11 @@ class ProductServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(product), pageable, 1));
 
             org.springframework.data.domain.Page<ProductResponse> result =
-                    productService.findAll(null, pageable);
+                    productService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
         }
@@ -338,12 +319,11 @@ class ProductServiceTest {
                     .category(category)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willReturn(updatedProduct);
 
-            ProductResponse result = productService.update(productId, updateRequest);
+            ProductResponse result = productService.update(merchantId, productId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("X-Salada");
             assertThat(result.getPrice()).isEqualByComparingTo(new BigDecimal("29.90"));
@@ -365,12 +345,11 @@ class ProductServiceTest {
                     .categoryId(newCategoryId)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(categoryRepository.findByIdAndMerchantId(newCategoryId, merchantId)).willReturn(Optional.of(newCategory));
             given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ProductResponse result = productService.update(productId, updateRequest);
+            ProductResponse result = productService.update(merchantId, productId, updateRequest);
 
             assertThat(result.getCategoryId()).isEqualTo(newCategoryId);
             assertThat(result.getCategoryName()).isEqualTo("Bebidas");
@@ -388,12 +367,11 @@ class ProductServiceTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
 
-            productService.update(productId, req);
+            productService.update(merchantId, productId, req);
 
             then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.INACTIVE));
         }
@@ -408,12 +386,11 @@ class ProductServiceTest {
                     .status(null)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
 
-            productService.update(productId, req);
+            productService.update(merchantId, productId, req);
 
             then(productRepository).should().save(argThat(p -> p.getStatus() == ProductStatus.ACTIVE));
         }
@@ -427,11 +404,10 @@ class ProductServiceTest {
                     .categoryId(categoryId)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productService.update(productId, updateRequest))
+            assertThatThrownBy(() -> productService.update(merchantId, productId, updateRequest))
                     .isInstanceOf(CategoryNotFoundException.class);
 
             then(productRepository).should(never()).save(any(Product.class));
@@ -440,10 +416,9 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException ao atualizar produto inexistente")
         void shouldThrowWhenProductNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productService.update(productId, productRequest))
+            assertThatThrownBy(() -> productService.update(merchantId, productId, productRequest))
                     .isInstanceOf(ProductNotFoundException.class);
 
             then(productRepository).should(never()).save(any(Product.class));
@@ -457,11 +432,10 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve deletar produto existente sem lançar exceção")
         void shouldDeleteExistingProduct() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByIdAndMerchantId(productId, merchantId)).willReturn(true);
             willDoNothing().given(productRepository).deleteByIdAndMerchantId(productId, merchantId);
 
-            assertThatNoException().isThrownBy(() -> productService.delete(productId));
+            assertThatNoException().isThrownBy(() -> productService.delete(merchantId, productId));
 
             then(productRepository).should().deleteByIdAndMerchantId(productId, merchantId);
         }
@@ -469,10 +443,9 @@ class ProductServiceTest {
         @Test
         @DisplayName("deve lançar ProductNotFoundException ao deletar produto inexistente")
         void shouldThrowWhenProductNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(productRepository.existsByIdAndMerchantId(productId, merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> productService.delete(productId))
+            assertThatThrownBy(() -> productService.delete(merchantId, productId))
                     .isInstanceOf(ProductNotFoundException.class);
 
             then(productRepository).should(never()).deleteByIdAndMerchantId(any(), any());

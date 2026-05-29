@@ -45,7 +45,7 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
         IncludeRequest request = IncludeRequest.builder()
                 .name("copo").cost(new BigDecimal("0.50")).quantity(BigDecimal.ONE).build();
 
-        IncludeResponse response = includeService.add(product.getId(), request);
+        IncludeResponse response = includeService.add(merchant.getId(), product.getId(), request);
 
         assertThat(response.getId()).isNotNull();
         Include persisted = includeRepository.findById(response.getId()).orElseThrow();
@@ -62,7 +62,7 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
                 IncludeRequest.builder().name("granola").cost(new BigDecimal("0.05")).quantity(new BigDecimal("30")).build()
         );
 
-        List<IncludeResponse> responses = includeService.addBatch(product.getId(), requests);
+        List<IncludeResponse> responses = includeService.addBatch(merchant.getId(), product.getId(), requests);
 
         assertThat(responses).hasSize(3);
         assertThat(includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchant.getId())).hasSize(3);
@@ -71,10 +71,10 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findByProductId deve listar Includes do produto")
     void findByProductId_shouldListIncludes() {
-        includeService.add(product.getId(), IncludeRequest.builder()
+        includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("copo").cost(new BigDecimal("0.50")).quantity(BigDecimal.ONE).build());
 
-        var includes = includeService.findByProductId(product.getId());
+        var includes = includeService.findByProductId(merchant.getId(), product.getId());
 
         assertThat(includes).hasSize(1);
         assertThat(includes.get(0).getName()).isEqualTo("copo");
@@ -85,10 +85,10 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("update deve modificar campos do Include")
     void update_shouldModifyInclude() {
-        IncludeResponse created = includeService.add(product.getId(), IncludeRequest.builder()
+        IncludeResponse created = includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("velho").cost(new BigDecimal("1.00")).quantity(BigDecimal.ONE).build());
 
-        includeService.update(product.getId(), created.getId(), IncludeRequest.builder()
+        includeService.update(merchant.getId(), product.getId(), created.getId(), IncludeRequest.builder()
                 .name("novo").cost(new BigDecimal("2.00")).quantity(new BigDecimal("5")).build());
 
         Include persisted = includeRepository.findById(created.getId()).orElseThrow();
@@ -100,10 +100,10 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover o Include")
     void delete_shouldRemoveInclude() {
-        IncludeResponse created = includeService.add(product.getId(), IncludeRequest.builder()
+        IncludeResponse created = includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("x").cost(new BigDecimal("0.10")).quantity(BigDecimal.ONE).build());
 
-        includeService.delete(product.getId(), created.getId());
+        includeService.delete(merchant.getId(), product.getId(), created.getId());
 
         assertThat(includeRepository.findById(created.getId())).isEmpty();
     }
@@ -111,12 +111,12 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("deleteAllByProductId deve remover todos os Includes do produto")
     void deleteAllByProductId_shouldRemoveAll() {
-        includeService.addBatch(product.getId(), List.of(
+        includeService.addBatch(merchant.getId(), product.getId(), List.of(
                 IncludeRequest.builder().name("a").cost(new BigDecimal("0.10")).quantity(BigDecimal.ONE).build(),
                 IncludeRequest.builder().name("b").cost(new BigDecimal("0.20")).quantity(BigDecimal.ONE).build()
         ));
 
-        long count = includeService.deleteAllByProductId(product.getId());
+        long count = includeService.deleteAllByProductId(merchant.getId(), product.getId());
 
         assertThat(count).isEqualTo(2);
         assertThat(includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchant.getId())).isEmpty();
@@ -130,19 +130,19 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
         // Em produção cada chamada REST é uma transação separada (entity carregado fresh).
         // Simulamos isso aqui com flush() + clear() entre as adds, forçando o Hibernate
         // a recarregar o Product do banco a cada add (não apenas usar a instância em cache).
-        includeService.add(product.getId(), IncludeRequest.builder()
+        includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("leite ninho").cost(new BigDecimal("0.05"))
                 .quantity(new BigDecimal("40")).build());
         entityManager.flush();
         entityManager.clear();
 
-        includeService.add(product.getId(), IncludeRequest.builder()
+        includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("chocoball").cost(new BigDecimal("0.06"))
                 .quantity(new BigDecimal("20")).build());
         entityManager.flush();
         entityManager.clear();
 
-        includeService.add(product.getId(), IncludeRequest.builder()
+        includeService.add(merchant.getId(), product.getId(), IncludeRequest.builder()
                 .name("morango").cost(new BigDecimal("0.01"))
                 .quantity(new BigDecimal("1")).build());
         entityManager.flush();
@@ -170,7 +170,7 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
         IncludeRequest request = IncludeRequest.builder()
                 .name("x").cost(BigDecimal.ONE).quantity(BigDecimal.ONE).build();
 
-        assertThatThrownBy(() -> includeService.add(otherProduct.getId(), request))
+        assertThatThrownBy(() -> includeService.add(merchant.getId(), otherProduct.getId(), request))
                 .isInstanceOf(ProductNotFoundException.class);
     }
 }

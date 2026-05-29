@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.ingredient;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import org.junit.jupiter.api.*;
@@ -31,9 +30,6 @@ class IngredientServiceTest {
 
     @Mock
     private NotificationService notificationService;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private MerchantRepository merchantRepository;
@@ -85,11 +81,10 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve criar ingrediente com dados válidos e retornar IngredientResponse")
         void shouldCreateIngredientAndReturnResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(ingredientRequest.getName(), merchantId)).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
-            IngredientResponse result = ingredientService.create(ingredientRequest);
+            IngredientResponse result = ingredientService.create(merchantId, ingredientRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getName()).isEqualTo(ingredientRequest.getName());
@@ -102,11 +97,10 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve criar ingrediente com status ACTIVE por padrão")
         void shouldCreateIngredientWithActiveStatusByDefault() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(ingredient);
 
-            IngredientResponse result = ingredientService.create(ingredientRequest);
+            IngredientResponse result = ingredientService.create(merchantId, ingredientRequest);
 
             assertThat(result.getStatus()).isEqualTo(IngredientStatus.ACTIVE);
         }
@@ -121,11 +115,10 @@ class IngredientServiceTest {
                     .status(IngredientStatus.INACTIVE)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.create(req);
+            ingredientService.create(merchantId, req);
 
             then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.INACTIVE));
         }
@@ -141,11 +134,10 @@ class IngredientServiceTest {
                     .lowStockThreshold(new BigDecimal("2.00"))
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.create(req);
+            ingredientService.create(merchantId, req);
 
             then(ingredientRepository).should().save(argThat(i ->
                     new BigDecimal("12.50").compareTo(i.getStockQuantity()) == 0
@@ -162,11 +154,10 @@ class IngredientServiceTest {
                     .salePrice(new BigDecimal("8.50"))
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.create(req);
+            ingredientService.create(merchantId, req);
 
             then(ingredientRepository).should().save(argThat(i ->
                     new BigDecimal("8.50").compareTo(i.getSalePrice()) == 0));
@@ -175,10 +166,9 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateIngredientException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(ingredientRequest.getName(), merchantId)).willReturn(true);
 
-            assertThatThrownBy(() -> ingredientService.create(ingredientRequest))
+            assertThatThrownBy(() -> ingredientService.create(merchantId, ingredientRequest))
                     .isInstanceOf(DuplicateIngredientException.class)
                     .hasMessageContaining("nome");
 
@@ -192,12 +182,11 @@ class IngredientServiceTest {
                     .name("Açaí Premium").unit("ml")
                     .costPerUnit(new BigDecimal("0.05"))
                     .build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class)))
                     .willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.create(withAccent);
+            ingredientService.create(merchantId, withAccent);
 
             then(ingredientRepository).should()
                     .save(argThat(i -> "acai premium".equals(i.getCanonicalName())));
@@ -210,12 +199,11 @@ class IngredientServiceTest {
                     .name("Açaí Premium").unit("ml")
                     .costPerUnit(new BigDecimal("0.05"))
                     .build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
             given(ingredientRepository.save(any(Ingredient.class)))
                     .willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.create(withAccent);
+            ingredientService.create(merchantId, withAccent);
 
             then(notificationService).should().resolveMissingIngredient("acai premium", merchantId);
         }
@@ -231,10 +219,9 @@ class IngredientServiceTest {
             ingredient.setStockQuantity(new BigDecimal("10.00"));
             ingredient.setCostPerUnit(new BigDecimal("3.50"));
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
 
-            IngredientResponse result = ingredientService.findById(ingredientId);
+            IngredientResponse result = ingredientService.findById(merchantId, ingredientId);
 
             assertThat(result.getTotalStockCost()).isEqualByComparingTo(new BigDecimal("35.00"));
         }
@@ -242,10 +229,9 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve retornar IngredientResponse quando ingrediente existe")
         void shouldReturnResponseWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
 
-            IngredientResponse result = ingredientService.findById(ingredientId);
+            IngredientResponse result = ingredientService.findById(merchantId, ingredientId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(ingredientId);
@@ -258,10 +244,9 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException quando ingrediente não existe")
         void shouldThrowWhenIngredientNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> ingredientService.findById(ingredientId))
+            assertThatThrownBy(() -> ingredientService.findById(merchantId, ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
         }
     }
@@ -275,12 +260,11 @@ class IngredientServiceTest {
         void shouldReturnPagedIngredientsFilteredByName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "bac", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(ingredient), pageable, 1));
 
             org.springframework.data.domain.Page<IngredientResponse> result =
-                    ingredientService.findAll("bac", pageable);
+                    ingredientService.findAll(merchantId, "bac", pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getId()).isEqualTo(ingredientId);
@@ -292,14 +276,13 @@ class IngredientServiceTest {
         void shouldPopulateUsageCountInBatch() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(ingredient), pageable, 1));
             given(includeRepository.countByLowercaseNameInForMerchant(eq(merchantId), any()))
                     .willReturn(List.<Object[]>of(new Object[]{"farinha de trigo", 4L}));
 
             org.springframework.data.domain.Page<IngredientResponse> result =
-                    ingredientService.findAll(null, pageable);
+                    ingredientService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getUsageCount()).isEqualTo(4L);
@@ -310,12 +293,11 @@ class IngredientServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<IngredientResponse> result =
-                    ingredientService.findAll(null, pageable);
+                    ingredientService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
         }
@@ -346,11 +328,10 @@ class IngredientServiceTest {
                     .status(IngredientStatus.ACTIVE)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willReturn(updatedIngredient);
 
-            IngredientResponse result = ingredientService.update(ingredientId, updateRequest);
+            IngredientResponse result = ingredientService.update(merchantId, ingredientId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("Farinha de Trigo Integral");
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(new BigDecimal("5.75"));
@@ -365,11 +346,10 @@ class IngredientServiceTest {
                     .unit("g")
                     .costPerUnit(new BigDecimal("1.20"))
                     .build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.update(ingredientId, updateRequest);
+            ingredientService.update(merchantId, ingredientId, updateRequest);
 
             then(ingredientRepository).should()
                     .save(argThat(i -> "pistache".equals(i.getCanonicalName())));
@@ -385,11 +365,10 @@ class IngredientServiceTest {
                     .status(IngredientStatus.INACTIVE)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.update(ingredientId, req);
+            ingredientService.update(merchantId, ingredientId, req);
 
             then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.INACTIVE));
         }
@@ -404,11 +383,10 @@ class IngredientServiceTest {
                     .status(null)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.update(ingredientId, req);
+            ingredientService.update(merchantId, ingredientId, req);
 
             then(ingredientRepository).should().save(argThat(i -> i.getStatus() == IngredientStatus.ACTIVE));
         }
@@ -423,11 +401,10 @@ class IngredientServiceTest {
                     .salePrice(new BigDecimal("9.99"))
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
             given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
 
-            ingredientService.update(ingredientId, req);
+            ingredientService.update(merchantId, ingredientId, req);
 
             then(ingredientRepository).should().save(argThat(i ->
                     new BigDecimal("9.99").compareTo(i.getSalePrice()) == 0));
@@ -436,10 +413,9 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException ao atualizar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> ingredientService.update(ingredientId, ingredientRequest))
+            assertThatThrownBy(() -> ingredientService.update(merchantId, ingredientId, ingredientRequest))
                     .isInstanceOf(IngredientNotFoundException.class);
 
             then(ingredientRepository).should(never()).save(any(Ingredient.class));
@@ -453,11 +429,10 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve deletar ingrediente existente sem lançar exceção")
         void shouldDeleteExistingIngredient() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByIdAndMerchantId(ingredientId, merchantId)).willReturn(true);
             willDoNothing().given(ingredientRepository).deleteByIdAndMerchantId(ingredientId, merchantId);
 
-            assertThatNoException().isThrownBy(() -> ingredientService.delete(ingredientId));
+            assertThatNoException().isThrownBy(() -> ingredientService.delete(merchantId, ingredientId));
 
             then(ingredientRepository).should().deleteByIdAndMerchantId(ingredientId, merchantId);
         }
@@ -465,10 +440,9 @@ class IngredientServiceTest {
         @Test
         @DisplayName("deve lançar IngredientNotFoundException ao deletar ingrediente inexistente")
         void shouldThrowWhenIngredientNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(ingredientRepository.existsByIdAndMerchantId(ingredientId, merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> ingredientService.delete(ingredientId))
+            assertThatThrownBy(() -> ingredientService.delete(merchantId, ingredientId))
                     .isInstanceOf(IngredientNotFoundException.class);
 
             then(ingredientRepository).should(never()).deleteByIdAndMerchantId(any(), any());

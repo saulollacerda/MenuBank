@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.fee;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,19 +12,14 @@ public class FeeService {
 
     private final FeeRepository feeRepository;
     private final MerchantRepository merchantRepository;
-    private final MerchantContext merchantContext;
 
     public FeeService(FeeRepository feeRepository,
-                      MerchantRepository merchantRepository,
-                      MerchantContext merchantContext) {
+                      MerchantRepository merchantRepository) {
         this.feeRepository = feeRepository;
         this.merchantRepository = merchantRepository;
-        this.merchantContext = merchantContext;
     }
 
-    public FeeResponse create(FeeRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public FeeResponse create(UUID merchantId, FeeRequest request) {
         if (feeRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateFeeException("nome");
         }
@@ -40,22 +34,19 @@ public class FeeService {
         return toResponse(saved);
     }
 
-    public FeeResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public FeeResponse findById(UUID merchantId, UUID id) {
         Fee fee = feeRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new FeeNotFoundException(id));
         return toResponse(fee);
     }
 
-    public Page<FeeResponse> findAll(String search, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<FeeResponse> findAll(UUID merchantId, String search, Pageable pageable) {
         String term = search == null ? "" : search;
         return feeRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
                 .map(this::toResponse);
     }
 
-    public FeeResponse update(UUID id, FeeRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public FeeResponse update(UUID merchantId, UUID id, FeeRequest request) {
         Fee fee = feeRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new FeeNotFoundException(id));
 
@@ -66,8 +57,7 @@ public class FeeService {
         return toResponse(saved);
     }
 
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!feeRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new FeeNotFoundException(id);
         }

@@ -1,11 +1,12 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,20 +33,20 @@ class AnotaAIControllerTest {
     private AnotaAISyncService syncService;
 
     @MockitoBean
-    private MerchantContext merchantContext;
+    private AuthHelper authHelper;
 
     private UUID merchantId;
 
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
-        given(merchantContext.getMerchantId()).willReturn(merchantId);
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(merchantId);
     }
 
     @Test
     @DisplayName("POST /api/integrations/anotaai/orders deve retornar 200 com resultado")
     void shouldSyncOrders() throws Exception {
-        given(syncService.syncOrders(any(UUID.class))).willReturn(AnotaAISyncResult.builder()
+        given(syncService.syncOrders(any())).willReturn(AnotaAISyncResult.builder()
                 .ordersImported(2)
                 .ordersSkipped(1)
                 .errors(List.of())
@@ -60,7 +61,7 @@ class AnotaAIControllerTest {
     @Test
     @DisplayName("POST /api/integrations/anotaai/catalog deve retornar 200 com resultado")
     void shouldSyncCatalog() throws Exception {
-        given(syncService.syncCatalog(any(UUID.class), org.mockito.ArgumentMatchers.anyBoolean()))
+        given(syncService.syncCatalog(any(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .willReturn(AnotaAISyncResult.builder()
                 .categoriesCreated(3)
                 .categoriesUpdated(1)

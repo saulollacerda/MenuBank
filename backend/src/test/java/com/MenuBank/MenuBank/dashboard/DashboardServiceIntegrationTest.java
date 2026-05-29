@@ -43,7 +43,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
 
     @BeforeEach
     void setup() {
-        merchant = createMerchantAndAuthenticate();
+        merchant = createMerchant();
         Category cat = categoryRepository.save(Category.builder()
                 .merchant(merchant).name("Açaí").build());
         productA = productRepository.save(Product.builder()
@@ -65,7 +65,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
         // PENDING não deve entrar
         persistOrder(today.atTime(12, 0), OrderStatus.PENDING, new BigDecimal("999.00"), productA, 1);
 
-        DashboardResponse response = dashboardService.getDashboard(today, today);
+        DashboardResponse response = dashboardService.getDashboard(merchant.getId(), today, today);
 
         assertThat(response.getOrderCount()).isEqualTo(2);
         assertThat(response.getTotalSales()).isEqualByComparingTo("80.00");
@@ -75,7 +75,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("getDashboard deve retornar zeros quando não há pedidos PAID no intervalo")
     void getDashboard_shouldReturnZeros() {
-        DashboardResponse response = dashboardService.getDashboard(LocalDate.now(), LocalDate.now());
+        DashboardResponse response = dashboardService.getDashboard(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         assertThat(response.getOrderCount()).isZero();
         assertThat(response.getTotalSales()).isEqualByComparingTo("0");
@@ -89,7 +89,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
         persistOrder(today.atTime(10, 0), OrderStatus.PAID, new BigDecimal("100"), productB, 5);
         persistOrder(today.atTime(11, 0), OrderStatus.PAID, new BigDecimal("50"), productA, 2);
 
-        DashboardResponse response = dashboardService.getDashboard(today, today);
+        DashboardResponse response = dashboardService.getDashboard(merchant.getId(), today, today);
 
         assertThat(response.getTopProducts()).hasSize(2);
         assertThat(response.getTopProducts().get(0).getProductName()).isEqualTo("Açaí 500ml");
@@ -106,7 +106,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
         persistOrder(today.atTime(10, 0), OrderStatus.PAID, new BigDecimal("50"), productA, 1);
         persistOrder(today.atTime(15, 0), OrderStatus.PAID, new BigDecimal("30"), productA, 1);
 
-        DashboardResponse response = dashboardService.getDashboard(yesterday, today);
+        DashboardResponse response = dashboardService.getDashboard(merchant.getId(), yesterday, today);
 
         assertThat(response.getSalesByDay()).hasSize(2);
         assertThat(response.getSalesByDay().get(0).getDate()).isEqualTo(yesterday);
@@ -140,7 +140,7 @@ class DashboardServiceIntegrationTest extends IntegrationTestBase {
         otherOrder.setItems(new ArrayList<>(List.of(otherItem)));
         orderRepository.save(otherOrder);
 
-        DashboardResponse response = dashboardService.getDashboard(today, today);
+        DashboardResponse response = dashboardService.getDashboard(merchant.getId(), today, today);
 
         // Não enxerga o pedido de R$ 9999 do outro merchant
         assertThat(response.getTotalSales()).isEqualByComparingTo("100");

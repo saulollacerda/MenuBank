@@ -1,11 +1,13 @@
 package com.MenuBank.MenuBank.notification;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,11 +33,15 @@ class NotificationControllerTest {
     @MockitoBean
     private NotificationService notificationService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID notificationId;
 
     @BeforeEach
     void setUp() {
         notificationId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(UUID.randomUUID());
     }
 
     @Nested
@@ -56,7 +62,7 @@ class NotificationControllerTest {
                     .status(NotificationStatus.UNREAD)
                     .createdAt(Instant.parse("2026-05-22T12:00:00Z"))
                     .build();
-            given(notificationService.findAll(any(Pageable.class)))
+            given(notificationService.findAll(any(), any(Pageable.class)))
                     .willReturn(new PageImpl<>(List.of(response), pageable, 1));
 
             mockMvc.perform(get("/api/notifications"))
@@ -76,7 +82,7 @@ class NotificationControllerTest {
         @Test
         @DisplayName("deve retornar 200 com count das notificações não lidas")
         void shouldReturnUnreadCount() throws Exception {
-            given(notificationService.unreadCount()).willReturn(5L);
+            given(notificationService.unreadCount(any())).willReturn(5L);
 
             mockMvc.perform(get("/api/notifications/unread-count"))
                     .andExpect(status().isOk())
@@ -91,19 +97,19 @@ class NotificationControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao marcar como lida")
         void shouldReturn204OnSuccess() throws Exception {
-            willDoNothing().given(notificationService).markRead(notificationId);
+            willDoNothing().given(notificationService).markRead(any(), eq(notificationId));
 
             mockMvc.perform(put("/api/notifications/{id}/read", notificationId).with(csrf()))
                     .andExpect(status().isNoContent());
 
-            then(notificationService).should().markRead(notificationId);
+            then(notificationService).should().markRead(any(), eq(notificationId));
         }
 
         @Test
         @DisplayName("deve retornar 404 quando notificação não encontrada")
         void shouldReturn404WhenNotFound() throws Exception {
             willThrow(new NotificationNotFoundException(notificationId))
-                    .given(notificationService).markRead(notificationId);
+                    .given(notificationService).markRead(any(), eq(notificationId));
 
             mockMvc.perform(put("/api/notifications/{id}/read", notificationId).with(csrf()))
                     .andExpect(status().isNotFound());
@@ -117,19 +123,19 @@ class NotificationControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar")
         void shouldReturn204OnSuccess() throws Exception {
-            willDoNothing().given(notificationService).dismiss(notificationId);
+            willDoNothing().given(notificationService).dismiss(any(), eq(notificationId));
 
             mockMvc.perform(delete("/api/notifications/{id}", notificationId).with(csrf()))
                     .andExpect(status().isNoContent());
 
-            then(notificationService).should().dismiss(notificationId);
+            then(notificationService).should().dismiss(any(), eq(notificationId));
         }
 
         @Test
         @DisplayName("deve retornar 404 quando notificação não existe")
         void shouldReturn404WhenNotFound() throws Exception {
             willThrow(new NotificationNotFoundException(notificationId))
-                    .given(notificationService).dismiss(notificationId);
+                    .given(notificationService).dismiss(any(), eq(notificationId));
 
             mockMvc.perform(delete("/api/notifications/{id}", notificationId).with(csrf()))
                     .andExpect(status().isNotFound());

@@ -133,9 +133,9 @@ class NotificationServiceIntegrationTest extends IntegrationTestBase {
         Merchant merchant = createMerchantAndAuthenticate();
         Notification a = notificationService.createMissingIngredient("A", "a", merchant.getId());
         notificationService.createMissingIngredient("B", "b", merchant.getId());
-        notificationService.markRead(a.getId());
+        notificationService.markRead(merchant.getId(), a.getId());
 
-        long count = notificationService.unreadCount();
+        long count = notificationService.unreadCount(merchant.getId());
 
         assertThat(count).isEqualTo(1);
     }
@@ -146,7 +146,7 @@ class NotificationServiceIntegrationTest extends IntegrationTestBase {
         Merchant merchant = createMerchantAndAuthenticate();
         Notification n = notificationService.createMissingIngredient("X", "x", merchant.getId());
 
-        notificationService.markRead(n.getId());
+        notificationService.markRead(merchant.getId(), n.getId());
 
         Notification reloaded = notificationRepository.findById(n.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.READ);
@@ -158,7 +158,7 @@ class NotificationServiceIntegrationTest extends IntegrationTestBase {
         Merchant merchant = createMerchantAndAuthenticate();
         Notification n = notificationService.createMissingIngredient("X", "x", merchant.getId());
 
-        notificationService.dismiss(n.getId());
+        notificationService.dismiss(merchant.getId(), n.getId());
 
         assertThat(notificationRepository.findById(n.getId())).isEmpty();
     }

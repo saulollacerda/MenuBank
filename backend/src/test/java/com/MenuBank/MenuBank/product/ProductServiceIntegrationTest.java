@@ -39,7 +39,7 @@ class ProductServiceIntegrationTest extends IntegrationTestBase {
                 .name("Açaí 500ml").price(new BigDecimal("20.00"))
                 .categoryId(category.getId()).build();
 
-        ProductResponse response = productService.create(request);
+        ProductResponse response = productService.create(merchant.getId(), request);
 
         assertThat(response.getId()).isNotNull();
         Product persisted = productRepository.findById(response.getId()).orElseThrow();
@@ -58,17 +58,17 @@ class ProductServiceIntegrationTest extends IntegrationTestBase {
         ProductRequest request = ProductRequest.builder()
                 .name("Açaí").price(new BigDecimal("10")).categoryId(otherCategory.getId()).build();
 
-        assertThatThrownBy(() -> productService.create(request))
+        assertThatThrownBy(() -> productService.create(merchant.getId(), request))
                 .isInstanceOf(RuntimeException.class);
     }
 
     @Test
     @DisplayName("update deve modificar nome e preço sem afetar merchant ownership")
     void update_shouldModifyProduct() {
-        ProductResponse created = productService.create(ProductRequest.builder()
+        ProductResponse created = productService.create(merchant.getId(), ProductRequest.builder()
                 .name("Velho").price(new BigDecimal("10")).categoryId(category.getId()).build());
 
-        productService.update(created.getId(), ProductRequest.builder()
+        productService.update(merchant.getId(), created.getId(), ProductRequest.builder()
                 .name("Novo").price(new BigDecimal("15"))
                 .categoryId(category.getId()).build());
 
@@ -80,10 +80,10 @@ class ProductServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover produto do banco")
     void delete_shouldRemoveProduct() {
-        ProductResponse created = productService.create(ProductRequest.builder()
+        ProductResponse created = productService.create(merchant.getId(), ProductRequest.builder()
                 .name("X").price(new BigDecimal("5")).categoryId(category.getId()).build());
 
-        productService.delete(created.getId());
+        productService.delete(merchant.getId(), created.getId());
 
         assertThat(productRepository.findById(created.getId())).isEmpty();
     }
@@ -91,14 +91,14 @@ class ProductServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll deve paginar produtos do merchant filtrando por nome")
     void findAll_shouldPaginateWithSearch() {
-        productService.create(ProductRequest.builder()
+        productService.create(merchant.getId(), ProductRequest.builder()
                 .name("Açaí 330ml").price(new BigDecimal("15")).categoryId(category.getId()).build());
-        productService.create(ProductRequest.builder()
+        productService.create(merchant.getId(), ProductRequest.builder()
                 .name("Açaí 500ml").price(new BigDecimal("20")).categoryId(category.getId()).build());
-        productService.create(ProductRequest.builder()
+        productService.create(merchant.getId(), ProductRequest.builder()
                 .name("Refrigerante").price(new BigDecimal("8")).categoryId(category.getId()).build());
 
-        var page = productService.findAll("Açaí", PageRequest.of(0, 10));
+        var page = productService.findAll(merchant.getId(), "Açaí", PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(2);
     }
@@ -106,17 +106,16 @@ class ProductServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll NÃO deve listar produtos de outro merchant (isolamento)")
     void findAll_shouldIsolateBetweenMerchants() {
-        productService.create(ProductRequest.builder()
+        productService.create(merchant.getId(), ProductRequest.builder()
                 .name("Meu").price(new BigDecimal("10")).categoryId(category.getId()).build());
 
         Merchant other = createMerchant("Outro");
         Category otherCat = categoryRepository.save(Category.builder()
                 .merchant(other).name("Outra").build());
-        authenticateAs(other);
-        productService.create(ProductRequest.builder()
+        productService.create(other.getId(), ProductRequest.builder()
                 .name("Do outro").price(new BigDecimal("99")).categoryId(otherCat.getId()).build());
 
-        var page = productService.findAll(null, PageRequest.of(0, 10));
+        var page = productService.findAll(other.getId(), null, PageRequest.of(0, 10));
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Do outro");
     }

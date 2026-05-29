@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.notification;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,9 +29,6 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private MerchantRepository merchantRepository;
@@ -167,11 +163,10 @@ class NotificationServiceTest {
                     .referenceData("pistache").referenceDisplay("Pistache")
                     .status(NotificationStatus.UNREAD)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable))
                     .willReturn(new PageImpl<>(List.of(n), pageable, 1));
 
-            var page = notificationService.findAll(pageable);
+            var page = notificationService.findAll(merchantId, pageable);
 
             assertThat(page.getContent()).hasSize(1);
             assertThat(page.getContent().get(0).getId()).isEqualTo(notificationId);
@@ -186,11 +181,10 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve retornar contagem de notificações UNREAD do owner autenticado")
         void shouldReturnUnreadCount() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.countByMerchantIdAndStatus(merchantId, NotificationStatus.UNREAD))
                     .willReturn(3L);
 
-            assertThat(notificationService.unreadCount()).isEqualTo(3L);
+            assertThat(notificationService.unreadCount(merchantId)).isEqualTo(3L);
         }
     }
 
@@ -206,12 +200,11 @@ class NotificationServiceTest {
                     .type(NotificationType.MISSING_INGREDIENT)
                     .status(NotificationStatus.UNREAD)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.of(n));
             given(notificationRepository.save(any(Notification.class))).willAnswer(inv -> inv.getArgument(0));
 
-            notificationService.markRead(notificationId);
+            notificationService.markRead(merchantId, notificationId);
 
             assertThat(n.getStatus()).isEqualTo(NotificationStatus.READ);
             then(notificationRepository).should().save(n);
@@ -225,11 +218,10 @@ class NotificationServiceTest {
                     .type(NotificationType.MISSING_INGREDIENT)
                     .status(NotificationStatus.RESOLVED)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.of(n));
 
-            notificationService.markRead(notificationId);
+            notificationService.markRead(merchantId, notificationId);
 
             assertThat(n.getStatus()).isEqualTo(NotificationStatus.RESOLVED);
             then(notificationRepository).should(never()).save(any());
@@ -238,11 +230,10 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve lançar NotificationNotFoundException quando notificação não existe para o owner")
         void shouldThrowWhenNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> notificationService.markRead(notificationId))
+            assertThatThrownBy(() -> notificationService.markRead(merchantId, notificationId))
                     .isInstanceOf(NotificationNotFoundException.class);
         }
     }
@@ -254,11 +245,10 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve deletar notificação existente do owner autenticado")
         void shouldDeleteWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.of(Notification.builder().id(notificationId).merchant(Merchant.builder().id(merchantId).build()).build()));
 
-            notificationService.dismiss(notificationId);
+            notificationService.dismiss(merchantId, notificationId);
 
             then(notificationRepository).should().deleteByIdAndMerchantId(notificationId, merchantId);
         }
@@ -266,11 +256,10 @@ class NotificationServiceTest {
         @Test
         @DisplayName("deve lançar NotificationNotFoundException quando não existe")
         void shouldThrowWhenNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(notificationRepository.findByIdAndMerchantId(notificationId, merchantId))
                     .willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> notificationService.dismiss(notificationId))
+            assertThatThrownBy(() -> notificationService.dismiss(merchantId, notificationId))
                     .isInstanceOf(NotificationNotFoundException.class);
         }
     }

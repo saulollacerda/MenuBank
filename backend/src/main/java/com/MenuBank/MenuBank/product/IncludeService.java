@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.product;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,19 +12,15 @@ public class IncludeService {
 
     private final IncludeRepository includeRepository;
     private final ProductRepository productRepository;
-    private final MerchantContext merchantContext;
 
     public IncludeService(IncludeRepository includeRepository,
-                          ProductRepository productRepository,
-                          MerchantContext merchantContext) {
+                          ProductRepository productRepository) {
         this.includeRepository = includeRepository;
         this.productRepository = productRepository;
-        this.merchantContext = merchantContext;
     }
 
     @Transactional
-    public IncludeResponse add(UUID productId, IncludeRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public IncludeResponse add(UUID merchantId, UUID productId, IncludeRequest request) {
 
         Product product = productRepository.findByIdAndMerchantId(productId, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
@@ -35,8 +30,7 @@ public class IncludeService {
     }
 
     @Transactional
-    public List<IncludeResponse> addBatch(UUID productId, List<IncludeRequest> requests) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<IncludeResponse> addBatch(UUID merchantId, UUID productId, List<IncludeRequest> requests) {
 
         Product product = productRepository.findByIdAndMerchantId(productId, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
@@ -51,8 +45,7 @@ public class IncludeService {
                 .toList();
     }
 
-    public List<IncludeResponse> findByProductId(UUID productId) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<IncludeResponse> findByProductId(UUID merchantId, UUID productId) {
 
         if (!productRepository.existsByIdAndMerchantId(productId, merchantId)) {
             throw new ProductNotFoundException(productId);
@@ -63,8 +56,7 @@ public class IncludeService {
     }
 
     @Transactional
-    public List<IncludeResponse> reorder(UUID productId, List<IncludeReorderRequest> items) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<IncludeResponse> reorder(UUID merchantId, UUID productId, List<IncludeReorderRequest> items) {
 
         if (!productRepository.existsByIdAndMerchantId(productId, merchantId)) {
             throw new ProductNotFoundException(productId);
@@ -84,8 +76,7 @@ public class IncludeService {
     }
 
     @Transactional
-    public IncludeResponse update(UUID productId, UUID includeId, IncludeRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public IncludeResponse update(UUID merchantId, UUID productId, UUID includeId, IncludeRequest request) {
 
         Include include = includeRepository
                 .findByIdAndProductIdAndProductMerchantId(includeId, productId, merchantId)
@@ -105,8 +96,7 @@ public class IncludeService {
     }
 
     @Transactional
-    public long deleteAllByProductId(UUID productId) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public long deleteAllByProductId(UUID merchantId, UUID productId) {
 
         if (!productRepository.existsByIdAndMerchantId(productId, merchantId)) {
             throw new ProductNotFoundException(productId);
@@ -115,8 +105,7 @@ public class IncludeService {
     }
 
     @Transactional
-    public void delete(UUID productId, UUID includeId) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID productId, UUID includeId) {
 
         if (includeRepository.findByIdAndProductIdAndProductMerchantId(includeId, productId, merchantId).isEmpty()) {
             throw new IncludeNotFoundException(includeId);

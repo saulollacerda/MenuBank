@@ -20,13 +20,13 @@ class CustomerServiceIntegrationTest extends IntegrationTestBase {
 
     @BeforeEach
     void setup() {
-        merchant = createMerchantAndAuthenticate();
+        merchant = createMerchant();
     }
 
     @Test
     @DisplayName("create deve persistir cliente ligado ao merchant")
     void create_shouldPersistCustomer() {
-        CustomerResponse response = customerService.create(CustomerRequest.builder()
+        CustomerResponse response = customerService.create(merchant.getId(), CustomerRequest.builder()
                 .name("João").phone("11999990000").email("joao@example.com").build());
 
         Customer persisted = customerRepository.findById(response.getId()).orElseThrow();
@@ -37,10 +37,10 @@ class CustomerServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("update deve modificar dados do cliente")
     void update_shouldModifyCustomer() {
-        CustomerResponse created = customerService.create(CustomerRequest.builder()
+        CustomerResponse created = customerService.create(merchant.getId(), CustomerRequest.builder()
                 .name("Velho").phone("11000000000").build());
 
-        customerService.update(created.getId(), CustomerRequest.builder()
+        customerService.update(merchant.getId(), created.getId(), CustomerRequest.builder()
                 .name("Novo").phone("11999990000").email("novo@example.com").build());
 
         Customer persisted = customerRepository.findById(created.getId()).orElseThrow();
@@ -51,10 +51,10 @@ class CustomerServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover cliente")
     void delete_shouldRemove() {
-        CustomerResponse created = customerService.create(CustomerRequest.builder()
+        CustomerResponse created = customerService.create(merchant.getId(), CustomerRequest.builder()
                 .name("X").phone("11000000000").build());
 
-        customerService.delete(created.getId());
+        customerService.delete(merchant.getId(), created.getId());
 
         assertThat(customerRepository.findById(created.getId())).isEmpty();
     }
@@ -62,7 +62,7 @@ class CustomerServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findByPhoneAndMerchantId deve achar cliente por telefone (usado no import da Anota.AI)")
     void findByPhone_shouldFindCustomer() {
-        customerService.create(CustomerRequest.builder()
+        customerService.create(merchant.getId(), CustomerRequest.builder()
                 .name("Maria").phone("43123456789").build());
 
         var found = customerRepository.findByPhoneAndMerchantId("43123456789", merchant.getId());
@@ -74,12 +74,12 @@ class CustomerServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll deve paginar isolando por merchant")
     void findAll_shouldIsolate() {
-        customerService.create(CustomerRequest.builder().name("Meu").phone("1").build());
+        customerService.create(merchant.getId(), CustomerRequest.builder().name("Meu").phone("1").build());
 
-        authenticateAs(createMerchant("Outro"));
-        customerService.create(CustomerRequest.builder().name("Do Outro").phone("2").build());
+        Merchant outro = createMerchant("Outro");
+        customerService.create(outro.getId(), CustomerRequest.builder().name("Do Outro").phone("2").build());
 
-        var page = customerService.findAll(null, PageRequest.of(0, 10));
+        var page = customerService.findAll(outro.getId(), null, PageRequest.of(0, 10));
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Do Outro");
     }

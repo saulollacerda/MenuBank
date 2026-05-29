@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.customer;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import org.junit.jupiter.api.*;
@@ -27,9 +26,6 @@ class CustomerServiceTest {
 
     @Mock
     private CustomerRepository customerRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private MerchantRepository merchantRepository;
@@ -83,10 +79,9 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve criar cliente com dados válidos e retornar CustomerResponse")
         void shouldCreateCustomerAndReturnResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.save(any(Customer.class))).willReturn(customer);
 
-            CustomerResponse result = customerService.create(customerRequest);
+            CustomerResponse result = customerService.create(merchantId, customerRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(customerId);
@@ -109,10 +104,9 @@ class CustomerServiceTest {
                     .name("Maria Souza")
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.save(any(Customer.class))).willReturn(minimalCustomer);
 
-            CustomerResponse result = customerService.create(minimalRequest);
+            CustomerResponse result = customerService.create(merchantId, minimalRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getName()).isEqualTo("Maria Souza");
@@ -132,10 +126,9 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve retornar CustomerResponse quando cliente existe")
         void shouldReturnResponseWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
 
-            CustomerResponse result = customerService.findById(customerId);
+            CustomerResponse result = customerService.findById(merchantId, customerId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(customerId);
@@ -147,10 +140,9 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve lançar CustomerNotFoundException quando cliente não existe")
         void shouldThrowWhenCustomerNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> customerService.findById(customerId))
+            assertThatThrownBy(() -> customerService.findById(merchantId, customerId))
                     .isInstanceOf(CustomerNotFoundException.class);
         }
 
@@ -158,7 +150,6 @@ class CustomerServiceTest {
         @DisplayName("deve popular orderCount, lifetimeValue e lastOrderAt do aggregate")
         void shouldPopulateAggregates() {
             java.time.LocalDateTime when = java.time.LocalDateTime.of(2026, 5, 20, 12, 0);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
             given(orderRepository.aggregatesByCustomerForMerchant(eq(merchantId), any()))
                     .willReturn(java.util.List.<Object[]>of(
@@ -168,7 +159,7 @@ class CustomerServiceTest {
                             new Object[]{customerId, OrderOrigin.ANOTA_AI, 3L},
                             new Object[]{customerId, OrderOrigin.MENUBANK, 2L}));
 
-            CustomerResponse result = customerService.findById(customerId);
+            CustomerResponse result = customerService.findById(merchantId, customerId);
 
             assertThat(result.getOrderCount()).isEqualTo(5L);
             assertThat(result.getLifetimeValue()).isEqualByComparingTo("250.00");
@@ -190,12 +181,11 @@ class CustomerServiceTest {
         void shouldReturnPagedCustomersFilteredByName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "joão", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(customer), pageable, 1));
 
             org.springframework.data.domain.Page<CustomerResponse> result =
-                    customerService.findAll("joão", pageable);
+                    customerService.findAll(merchantId, "joão", pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getName()).isEqualTo("João Silva");
@@ -207,12 +197,11 @@ class CustomerServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<CustomerResponse> result =
-                    customerService.findAll(null, pageable);
+                    customerService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
         }
@@ -243,11 +232,10 @@ class CustomerServiceTest {
                     .email("joao.santos@email.com")
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
             given(customerRepository.save(any(Customer.class))).willReturn(updatedCustomer);
 
-            CustomerResponse result = customerService.update(customerId, updateRequest);
+            CustomerResponse result = customerService.update(merchantId, customerId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("João Santos");
             assertThat(result.getPhone()).isEqualTo("11988888888");
@@ -257,10 +245,9 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve lançar CustomerNotFoundException ao atualizar cliente inexistente")
         void shouldThrowWhenCustomerNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> customerService.update(customerId, customerRequest))
+            assertThatThrownBy(() -> customerService.update(merchantId, customerId, customerRequest))
                     .isInstanceOf(CustomerNotFoundException.class);
 
             then(customerRepository).should(never()).save(any(Customer.class));
@@ -278,11 +265,10 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve deletar cliente existente sem lançar exceção")
         void shouldDeleteExistingCustomer() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.existsByIdAndMerchantId(customerId, merchantId)).willReturn(true);
             willDoNothing().given(customerRepository).deleteByIdAndMerchantId(customerId, merchantId);
 
-            assertThatNoException().isThrownBy(() -> customerService.delete(customerId));
+            assertThatNoException().isThrownBy(() -> customerService.delete(merchantId, customerId));
 
             then(customerRepository).should().deleteByIdAndMerchantId(customerId, merchantId);
         }
@@ -290,10 +276,9 @@ class CustomerServiceTest {
         @Test
         @DisplayName("deve lançar CustomerNotFoundException ao deletar cliente inexistente")
         void shouldThrowWhenCustomerNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(customerRepository.existsByIdAndMerchantId(customerId, merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> customerService.delete(customerId))
+            assertThatThrownBy(() -> customerService.delete(merchantId, customerId))
                     .isInstanceOf(CustomerNotFoundException.class);
 
             then(customerRepository).should(never()).deleteByIdAndMerchantId(any(), any());

@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.customer;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
@@ -21,22 +20,17 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final MerchantRepository merchantRepository;
-    private final MerchantContext merchantContext;
     private final OrderRepository orderRepository;
 
     public CustomerService(CustomerRepository customerRepository,
                            MerchantRepository merchantRepository,
-                           MerchantContext merchantContext,
                            OrderRepository orderRepository) {
         this.customerRepository = customerRepository;
         this.merchantRepository = merchantRepository;
-        this.merchantContext = merchantContext;
         this.orderRepository = orderRepository;
     }
 
-    public CustomerResponse create(CustomerRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public CustomerResponse create(UUID merchantId, CustomerRequest request) {
         Customer customer = Customer.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
@@ -50,24 +44,21 @@ public class CustomerService {
         return toResponse(saved, Aggregates.EMPTY);
     }
 
-    public CustomerResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public CustomerResponse findById(UUID merchantId, UUID id) {
         Customer customer = customerRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
         Aggregates agg = fetchAggregatesForOne(customer.getId(), merchantId);
         return toResponse(customer, agg);
     }
 
-    public Page<CustomerResponse> findAll(String search, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<CustomerResponse> findAll(UUID merchantId, String search, Pageable pageable) {
         String term = search == null ? "" : search;
         Page<Customer> page = customerRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
         Map<UUID, Aggregates> aggs = fetchAggregatesForPage(page.getContent(), merchantId);
         return page.map(c -> toResponse(c, aggs.getOrDefault(c.getId(), Aggregates.EMPTY)));
     }
 
-    public CustomerResponse update(UUID id, CustomerRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public CustomerResponse update(UUID merchantId, UUID id, CustomerRequest request) {
         Customer customer = customerRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CustomerNotFoundException(id));
 
@@ -87,8 +78,7 @@ public class CustomerService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!customerRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new CustomerNotFoundException(id);
         }

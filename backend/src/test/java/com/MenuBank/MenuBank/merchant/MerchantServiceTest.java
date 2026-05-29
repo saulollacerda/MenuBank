@@ -1,7 +1,6 @@
 package com.MenuBank.MenuBank.merchant;
 
 import com.MenuBank.MenuBank.common.ForbiddenException;
-import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,9 +25,6 @@ class MerchantServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @InjectMocks
     private MerchantService merchantService;
@@ -145,10 +141,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve retornar MerchantResponse quando o usuário é o próprio")
         void shouldReturnMerchantResponseWhenOwner() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
 
-            MerchantResponse result = merchantService.findById(merchantId);
+            MerchantResponse result = merchantService.findById(merchantId, merchantId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(merchantId);
@@ -157,9 +152,7 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar ForbiddenException ao tentar ler outro usuário")
         void shouldThrowForbiddenWhenAccessingAnotherUser() {
-            given(merchantContext.getMerchantId()).willReturn(UUID.randomUUID());
-
-            assertThatThrownBy(() -> merchantService.findById(merchantId))
+            assertThatThrownBy(() -> merchantService.findById(UUID.randomUUID(), merchantId))
                     .isInstanceOf(ForbiddenException.class);
 
             then(merchantRepository).should(never()).findById(any());
@@ -168,10 +161,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar MerchantNotFoundException quando usuário não existe")
         void shouldThrowWhenUserNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> merchantService.findById(merchantId))
+            assertThatThrownBy(() -> merchantService.findById(merchantId, merchantId))
                     .isInstanceOf(MerchantNotFoundException.class);
         }
     }
@@ -203,12 +195,11 @@ class MerchantServiceTest {
                     .createdAt(merchant.getCreatedAt())
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(passwordEncoder.encode(updateRequest.getPassword())).willReturn("$2a$10$newencoded");
             given(merchantRepository.save(any(Merchant.class))).willReturn(updatedUser);
 
-            MerchantResponse result = merchantService.update(merchantId, updateRequest);
+            MerchantResponse result = merchantService.update(merchantId, merchantId, updateRequest);
 
             assertThat(result.getMerchantName()).isEqualTo("Restaurante Atualizado");
             assertThat(result.getPhone()).isEqualTo("11988888888");
@@ -217,9 +208,7 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar ForbiddenException ao tentar atualizar outro usuário")
         void shouldThrowForbiddenWhenUpdatingAnotherUser() {
-            given(merchantContext.getMerchantId()).willReturn(UUID.randomUUID());
-
-            assertThatThrownBy(() -> merchantService.update(merchantId, merchantRequest))
+            assertThatThrownBy(() -> merchantService.update(UUID.randomUUID(), merchantId, merchantRequest))
                     .isInstanceOf(ForbiddenException.class);
 
             then(merchantRepository).should(never()).save(any(Merchant.class));
@@ -228,10 +217,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar MerchantNotFoundException ao atualizar usuário inexistente")
         void shouldThrowWhenUserNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> merchantService.update(merchantId, merchantRequest))
+            assertThatThrownBy(() -> merchantService.update(merchantId, merchantId, merchantRequest))
                     .isInstanceOf(MerchantNotFoundException.class);
 
             then(merchantRepository).should(never()).save(any(Merchant.class));
@@ -245,11 +233,10 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve salvar a chave do Anota.AI no usuário autenticado")
         void shouldSaveKeyOnCurrentUser() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
 
-            MerchantResponse result = merchantService.updateAnotaAIKey(new AnotaAIKeyRequest("my-key"));
+            MerchantResponse result = merchantService.updateAnotaAIKey(merchantId, new AnotaAIKeyRequest("my-key"));
 
             assertThat(result.getAnotaAiApiKey()).isEqualTo("my-key");
             assertThat(merchant.getAnotaAiApiKey()).isEqualTo("my-key");
@@ -260,11 +247,10 @@ class MerchantServiceTest {
         @DisplayName("deve aceitar chave nula (remover a chave)")
         void shouldAcceptNullKey() {
             merchant.setAnotaAiApiKey("old-key");
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
 
-            MerchantResponse result = merchantService.updateAnotaAIKey(new AnotaAIKeyRequest(null));
+            MerchantResponse result = merchantService.updateAnotaAIKey(merchantId, new AnotaAIKeyRequest(null));
 
             assertThat(result.getAnotaAiApiKey()).isNull();
             assertThat(merchant.getAnotaAiApiKey()).isNull();
@@ -273,10 +259,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar MerchantNotFoundException se usuário autenticado não existir")
         void shouldThrowIfUserNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> merchantService.updateAnotaAIKey(new AnotaAIKeyRequest("k")))
+            assertThatThrownBy(() -> merchantService.updateAnotaAIKey(merchantId, new AnotaAIKeyRequest("k")))
                     .isInstanceOf(MerchantNotFoundException.class);
 
             then(merchantRepository).should(never()).save(any(Merchant.class));
@@ -290,11 +275,10 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve deletar o próprio usuário sem lançar exceção")
         void shouldDeleteOwnUser() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.existsById(merchantId)).willReturn(true);
             willDoNothing().given(merchantRepository).deleteById(merchantId);
 
-            assertThatNoException().isThrownBy(() -> merchantService.delete(merchantId));
+            assertThatNoException().isThrownBy(() -> merchantService.delete(merchantId, merchantId));
 
             then(merchantRepository).should().deleteById(merchantId);
         }
@@ -302,9 +286,7 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar ForbiddenException ao tentar deletar outro usuário")
         void shouldThrowForbiddenWhenDeletingAnotherUser() {
-            given(merchantContext.getMerchantId()).willReturn(UUID.randomUUID());
-
-            assertThatThrownBy(() -> merchantService.delete(merchantId))
+            assertThatThrownBy(() -> merchantService.delete(UUID.randomUUID(), merchantId))
                     .isInstanceOf(ForbiddenException.class);
 
             then(merchantRepository).should(never()).deleteById(any());
@@ -313,10 +295,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("deve lançar MerchantNotFoundException ao deletar usuário inexistente")
         void shouldThrowWhenUserNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.existsById(merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> merchantService.delete(merchantId))
+            assertThatThrownBy(() -> merchantService.delete(merchantId, merchantId))
                     .isInstanceOf(MerchantNotFoundException.class);
 
             then(merchantRepository).should(never()).deleteById(any());
@@ -330,10 +311,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("findMe deve retornar o merchant autenticado pelo contexto")
         void findMeShouldReturnAuthenticated() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
 
-            MerchantResponse result = merchantService.findMe();
+            MerchantResponse result = merchantService.findMe(merchantId);
 
             assertThat(result.getId()).isEqualTo(merchantId);
         }
@@ -347,11 +327,10 @@ class MerchantServiceTest {
                     .phone(null)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
 
-            MerchantResponse result = merchantService.updateMe(req);
+            MerchantResponse result = merchantService.updateMe(merchantId, req);
 
             assertThat(result.getMerchantName()).isEqualTo("Novo Nome");
             assertThat(result.getAddress()).isEqualTo("Rua A, 100");
@@ -375,11 +354,10 @@ class MerchantServiceTest {
                     .openingHours(hours)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
 
-            MerchantResponse result = merchantService.updateMe(req);
+            MerchantResponse result = merchantService.updateMe(merchantId, req);
 
             assertThat(result.getOpeningHours()).hasSize(1);
             assertThat(result.getOpeningHours().get(0).getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
@@ -393,10 +371,9 @@ class MerchantServiceTest {
         @Test
         @DisplayName("getMyPreferences deve retornar defaults quando merchant não tem prefs salvas")
         void getMyPreferencesShouldReturnDefaultsWhenNull() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
 
-            MerchantPreferences result = merchantService.getMyPreferences();
+            MerchantPreferences result = merchantService.getMyPreferences(merchantId);
 
             assertThat(result).isNotNull();
             assertThat(result.isRealtimeMarginCalc()).isTrue();
@@ -412,10 +389,9 @@ class MerchantServiceTest {
                     .build();
             merchant.setPreferences(stored);
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
 
-            MerchantPreferences result = merchantService.getMyPreferences();
+            MerchantPreferences result = merchantService.getMyPreferences(merchantId);
 
             assertThat(result.isRealtimeMarginCalc()).isFalse();
             assertThat(result.isMarginAlertBelow50Pct()).isTrue();
@@ -429,11 +405,10 @@ class MerchantServiceTest {
                     .warnUnregisteredIngredients(false)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
             given(merchantRepository.save(any(Merchant.class))).willAnswer(inv -> inv.getArgument(0));
 
-            MerchantPreferences result = merchantService.updateMyPreferences(toSave);
+            MerchantPreferences result = merchantService.updateMyPreferences(merchantId, toSave);
 
             assertThat(result.isRealtimeMarginCalc()).isFalse();
             assertThat(result.isWarnUnregisteredIngredients()).isFalse();

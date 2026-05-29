@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.ingredient;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.product.IncludeRepository;
@@ -24,25 +23,20 @@ public class IngredientService {
     private final IngredientRepository ingredientRepository;
     private final MerchantRepository merchantRepository;
     private final NotificationService notificationService;
-    private final MerchantContext merchantContext;
     private final IncludeRepository includeRepository;
 
     public IngredientService(IngredientRepository ingredientRepository,
                              MerchantRepository merchantRepository,
                              NotificationService notificationService,
-                             MerchantContext merchantContext,
                              IncludeRepository includeRepository) {
         this.ingredientRepository = ingredientRepository;
         this.merchantRepository = merchantRepository;
         this.notificationService = notificationService;
-        this.merchantContext = merchantContext;
         this.includeRepository = includeRepository;
     }
 
     @Transactional
-    public IngredientResponse create(IngredientRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public IngredientResponse create(UUID merchantId, IngredientRequest request) {
         if (ingredientRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateIngredientException("nome");
         }
@@ -67,15 +61,13 @@ public class IngredientService {
         return toResponse(saved);
     }
 
-    public IngredientResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public IngredientResponse findById(UUID merchantId, UUID id) {
         Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
         return toResponse(ingredient);
     }
 
-    public Page<IngredientResponse> findAll(String search, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<IngredientResponse> findAll(UUID merchantId, String search, Pageable pageable) {
         String term = search == null ? "" : search;
         Page<Ingredient> page = ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
         Map<String, Long> usageCounts = fetchUsageCounts(page.getContent(), merchantId);
@@ -101,8 +93,7 @@ public class IngredientService {
     }
 
     @Transactional
-    public IngredientResponse update(UUID id, IngredientRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public IngredientResponse update(UUID merchantId, UUID id, IngredientRequest request) {
         Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
@@ -131,8 +122,7 @@ public class IngredientService {
     }
 
     @Transactional
-    public IngredientResponse updateCost(UUID id, IngredientCostRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public IngredientResponse updateCost(UUID merchantId, UUID id, IngredientCostRequest request) {
         Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
@@ -148,8 +138,7 @@ public class IngredientService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!ingredientRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new IngredientNotFoundException(id);
         }
@@ -160,8 +149,7 @@ public class IngredientService {
      * Retorna os produtos cujas fichas tecnicas (includes) contem este ingrediente
      * (match por nome, case-insensitive).
      */
-    public List<IngredientProductUsageResponse> fetchUsages(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<IngredientProductUsageResponse> fetchUsages(UUID merchantId, UUID id) {
         Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 

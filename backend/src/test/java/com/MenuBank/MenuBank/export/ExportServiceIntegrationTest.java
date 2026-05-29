@@ -46,7 +46,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
 
     @BeforeEach
     void setup() {
-        merchant = createMerchantAndAuthenticate();
+        merchant = createMerchant();
     }
 
     @Test
@@ -54,7 +54,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
     void generateDashboardExport_shouldReturnValidXlsxWithThreeSheets() throws Exception {
         seedOrder("João", "Açaí 500ml", new BigDecimal("50.00"));
 
-        byte[] bytes = exportService.generateDashboardExport(LocalDate.now(), LocalDate.now());
+        byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         assertThat(bytes).isNotEmpty();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
@@ -71,7 +71,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
         seedOrder("A", "Produto A", new BigDecimal("30.00"));
         seedOrder("B", "Produto B", new BigDecimal("70.00"));
 
-        byte[] bytes = exportService.generateDashboardExport(LocalDate.now(), LocalDate.now());
+        byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet resumo = wb.getSheet("Resumo Financeiro");
@@ -90,7 +90,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
         seedOrder("A", "Produto", new BigDecimal("10.00"));
         seedOrder("B", "Produto", new BigDecimal("20.00"));
 
-        byte[] bytes = exportService.generateDashboardExport(LocalDate.now(), LocalDate.now());
+        byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet pedidos = wb.getSheet("Pedidos");
@@ -106,7 +106,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
         seedOrder("B", "Açaí 330ml", new BigDecimal("15.00"));
         seedOrder("C", "Açaí 500ml", new BigDecimal("20.00"));
 
-        byte[] bytes = exportService.generateDashboardExport(LocalDate.now(), LocalDate.now());
+        byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet desemp = wb.getSheet("Desempenho por Produto");
@@ -124,7 +124,7 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
         o.setFee(fee);
         orderRepository.save(o);
 
-        byte[] bytes = exportService.generateDashboardExport(LocalDate.now(), LocalDate.now());
+        byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet pedidos = wb.getSheet("Pedidos");
