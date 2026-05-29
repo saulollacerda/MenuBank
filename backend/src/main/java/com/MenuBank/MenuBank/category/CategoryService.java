@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.category;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.product.ProductRepository;
@@ -22,24 +21,20 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final MerchantRepository merchantRepository;
-    private final MerchantContext merchantContext;
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
 
     public CategoryService(CategoryRepository categoryRepository,
                            MerchantRepository merchantRepository,
-                           MerchantContext merchantContext,
                            ProductRepository productRepository,
                            OrderRepository orderRepository) {
         this.categoryRepository = categoryRepository;
         this.merchantRepository = merchantRepository;
-        this.merchantContext = merchantContext;
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
     }
 
-    public List<CategoryRevenueResponse> revenue(LocalDate startDate, LocalDate endDate) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<CategoryRevenueResponse> revenue(UUID merchantId, LocalDate startDate, LocalDate endDate) {
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
         LocalDateTime startDateTime = start.atStartOfDay();
@@ -53,9 +48,7 @@ public class CategoryService {
                 .toList();
     }
 
-    public CategoryResponse create(CategoryRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public CategoryResponse create(UUID merchantId, CategoryRequest request) {
         if (categoryRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateCategoryException("nome");
         }
@@ -70,15 +63,13 @@ public class CategoryService {
         return toResponseWithCount(saved, merchantId);
     }
 
-    public CategoryResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public CategoryResponse findById(UUID merchantId, UUID id) {
         Category category = categoryRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
         return toResponseWithCount(category, merchantId);
     }
 
-    public Page<CategoryResponse> findAll(String search, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<CategoryResponse> findAll(UUID merchantId, String search, Pageable pageable) {
         String term = search == null ? "" : search;
         Page<Category> page = categoryRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
         List<UUID> ids = page.getContent().stream().map(Category::getId).toList();
@@ -89,8 +80,7 @@ public class CategoryService {
         return page.map(c -> toResponse(c, counts.getOrDefault(c.getId(), 0L)));
     }
 
-    public CategoryResponse update(UUID id, CategoryRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public CategoryResponse update(UUID merchantId, UUID id, CategoryRequest request) {
         Category category = categoryRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
 
@@ -104,8 +94,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!categoryRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new CategoryNotFoundException(id);
         }

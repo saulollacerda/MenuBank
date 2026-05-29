@@ -1,8 +1,10 @@
 package com.MenuBank.MenuBank.dashboard;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -10,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
@@ -27,10 +30,14 @@ class DashboardControllerTest {
     @MockitoBean
     private DashboardService dashboardService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private DashboardResponse dashboardResponse;
 
     @BeforeEach
     void setUp() {
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(UUID.randomUUID());
         dashboardResponse = DashboardResponse.builder()
                 .totalSales(new BigDecimal("1500.00"))
                 .orderCount(10L)
@@ -70,9 +77,7 @@ class DashboardControllerTest {
         @Test
         @DisplayName("deve retornar 200 com DashboardResponse com filtro de data")
         void shouldReturn200WithDashboardResponseWithDateFilter() throws Exception {
-            given(dashboardService.getDashboard(
-                    eq(LocalDate.of(2026, 3, 1)),
-                    eq(LocalDate.of(2026, 3, 31))))
+            given(dashboardService.getDashboard(any(), eq(LocalDate.of(2026, 3, 1)), eq(LocalDate.of(2026, 3, 31))))
                     .willReturn(dashboardResponse);
 
             mockMvc.perform(get("/api/dashboard")
@@ -88,7 +93,7 @@ class DashboardControllerTest {
         @Test
         @DisplayName("deve retornar 200 com salesByDay no response")
         void shouldReturn200WithSalesByDay() throws Exception {
-            given(dashboardService.getDashboard(any(), any())).willReturn(dashboardResponse);
+            given(dashboardService.getDashboard(any(), any(), any())).willReturn(dashboardResponse);
 
             mockMvc.perform(get("/api/dashboard")
                             .param("startDate", "2026-03-01")
@@ -104,7 +109,7 @@ class DashboardControllerTest {
         @Test
         @DisplayName("deve retornar 200 com topProducts no response")
         void shouldReturn200WithTopProducts() throws Exception {
-            given(dashboardService.getDashboard(any(), any())).willReturn(dashboardResponse);
+            given(dashboardService.getDashboard(any(), any(), any())).willReturn(dashboardResponse);
 
             mockMvc.perform(get("/api/dashboard")
                             .param("startDate", "2026-03-01")
@@ -120,7 +125,7 @@ class DashboardControllerTest {
         @Test
         @DisplayName("deve retornar 200 sem parâmetros de data (usa padrão hoje)")
         void shouldReturn200WithoutDateParams() throws Exception {
-            given(dashboardService.getDashboard(isNull(), isNull())).willReturn(dashboardResponse);
+            given(dashboardService.getDashboard(any(), isNull(), isNull())).willReturn(dashboardResponse);
 
             mockMvc.perform(get("/api/dashboard"))
                     .andExpect(status().isOk())
@@ -139,7 +144,7 @@ class DashboardControllerTest {
                     .topProducts(List.of())
                     .build();
 
-            given(dashboardService.getDashboard(any(), any())).willReturn(emptyResponse);
+            given(dashboardService.getDashboard(any(), any(), any())).willReturn(emptyResponse);
 
             mockMvc.perform(get("/api/dashboard")
                             .param("startDate", "2026-03-01")
@@ -156,7 +161,7 @@ class DashboardControllerTest {
         @Test
         @DisplayName("deve retornar 200 com apenas startDate (endDate nulo)")
         void shouldReturn200WithOnlyStartDate() throws Exception {
-            given(dashboardService.getDashboard(eq(LocalDate.of(2026, 3, 1)), isNull()))
+            given(dashboardService.getDashboard(any(), eq(LocalDate.of(2026, 3, 1)), isNull()))
                     .willReturn(dashboardResponse);
 
             mockMvc.perform(get("/api/dashboard")

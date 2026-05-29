@@ -1,8 +1,10 @@
 package com.MenuBank.MenuBank.fee;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -33,12 +35,18 @@ class FeeControllerTest {
     @MockitoBean
     private FeeService feeService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID feeId;
+    private UUID merchantId;
     private FeeResponse feeResponse;
 
     @BeforeEach
     void setUp() {
         feeId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(merchantId);
 
         feeResponse = FeeResponse.builder()
                 .id(feeId)
@@ -65,7 +73,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 201 com FeeResponse ao criar com dados válidos")
         void shouldReturn201WithResponse() throws Exception {
-            given(feeService.create(any(FeeRequest.class))).willReturn(feeResponse);
+            given(feeService.create(any(), any(FeeRequest.class))).willReturn(feeResponse);
 
             mockMvc.perform(post("/api/fees")
                             .with(csrf())
@@ -102,7 +110,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 409 quando nome já está em uso")
         void shouldReturn409WhenNameAlreadyInUse() throws Exception {
-            given(feeService.create(any(FeeRequest.class)))
+            given(feeService.create(any(), any(FeeRequest.class)))
                     .willThrow(new DuplicateFeeException("nome"));
 
             mockMvc.perform(post("/api/fees")
@@ -124,7 +132,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 200 com FeeResponse quando existe")
         void shouldReturn200WhenExists() throws Exception {
-            given(feeService.findById(feeId)).willReturn(feeResponse);
+            given(feeService.findById(any(), eq(feeId))).willReturn(feeResponse);
 
             mockMvc.perform(get("/api/fees/{id}", feeId))
                     .andExpect(status().isOk())
@@ -135,7 +143,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando não encontrada")
         void shouldReturn404WhenNotFound() throws Exception {
-            given(feeService.findById(feeId))
+            given(feeService.findById(any(), eq(feeId)))
                     .willThrow(new FeeNotFoundException(feeId));
 
             mockMvc.perform(get("/api/fees/{id}", feeId))
@@ -156,7 +164,7 @@ class FeeControllerTest {
         void shouldReturn200WithPage() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(feeService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+            given(feeService.findAll(any(), eq(""), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(feeResponse), pageable, 1));
 
@@ -173,7 +181,7 @@ class FeeControllerTest {
         void shouldPassSearchParamToService() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(feeService.findAll(eq("cred"), any(org.springframework.data.domain.Pageable.class)))
+            given(feeService.findAll(any(), eq("cred"), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(feeResponse), pageable, 1));
 
@@ -194,7 +202,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 200 com FeeResponse atualizado")
         void shouldReturn200WithUpdatedResponse() throws Exception {
-            given(feeService.update(eq(feeId), any(FeeRequest.class)))
+            given(feeService.update(any(), eq(feeId), any(FeeRequest.class)))
                     .willReturn(feeResponse);
 
             mockMvc.perform(put("/api/fees/{id}", feeId)
@@ -208,7 +216,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando não encontrada para atualização")
         void shouldReturn404WhenNotFound() throws Exception {
-            given(feeService.update(eq(feeId), any(FeeRequest.class)))
+            given(feeService.update(any(), eq(feeId), any(FeeRequest.class)))
                     .willThrow(new FeeNotFoundException(feeId));
 
             mockMvc.perform(put("/api/fees/{id}", feeId)
@@ -240,7 +248,7 @@ class FeeControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar taxa existente")
         void shouldReturn204WhenDeleted() throws Exception {
-            willDoNothing().given(feeService).delete(feeId);
+            willDoNothing().given(feeService).delete(any(), eq(feeId));
 
             mockMvc.perform(delete("/api/fees/{id}", feeId)
                             .with(csrf()))
@@ -251,7 +259,7 @@ class FeeControllerTest {
         @DisplayName("deve retornar 404 ao tentar deletar taxa inexistente")
         void shouldReturn404WhenNotFound() throws Exception {
             willThrow(new FeeNotFoundException(feeId))
-                    .given(feeService).delete(feeId);
+                    .given(feeService).delete(any(), eq(feeId));
 
             mockMvc.perform(delete("/api/fees/{id}", feeId)
                             .with(csrf()))

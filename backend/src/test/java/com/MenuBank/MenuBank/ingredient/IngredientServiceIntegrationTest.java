@@ -54,7 +54,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
                 .defaultQuantity(new BigDecimal("20"))
                 .build();
 
-        IngredientResponse response = ingredientService.create(request);
+        IngredientResponse response = ingredientService.create(merchant.getId(), request);
 
         Ingredient persisted = ingredientRepository.findById(response.getId()).orElseThrow();
         assertThat(persisted.getName()).isEqualTo("Leite Ninho");
@@ -67,9 +67,9 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
         IngredientRequest req = IngredientRequest.builder()
                 .name("leite").unit("g").costPerUnit(new BigDecimal("0.01"))
                 .defaultQuantity(BigDecimal.ONE).build();
-        ingredientService.create(req);
+        ingredientService.create(merchant.getId(), req);
 
-        assertThatThrownBy(() -> ingredientService.create(req))
+        assertThatThrownBy(() -> ingredientService.create(merchant.getId(), req))
                 .isInstanceOf(DuplicateIngredientException.class);
     }
 
@@ -82,7 +82,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
         assertThat(notif.getStatus()).isEqualTo(NotificationStatus.UNREAD);
 
         // Cadastra o ingrediente
-        ingredientService.create(IngredientRequest.builder()
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Leite Ninho").unit("g").costPerUnit(new BigDecimal("0.05"))
                 .defaultQuantity(new BigDecimal("20")).build());
 
@@ -93,7 +93,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findByCanonicalNameAndMerchantId deve achar por nome normalizado")
     void canonicalLookup_shouldFindByNormalizedName() {
-        ingredientService.create(IngredientRequest.builder()
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Chocoball").unit("un").costPerUnit(new BigDecimal("0.06"))
                 .defaultQuantity(BigDecimal.ONE).build());
 
@@ -112,7 +112,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
         // - Adicionar items novos (sacola, colher, copo) ao Açaí 500mL via IncludeService
         // - fetchUsages do Açaí Goat DEVE continuar mostrando os 2 produtos.
 
-        IngredientResponse acaiGoat = ingredientService.create(IngredientRequest.builder()
+        IngredientResponse acaiGoat = ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Açaí Goat").unit("g").costPerUnit(new BigDecimal("0.05"))
                 .defaultQuantity(new BigDecimal("100")).build());
 
@@ -125,27 +125,27 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
                 .merchant(merchant).name("Açaí 500mL").price(new BigDecimal("20"))
                 .status(ProductStatus.ACTIVE).category(cat).build());
 
-        includeService.add(acai330.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
+        includeService.add(merchant.getId(), acai330.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
                 .name("Açaí Goat").cost(new BigDecimal("0.05"))
                 .quantity(new BigDecimal("150")).build());
-        includeService.add(acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
+        includeService.add(merchant.getId(), acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
                 .name("Açaí Goat").cost(new BigDecimal("0.05"))
                 .quantity(new BigDecimal("240")).build());
 
         // Estado inicial: fetchUsages retorna 2
-        var usagesBefore = ingredientService.fetchUsages(acaiGoat.getId());
+        var usagesBefore = ingredientService.fetchUsages(merchant.getId(), acaiGoat.getId());
         assertThat(usagesBefore).hasSize(2);
 
         // Adiciona Includes novos no Açaí 500mL (cenário do usuário)
-        includeService.add(acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
+        includeService.add(merchant.getId(), acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
                 .name("sacola").cost(new BigDecimal("0.10")).quantity(BigDecimal.ONE).build());
-        includeService.add(acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
+        includeService.add(merchant.getId(), acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
                 .name("colher").cost(new BigDecimal("0.05")).quantity(BigDecimal.ONE).build());
-        includeService.add(acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
+        includeService.add(merchant.getId(), acai500.getId(), com.MenuBank.MenuBank.product.IncludeRequest.builder()
                 .name("copo").cost(new BigDecimal("0.50")).quantity(BigDecimal.ONE).build());
 
         // Esperado: fetchUsages ainda retorna 2 entries de Açaí Goat
-        var usagesAfter = ingredientService.fetchUsages(acaiGoat.getId());
+        var usagesAfter = ingredientService.fetchUsages(merchant.getId(), acaiGoat.getId());
         assertThat(usagesAfter)
                 .as("Açaí Goat ainda deve aparecer nos 2 produtos após adicionar items na ficha técnica")
                 .hasSize(2);
@@ -163,7 +163,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("fetchUsages deve listar produtos cuja ficha técnica usa o ingrediente (match por nome)")
     void fetchUsages_shouldListProductsUsingIngredient() {
-        IngredientResponse leite = ingredientService.create(IngredientRequest.builder()
+        IngredientResponse leite = ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("leite ninho").unit("g").costPerUnit(new BigDecimal("0.05"))
                 .defaultQuantity(new BigDecimal("20")).build());
 
@@ -182,7 +182,7 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
                 .product(p2).name("leite ninho")
                 .cost(new BigDecimal("0.05")).quantity(new BigDecimal("60")).build());
 
-        var usages = ingredientService.fetchUsages(leite.getId());
+        var usages = ingredientService.fetchUsages(merchant.getId(), leite.getId());
 
         assertThat(usages).hasSize(2);
         assertThat(usages).extracting("productName")
@@ -192,11 +192,11 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("update deve mudar nome e recalcular canonical")
     void update_shouldRenameAndRecalculateCanonical() {
-        IngredientResponse created = ingredientService.create(IngredientRequest.builder()
+        IngredientResponse created = ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Velho").unit("g").costPerUnit(new BigDecimal("0.01"))
                 .defaultQuantity(BigDecimal.ONE).build());
 
-        ingredientService.update(created.getId(), IngredientRequest.builder()
+        ingredientService.update(merchant.getId(), created.getId(), IngredientRequest.builder()
                 .name("Açaí Novo").unit("ml").costPerUnit(new BigDecimal("0.02"))
                 .defaultQuantity(BigDecimal.TEN).build());
 
@@ -208,11 +208,11 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover ingrediente do banco")
     void delete_shouldRemoveIngredient() {
-        IngredientResponse created = ingredientService.create(IngredientRequest.builder()
+        IngredientResponse created = ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("X").unit("g").costPerUnit(new BigDecimal("0.01"))
                 .defaultQuantity(BigDecimal.ONE).build());
 
-        ingredientService.delete(created.getId());
+        ingredientService.delete(merchant.getId(), created.getId());
 
         assertThat(ingredientRepository.findById(created.getId())).isEmpty();
     }
@@ -220,14 +220,14 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll deve paginar por merchant filtrando por nome")
     void findAll_shouldPaginate() {
-        ingredientService.create(IngredientRequest.builder()
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Leite").unit("g").costPerUnit(new BigDecimal("0.05"))
                 .defaultQuantity(BigDecimal.ONE).build());
-        ingredientService.create(IngredientRequest.builder()
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Chocoball").unit("un").costPerUnit(new BigDecimal("0.06"))
                 .defaultQuantity(BigDecimal.ONE).build());
 
-        var page = ingredientService.findAll("Leite", PageRequest.of(0, 10));
+        var page = ingredientService.findAll(merchant.getId(), "Leite", PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Leite");

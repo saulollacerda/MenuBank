@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.dashboard;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderOrigin;
@@ -21,15 +20,12 @@ import java.util.stream.Collectors;
 public class DashboardService {
 
     private final OrderRepository orderRepository;
-    private final MerchantContext merchantContext;
 
-    public DashboardService(OrderRepository orderRepository, MerchantContext merchantContext) {
+    public DashboardService(OrderRepository orderRepository) {
         this.orderRepository = orderRepository;
-        this.merchantContext = merchantContext;
     }
 
-    public DashboardResponse getDashboard(LocalDate startDate, LocalDate endDate) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public DashboardResponse getDashboard(UUID merchantId, LocalDate startDate, LocalDate endDate) {
 
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
@@ -70,8 +66,7 @@ public class DashboardService {
                 .build();
     }
 
-    public List<PeakHour> peakHours(LocalDate startDate, LocalDate endDate) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<PeakHour> peakHours(UUID merchantId, LocalDate startDate, LocalDate endDate) {
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
         LocalDateTime startDateTime = start.atStartOfDay();
@@ -97,8 +92,7 @@ public class DashboardService {
                 .toList();
     }
 
-    public List<ChannelBreakdown> channels(LocalDate startDate, LocalDate endDate) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public List<ChannelBreakdown> channels(UUID merchantId, LocalDate startDate, LocalDate endDate) {
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
         LocalDateTime startDateTime = start.atStartOfDay();

@@ -1,7 +1,5 @@
 package com.MenuBank.MenuBank.common;
 
-import com.MenuBank.MenuBank.auth.InactiveMerchantException;
-import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
@@ -26,20 +24,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ProblemDetail> handleInvalidCredentials(InvalidCredentialsException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
-        problem.setTitle("Credenciais inválidas");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
-    }
-
-    @ExceptionHandler(InactiveMerchantException.class)
-    public ResponseEntity<ProblemDetail> handleInactiveUser(InactiveMerchantException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
-        problem.setTitle("Conta inativa");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
-    }
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ProblemDetail> handleForbidden(ForbiddenException ex) {

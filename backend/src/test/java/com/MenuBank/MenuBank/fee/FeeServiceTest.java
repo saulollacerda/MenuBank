@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.fee;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,9 +25,6 @@ class FeeServiceTest {
 
     @Mock
     private FeeRepository feeRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private MerchantRepository merchantRepository;
@@ -72,11 +68,10 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve criar taxa com dados válidos e retornar FeeResponse")
         void shouldCreateAndReturnResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.existsByNameAndMerchantId(request.getName(), merchantId)).willReturn(false);
             given(feeRepository.save(any(Fee.class))).willReturn(fee);
 
-            FeeResponse result = feeService.create(request);
+            FeeResponse result = feeService.create(merchantId, request);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(feeId);
@@ -88,10 +83,9 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateFeeException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.existsByNameAndMerchantId(request.getName(), merchantId)).willReturn(true);
 
-            assertThatThrownBy(() -> feeService.create(request))
+            assertThatThrownBy(() -> feeService.create(merchantId, request))
                     .isInstanceOf(DuplicateFeeException.class);
 
             then(feeRepository).should(never()).save(any(Fee.class));
@@ -111,11 +105,10 @@ class FeeServiceTest {
                     .feeRate(BigDecimal.ZERO)
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.existsByNameAndMerchantId("Dinheiro", merchantId)).willReturn(false);
             given(feeRepository.save(any(Fee.class))).willReturn(cash);
 
-            FeeResponse result = feeService.create(cashRequest);
+            FeeResponse result = feeService.create(merchantId, cashRequest);
 
             assertThat(result.getFeeRate()).isEqualByComparingTo(BigDecimal.ZERO);
         }
@@ -132,11 +125,10 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve retornar FeeResponse quando taxa existe")
         void shouldReturnResponseWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findByIdAndMerchantId(feeId, merchantId))
                     .willReturn(Optional.of(fee));
 
-            FeeResponse result = feeService.findById(feeId);
+            FeeResponse result = feeService.findById(merchantId, feeId);
 
             assertThat(result.getId()).isEqualTo(feeId);
             assertThat(result.getName()).isEqualTo("Crédito");
@@ -145,11 +137,10 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve lançar FeeNotFoundException quando não encontrada")
         void shouldThrowWhenNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findByIdAndMerchantId(feeId, merchantId))
                     .willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> feeService.findById(feeId))
+            assertThatThrownBy(() -> feeService.findById(merchantId, feeId))
                     .isInstanceOf(FeeNotFoundException.class);
         }
     }
@@ -167,12 +158,11 @@ class FeeServiceTest {
         void shouldReturnPagedFilteredByName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "cred", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(fee), pageable, 1));
 
             org.springframework.data.domain.Page<FeeResponse> result =
-                    feeService.findAll("cred", pageable);
+                    feeService.findAll(merchantId, "cred", pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getName()).isEqualTo("Crédito");
@@ -184,12 +174,11 @@ class FeeServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<FeeResponse> result =
-                    feeService.findAll(null, pageable);
+                    feeService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
         }
@@ -218,12 +207,11 @@ class FeeServiceTest {
                     .feeRate(new BigDecimal("1.0000"))
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findByIdAndMerchantId(feeId, merchantId))
                     .willReturn(Optional.of(fee));
             given(feeRepository.save(any(Fee.class))).willReturn(updated);
 
-            FeeResponse result = feeService.update(feeId, updateRequest);
+            FeeResponse result = feeService.update(merchantId, feeId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("Débito");
             assertThat(result.getFeeRate()).isEqualByComparingTo(new BigDecimal("1.0000"));
@@ -232,11 +220,10 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve lançar FeeNotFoundException ao atualizar taxa inexistente")
         void shouldThrowWhenNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.findByIdAndMerchantId(feeId, merchantId))
                     .willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> feeService.update(feeId, request))
+            assertThatThrownBy(() -> feeService.update(merchantId, feeId, request))
                     .isInstanceOf(FeeNotFoundException.class);
 
             then(feeRepository).should(never()).save(any(Fee.class));
@@ -254,11 +241,10 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve deletar taxa existente sem lançar exceção")
         void shouldDeleteExisting() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.existsByIdAndMerchantId(feeId, merchantId)).willReturn(true);
             willDoNothing().given(feeRepository).deleteByIdAndMerchantId(feeId, merchantId);
 
-            assertThatNoException().isThrownBy(() -> feeService.delete(feeId));
+            assertThatNoException().isThrownBy(() -> feeService.delete(merchantId, feeId));
 
             then(feeRepository).should().deleteByIdAndMerchantId(feeId, merchantId);
         }
@@ -266,10 +252,9 @@ class FeeServiceTest {
         @Test
         @DisplayName("deve lançar FeeNotFoundException ao deletar taxa inexistente")
         void shouldThrowWhenNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(feeRepository.existsByIdAndMerchantId(feeId, merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> feeService.delete(feeId))
+            assertThatThrownBy(() -> feeService.delete(merchantId, feeId))
                     .isInstanceOf(FeeNotFoundException.class);
 
             then(feeRepository).should(never()).deleteByIdAndMerchantId(any(), any());

@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.export;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
@@ -27,13 +26,11 @@ import java.util.*;
 public class ExportService {
 
     private final OrderRepository orderRepository;
-    private final MerchantContext merchantContext;
 
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     @Transactional(readOnly = true)
-    public byte[] generateDashboardExport(LocalDate startDate, LocalDate endDate) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public byte[] generateDashboardExport(UUID merchantId, LocalDate startDate, LocalDate endDate) {
 
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();

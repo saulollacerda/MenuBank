@@ -64,7 +64,7 @@ class MerchantServiceIntegrationTest extends IntegrationTestBase {
     void updateAnotaAIKey_shouldUpdateKey() {
         Merchant merchant = createMerchantAndAuthenticate();
 
-        merchantService.updateAnotaAIKey(AnotaAIKeyRequest.builder()
+        merchantService.updateAnotaAIKey(merchant.getId(), AnotaAIKeyRequest.builder()
                 .anotaAiApiKey("new-key-xyz").build());
 
         Merchant reloaded = merchantRepository.findById(merchant.getId()).orElseThrow();
@@ -77,7 +77,7 @@ class MerchantServiceIntegrationTest extends IntegrationTestBase {
         Merchant authenticated = createMerchantAndAuthenticate();
         Merchant other = createMerchant("Outro");
 
-        assertThatThrownBy(() -> merchantService.findById(other.getId()))
+        assertThatThrownBy(() -> merchantService.findById(authenticated.getId(), other.getId()))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -86,7 +86,7 @@ class MerchantServiceIntegrationTest extends IntegrationTestBase {
     void delete_shouldRemove() {
         Merchant merchant = createMerchantAndAuthenticate();
 
-        merchantService.delete(merchant.getId());
+        merchantService.delete(merchant.getId(), merchant.getId());
 
         assertThat(merchantRepository.findById(merchant.getId())).isEmpty();
     }

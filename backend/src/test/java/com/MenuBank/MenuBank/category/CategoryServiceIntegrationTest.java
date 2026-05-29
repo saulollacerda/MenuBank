@@ -20,13 +20,13 @@ class CategoryServiceIntegrationTest extends IntegrationTestBase {
 
     @BeforeEach
     void setup() {
-        merchant = createMerchantAndAuthenticate();
+        merchant = createMerchant();
     }
 
     @Test
     @DisplayName("create deve persistir categoria ligada ao merchant")
     void create_shouldPersistCategory() {
-        CategoryResponse response = categoryService.create(CategoryRequest.builder().name("Açaí").build());
+        CategoryResponse response = categoryService.create(merchant.getId(), CategoryRequest.builder().name("Açaí").build());
 
         Category persisted = categoryRepository.findById(response.getId()).orElseThrow();
         assertThat(persisted.getMerchant().getId()).isEqualTo(merchant.getId());
@@ -36,9 +36,9 @@ class CategoryServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("update deve renomear")
     void update_shouldRename() {
-        CategoryResponse created = categoryService.create(CategoryRequest.builder().name("Velho").build());
+        CategoryResponse created = categoryService.create(merchant.getId(), CategoryRequest.builder().name("Velho").build());
 
-        categoryService.update(created.getId(), CategoryRequest.builder().name("Novo").build());
+        categoryService.update(merchant.getId(), created.getId(), CategoryRequest.builder().name("Novo").build());
 
         Category persisted = categoryRepository.findById(created.getId()).orElseThrow();
         assertThat(persisted.getName()).isEqualTo("Novo");
@@ -47,9 +47,9 @@ class CategoryServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover categoria do banco")
     void delete_shouldRemove() {
-        CategoryResponse created = categoryService.create(CategoryRequest.builder().name("X").build());
+        CategoryResponse created = categoryService.create(merchant.getId(), CategoryRequest.builder().name("X").build());
 
-        categoryService.delete(created.getId());
+        categoryService.delete(merchant.getId(), created.getId());
 
         assertThat(categoryRepository.findById(created.getId())).isEmpty();
     }
@@ -57,10 +57,10 @@ class CategoryServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll deve paginar filtrando por nome")
     void findAll_shouldPaginate() {
-        categoryService.create(CategoryRequest.builder().name("Açaí").build());
-        categoryService.create(CategoryRequest.builder().name("Refrigerante").build());
+        categoryService.create(merchant.getId(), CategoryRequest.builder().name("Açaí").build());
+        categoryService.create(merchant.getId(), CategoryRequest.builder().name("Refrigerante").build());
 
-        var page = categoryService.findAll("Aç", PageRequest.of(0, 10));
+        var page = categoryService.findAll(merchant.getId(), "Aç", PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Açaí");
@@ -69,12 +69,12 @@ class CategoryServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll NÃO deve listar categorias de outros merchants")
     void findAll_shouldIsolate() {
-        categoryService.create(CategoryRequest.builder().name("Minha").build());
+        categoryService.create(merchant.getId(), CategoryRequest.builder().name("Minha").build());
 
-        authenticateAs(createMerchant("Outro"));
-        categoryService.create(CategoryRequest.builder().name("Do Outro").build());
+        Merchant outro = createMerchant("Outro");
+        categoryService.create(outro.getId(), CategoryRequest.builder().name("Do Outro").build());
 
-        var page = categoryService.findAll(null, PageRequest.of(0, 10));
+        var page = categoryService.findAll(outro.getId(), null, PageRequest.of(0, 10));
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Do Outro");
     }

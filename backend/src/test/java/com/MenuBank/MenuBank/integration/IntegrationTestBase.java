@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.integration;
 
+import com.MenuBank.MenuBank.identity.Identity;
+import com.MenuBank.MenuBank.identity.IdentityRepository;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.merchant.MerchantStatus;
@@ -30,6 +32,9 @@ public abstract class IntegrationTestBase {
     @Autowired
     protected MerchantRepository merchantRepository;
 
+    @Autowired
+    protected IdentityRepository identityRepository;
+
     /** Gera CNPJ único (14 dígitos) sequencial para evitar colisão entre testes. */
     private static final AtomicLong CNPJ_SEQ = new AtomicLong(10_000_000_000_000L);
 
@@ -54,8 +59,9 @@ public abstract class IntegrationTestBase {
     }
 
     /**
-     * Cria um merchant e o coloca no SecurityContext. Use quando o teste exercita
-     * um service que consulta {@link com.MenuBank.MenuBank.common.MerchantContext}.
+     * Cria um merchant, registra uma Identity (provider=supabase) e coloca o
+     * provider_user_id no SecurityContext como principal. Use quando o teste exercita
+     * o fluxo de autenticação resolvido por {@code AuthHelper}.
      */
     protected Merchant createMerchantAndAuthenticate() {
         Merchant merchant = createMerchant();
@@ -63,8 +69,19 @@ public abstract class IntegrationTestBase {
         return merchant;
     }
 
+    /**
+     * Registra uma Identity (provider=supabase) para o merchant e autentica o contexto
+     * com o provider_user_id correspondente (o que o {@code JwtAuthFilter} colocaria).
+     */
     protected void authenticateAs(Merchant merchant) {
-        var auth = new TestingAuthenticationToken(merchant.getId().toString(), null);
+        String providerUserId = UUID.randomUUID().toString();
+        identityRepository.save(Identity.builder()
+                .merchantId(merchant.getId())
+                .provider("supabase")
+                .providerUserId(providerUserId)
+                .createdAt(LocalDateTime.now())
+                .build());
+        var auth = new TestingAuthenticationToken(providerUserId, null);
         auth.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(auth);
     }

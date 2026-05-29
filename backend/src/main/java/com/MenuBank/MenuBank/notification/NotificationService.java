@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.notification;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,14 +16,11 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final MerchantRepository merchantRepository;
-    private final MerchantContext merchantContext;
 
     public NotificationService(NotificationRepository notificationRepository,
-                               MerchantRepository merchantRepository,
-                               MerchantContext merchantContext) {
+                               MerchantRepository merchantRepository) {
         this.notificationRepository = notificationRepository;
         this.merchantRepository = merchantRepository;
-        this.merchantContext = merchantContext;
     }
 
     /**
@@ -77,20 +73,17 @@ public class NotificationService {
         return pending.size();
     }
 
-    public Page<NotificationResponse> findAll(Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<NotificationResponse> findAll(UUID merchantId, Pageable pageable) {
         return notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable)
                 .map(this::toResponse);
     }
 
-    public long unreadCount() {
-        UUID merchantId = merchantContext.getMerchantId();
+    public long unreadCount(UUID merchantId) {
         return notificationRepository.countByMerchantIdAndStatus(merchantId, NotificationStatus.UNREAD);
     }
 
     @Transactional
-    public void markRead(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void markRead(UUID merchantId, UUID id) {
         Notification notification = notificationRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         if (notification.getStatus() == NotificationStatus.UNREAD) {
@@ -100,8 +93,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void dismiss(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void dismiss(UUID merchantId, UUID id) {
         notificationRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         notificationRepository.deleteByIdAndMerchantId(id, merchantId);

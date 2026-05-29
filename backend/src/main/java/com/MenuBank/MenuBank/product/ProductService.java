@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,21 +18,16 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final MerchantRepository merchantRepository;
-    private final MerchantContext merchantContext;
 
     public ProductService(ProductRepository productRepository,
                           CategoryRepository categoryRepository,
-                          MerchantRepository merchantRepository,
-                          MerchantContext merchantContext) {
+                          MerchantRepository merchantRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.merchantRepository = merchantRepository;
-        this.merchantContext = merchantContext;
     }
 
-    public ProductResponse create(ProductRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public ProductResponse create(UUID merchantId, ProductRequest request) {
         if (productRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateProductException("nome");
         }
@@ -53,22 +47,19 @@ public class ProductService {
         return toResponse(saved);
     }
 
-    public ProductResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public ProductResponse findById(UUID merchantId, UUID id) {
         Product product = productRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
         return toResponse(product);
     }
 
-    public Page<ProductResponse> findAll(String search, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<ProductResponse> findAll(UUID merchantId, String search, Pageable pageable) {
         String term = search == null ? "" : search;
         return productRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable)
                 .map(this::toResponse);
     }
 
-    public ProductResponse update(UUID id, ProductRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public ProductResponse update(UUID merchantId, UUID id, ProductRequest request) {
         Product product = productRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 
@@ -86,8 +77,7 @@ public class ProductService {
         return toResponse(saved);
     }
 
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!productRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new ProductNotFoundException(id);
         }

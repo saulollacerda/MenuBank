@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.ingredient;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import com.MenuBank.MenuBank.product.IngredientProductUsageResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -7,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,33 +20,40 @@ import java.util.UUID;
 public class IngredientController {
 
     private final IngredientService ingredientService;
+    private final AuthHelper authHelper;
 
-    public IngredientController(IngredientService ingredientService) {
+    public IngredientController(IngredientService ingredientService, AuthHelper authHelper) {
         this.ingredientService = ingredientService;
+        this.authHelper = authHelper;
     }
 
     @PostMapping
-    public ResponseEntity<IngredientResponse> create(@Valid @RequestBody IngredientRequest request) {
-        IngredientResponse response = ingredientService.create(request);
+    public ResponseEntity<IngredientResponse> create(Authentication auth, @Valid @RequestBody IngredientRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        IngredientResponse response = ingredientService.create(merchantId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<IngredientResponse> findById(@PathVariable UUID id) {
-        IngredientResponse response = ingredientService.findById(id);
+    public ResponseEntity<IngredientResponse> findById(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        IngredientResponse response = ingredientService.findById(merchantId, id);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
     public ResponseEntity<Page<IngredientResponse>> findAll(
+            Authentication auth,
             @RequestParam(required = false, defaultValue = "") String search,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ingredientService.findAll(search, pageable));
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(ingredientService.findAll(merchantId, search, pageable));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<IngredientResponse> update(@PathVariable UUID id, @Valid @RequestBody IngredientRequest request) {
-        IngredientResponse response = ingredientService.update(id, request);
+    public ResponseEntity<IngredientResponse> update(Authentication auth, @PathVariable UUID id, @Valid @RequestBody IngredientRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        IngredientResponse response = ingredientService.update(merchantId, id, request);
         return ResponseEntity.ok(response);
     }
 
@@ -53,20 +62,23 @@ public class IngredientController {
      * Não toca em {@code salePrice} (sincronizado do Anota.AI).
      */
     @PutMapping("/{id}/cost")
-    public ResponseEntity<IngredientResponse> updateCost(@PathVariable UUID id, @Valid @RequestBody IngredientCostRequest request) {
-        IngredientResponse response = ingredientService.updateCost(id, request);
+    public ResponseEntity<IngredientResponse> updateCost(Authentication auth, @PathVariable UUID id, @Valid @RequestBody IngredientCostRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        IngredientResponse response = ingredientService.updateCost(merchantId, id, request);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/usages")
-    public ResponseEntity<List<IngredientProductUsageResponse>> fetchUsages(@PathVariable UUID id) {
-        return ResponseEntity.ok(ingredientService.fetchUsages(id));
+    public ResponseEntity<List<IngredientProductUsageResponse>> fetchUsages(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(ingredientService.fetchUsages(merchantId, id));
     }
 
     @Transactional
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        ingredientService.delete(id);
+    public ResponseEntity<Void> delete(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        ingredientService.delete(merchantId, id);
         return ResponseEntity.noContent().build();
     }
 }

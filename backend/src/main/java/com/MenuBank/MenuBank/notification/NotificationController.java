@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.notification;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -14,30 +16,36 @@ import java.util.UUID;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final AuthHelper authHelper;
 
-    public NotificationController(NotificationService notificationService) {
+    public NotificationController(NotificationService notificationService, AuthHelper authHelper) {
         this.notificationService = notificationService;
+        this.authHelper = authHelper;
     }
 
     @GetMapping
-    public ResponseEntity<Page<NotificationResponse>> findAll(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(notificationService.findAll(pageable));
+    public ResponseEntity<Page<NotificationResponse>> findAll(Authentication auth, @PageableDefault(size = 20) Pageable pageable) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(notificationService.findAll(merchantId, pageable));
     }
 
     @GetMapping("/unread-count")
-    public ResponseEntity<Map<String, Long>> unreadCount() {
-        return ResponseEntity.ok(Map.of("count", notificationService.unreadCount()));
+    public ResponseEntity<Map<String, Long>> unreadCount(Authentication auth) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(Map.of("count", notificationService.unreadCount(merchantId)));
     }
 
     @PutMapping("/{id}/read")
-    public ResponseEntity<Void> markRead(@PathVariable UUID id) {
-        notificationService.markRead(id);
+    public ResponseEntity<Void> markRead(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        notificationService.markRead(merchantId, id);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> dismiss(@PathVariable UUID id) {
-        notificationService.dismiss(id);
+    public ResponseEntity<Void> dismiss(Authentication auth, @PathVariable UUID id) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        notificationService.dismiss(merchantId, id);
         return ResponseEntity.noContent().build();
     }
 }

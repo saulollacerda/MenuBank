@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,6 +35,9 @@ class ProductControllerTest {
     @MockitoBean
     private ProductService productService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID productId;
     private UUID categoryId;
     private ProductResponse productResponse;
@@ -41,6 +46,7 @@ class ProductControllerTest {
     void setUp() {
         productId = UUID.randomUUID();
         categoryId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(UUID.randomUUID());
 
         productResponse = ProductResponse.builder()
                 .id(productId)
@@ -71,7 +77,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 201 com ProductResponse ao criar produto válido")
         void shouldReturn201WithProductResponse() throws Exception {
-            given(productService.create(any(ProductRequest.class))).willReturn(productResponse);
+            given(productService.create(any(), any(ProductRequest.class))).willReturn(productResponse);
 
             mockMvc.perform(post("/api/products")
                             .with(csrf())
@@ -125,7 +131,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 409 quando nome já está em uso")
         void shouldReturn409WhenNameAlreadyInUse() throws Exception {
-            given(productService.create(any(ProductRequest.class)))
+            given(productService.create(any(), any(ProductRequest.class)))
                     .willThrow(new DuplicateProductException("nome"));
 
             mockMvc.perform(post("/api/products")
@@ -147,7 +153,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 200 com ProductResponse quando produto existe")
         void shouldReturn200WhenProductExists() throws Exception {
-            given(productService.findById(productId)).willReturn(productResponse);
+            given(productService.findById(any(), eq(productId))).willReturn(productResponse);
 
             mockMvc.perform(get("/api/products/{id}", productId))
                     .andExpect(status().isOk())
@@ -159,7 +165,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando produto não encontrado")
         void shouldReturn404WhenProductNotFound() throws Exception {
-            given(productService.findById(productId))
+            given(productService.findById(any(), eq(productId)))
                     .willThrow(new ProductNotFoundException(productId));
 
             mockMvc.perform(get("/api/products/{id}", productId))
@@ -180,7 +186,7 @@ class ProductControllerTest {
         void shouldReturn200WithProductPage() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(productService.findAll(eq(""), any(org.springframework.data.domain.Pageable.class)))
+            given(productService.findAll(any(), eq(""), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(productResponse), pageable, 1));
 
@@ -197,7 +203,7 @@ class ProductControllerTest {
         void shouldPassSearchParamToService() throws Exception {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(productService.findAll(eq("burg"), any(org.springframework.data.domain.Pageable.class)))
+            given(productService.findAll(any(), eq("burg"), any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(
                             List.of(productResponse), pageable, 1));
 
@@ -218,7 +224,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 200 com ProductResponse atualizado")
         void shouldReturn200WithUpdatedResponse() throws Exception {
-            given(productService.update(eq(productId), any(ProductRequest.class)))
+            given(productService.update(any(), eq(productId), any(ProductRequest.class)))
                     .willReturn(productResponse);
 
             mockMvc.perform(put("/api/products/{id}", productId)
@@ -232,7 +238,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando produto não encontrado para atualização")
         void shouldReturn404WhenProductNotFoundForUpdate() throws Exception {
-            given(productService.update(eq(productId), any(ProductRequest.class)))
+            given(productService.update(any(), eq(productId), any(ProductRequest.class)))
                     .willThrow(new ProductNotFoundException(productId));
 
             mockMvc.perform(put("/api/products/{id}", productId)
@@ -264,7 +270,7 @@ class ProductControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar produto existente")
         void shouldReturn204WhenDeleted() throws Exception {
-            willDoNothing().given(productService).delete(productId);
+            willDoNothing().given(productService).delete(any(), eq(productId));
 
             mockMvc.perform(delete("/api/products/{id}", productId)
                             .with(csrf()))
@@ -275,7 +281,7 @@ class ProductControllerTest {
         @DisplayName("deve retornar 404 ao tentar deletar produto inexistente")
         void shouldReturn404WhenProductNotFoundForDelete() throws Exception {
             willThrow(new ProductNotFoundException(productId))
-                    .given(productService).delete(productId);
+                    .given(productService).delete(any(), eq(productId));
 
             mockMvc.perform(delete("/api/products/{id}", productId)
                             .with(csrf()))

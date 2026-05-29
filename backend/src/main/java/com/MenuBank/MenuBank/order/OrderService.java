@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.order;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
@@ -39,7 +38,6 @@ public class OrderService {
     private final MerchantRepository merchantRepository;
     private final IncludeRepository includeRepository;
     private final OrderCostCalculatorService orderCostCalculatorService;
-    private final MerchantContext merchantContext;
 
     public OrderService(OrderRepository orderRepository,
                         CustomerRepository customerRepository,
@@ -48,8 +46,7 @@ public class OrderService {
                         FeeRepository feeRepository,
                         MerchantRepository merchantRepository,
                         IncludeRepository includeRepository,
-                        OrderCostCalculatorService orderCostCalculatorService,
-                        MerchantContext merchantContext) {
+                        OrderCostCalculatorService orderCostCalculatorService) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
@@ -58,19 +55,16 @@ public class OrderService {
         this.merchantRepository = merchantRepository;
         this.includeRepository = includeRepository;
         this.orderCostCalculatorService = orderCostCalculatorService;
-        this.merchantContext = merchantContext;
     }
 
-    public OrderResponse create(OrderRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
-
+    public OrderResponse create(UUID merchantId, OrderRequest request) {
         Customer customer = customerRepository.findByIdAndMerchantId(request.getCustomerId(), merchantId)
                 .orElseThrow(() -> new OrderNotFoundException(
                         "Cliente com ID " + request.getCustomerId() + " não encontrado"));
 
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
-        List<OrderItem> items = buildItems(request.getItems());
+        List<OrderItem> items = buildItems(merchantId, request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(items);
 
@@ -96,8 +90,7 @@ public class OrderService {
         return toResponse(saved);
     }
 
-    public OrderResponse findById(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public OrderResponse findById(UUID merchantId, UUID id) {
 
         Order order = orderRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new OrderNotFoundException(id));
@@ -105,8 +98,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> findAll(String search, OrderStatus status, Pageable pageable) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public Page<OrderResponse> findAll(UUID merchantId, String search, OrderStatus status, Pageable pageable) {
         String term = search == null ? "" : search;
         Page<Order> page = status == null
                 ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
@@ -115,8 +107,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public java.util.Map<OrderStatus, Long> statusCounts(LocalDateTime start, LocalDateTime end, String search) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public java.util.Map<OrderStatus, Long> statusCounts(UUID merchantId, LocalDateTime start, LocalDateTime end, String search) {
         String term = search == null ? "" : search;
         java.util.Map<OrderStatus, Long> counts = new java.util.EnumMap<>(OrderStatus.class);
         for (OrderStatus s : OrderStatus.values()) {
@@ -129,8 +120,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse update(UUID id, OrderRequest request) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public OrderResponse update(UUID merchantId, UUID id, OrderRequest request) {
 
         Order order = orderRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new OrderNotFoundException(id));
@@ -141,7 +131,7 @@ public class OrderService {
 
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
-        List<OrderItem> newItems = buildItems(request.getItems());
+        List<OrderItem> newItems = buildItems(merchantId, request.getItems());
 
         BigDecimal totalValue = calculateTotalValue(newItems);
 
@@ -168,16 +158,14 @@ public class OrderService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        UUID merchantId = merchantContext.getMerchantId();
+    public void delete(UUID merchantId, UUID id) {
         if (!orderRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new OrderNotFoundException(id);
         }
         orderRepository.deleteByIdAndMerchantId(id, merchantId);
     }
 
-    private List<OrderItem> buildItems(List<OrderItemRequest> itemRequests) {
-        UUID merchantId = merchantContext.getMerchantId();
+    private List<OrderItem> buildItems(UUID merchantId, List<OrderItemRequest> itemRequests) {
         List<OrderItem> items = new ArrayList<>();
         for (OrderItemRequest itemRequest : itemRequests) {
             Product product = productRepository.findByIdAndMerchantId(itemRequest.getProductId(), merchantId)
@@ -194,7 +182,7 @@ public class OrderService {
                     .unitCost(unitCost)
                     .build();
 
-            List<OrderItemExtraIngredient> extraIngredients = buildExtraIngredients(itemRequest);
+            List<OrderItemExtraIngredient> extraIngredients = buildExtraIngredients(merchantId, itemRequest);
             extraIngredients.forEach(extra -> extra.setOrderItem(item));
             item.setExtraIngredients(extraIngredients);
 
@@ -203,8 +191,7 @@ public class OrderService {
         return items;
     }
 
-    private List<OrderItemExtraIngredient> buildExtraIngredients(OrderItemRequest itemRequest) {
-        UUID merchantId = merchantContext.getMerchantId();
+    private List<OrderItemExtraIngredient> buildExtraIngredients(UUID merchantId, OrderItemRequest itemRequest) {
         List<OrderItemExtraIngredient> extraIngredients = new ArrayList<>();
         if (itemRequest.getExtraIngredients() == null || itemRequest.getExtraIngredients().isEmpty()) {
             return extraIngredients;

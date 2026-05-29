@@ -3,7 +3,6 @@ package com.MenuBank.MenuBank.category;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
-import com.MenuBank.MenuBank.common.MerchantContext;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,9 +28,6 @@ class CategoryServiceTest {
 
     @Mock
     private MerchantRepository merchantRepository;
-
-    @Mock
-    private MerchantContext merchantContext;
 
     @Mock
     private ProductRepository productRepository;
@@ -74,11 +70,10 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve criar categoria com dados válidos e retornar CategoryResponse")
         void shouldCreateCategoryAndReturnResponse() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.existsByNameAndMerchantId(categoryRequest.getName(), merchantId)).willReturn(false);
             given(categoryRepository.save(any(Category.class))).willReturn(category);
 
-            CategoryResponse result = categoryService.create(categoryRequest);
+            CategoryResponse result = categoryService.create(merchantId, categoryRequest);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(categoryId);
@@ -89,10 +84,9 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar DuplicateCategoryException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.existsByNameAndMerchantId(categoryRequest.getName(), merchantId)).willReturn(true);
 
-            assertThatThrownBy(() -> categoryService.create(categoryRequest))
+            assertThatThrownBy(() -> categoryService.create(merchantId, categoryRequest))
                     .isInstanceOf(DuplicateCategoryException.class)
                     .hasMessageContaining("nome");
 
@@ -111,10 +105,9 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve retornar CategoryResponse quando categoria existe")
         void shouldReturnResponseWhenExists() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
 
-            CategoryResponse result = categoryService.findById(categoryId);
+            CategoryResponse result = categoryService.findById(merchantId, categoryId);
 
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(categoryId);
@@ -124,21 +117,19 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException quando categoria não existe")
         void shouldThrowWhenCategoryNotFound() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> categoryService.findById(categoryId))
+            assertThatThrownBy(() -> categoryService.findById(merchantId, categoryId))
                     .isInstanceOf(CategoryNotFoundException.class);
         }
 
         @Test
         @DisplayName("deve retornar productCount da categoria")
         void shouldReturnProductCount() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(productRepository.countByCategoryIdAndMerchantId(categoryId, merchantId)).willReturn(7L);
 
-            CategoryResponse result = categoryService.findById(categoryId);
+            CategoryResponse result = categoryService.findById(merchantId, categoryId);
 
             assertThat(result.getProductCount()).isEqualTo(7L);
         }
@@ -157,12 +148,11 @@ class CategoryServiceTest {
         void shouldReturnPagedCategoriesFilteredByName() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "lan", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(category), pageable, 1));
 
             org.springframework.data.domain.Page<CategoryResponse> result =
-                    categoryService.findAll("lan", pageable);
+                    categoryService.findAll(merchantId, "lan", pageable);
 
             assertThat(result.getContent()).hasSize(1);
             assertThat(result.getContent().get(0).getName()).isEqualTo("Lanches");
@@ -174,12 +164,11 @@ class CategoryServiceTest {
         void shouldTreatNullSearchAsEmpty() {
             org.springframework.data.domain.Pageable pageable =
                     org.springframework.data.domain.PageRequest.of(0, 20);
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, "", pageable))
                     .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
 
             org.springframework.data.domain.Page<CategoryResponse> result =
-                    categoryService.findAll(null, pageable);
+                    categoryService.findAll(merchantId, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
         }
@@ -206,11 +195,10 @@ class CategoryServiceTest {
                     .name("Bebidas")
                     .build();
 
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
             given(categoryRepository.save(any(Category.class))).willReturn(updatedCategory);
 
-            CategoryResponse result = categoryService.update(categoryId, updateRequest);
+            CategoryResponse result = categoryService.update(merchantId, categoryId, updateRequest);
 
             assertThat(result.getName()).isEqualTo("Bebidas");
             assertThat(result.getId()).isEqualTo(categoryId);
@@ -219,10 +207,9 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException ao atualizar categoria inexistente")
         void shouldThrowWhenCategoryNotFoundForUpdate() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> categoryService.update(categoryId, categoryRequest))
+            assertThatThrownBy(() -> categoryService.update(merchantId, categoryId, categoryRequest))
                     .isInstanceOf(CategoryNotFoundException.class);
 
             then(categoryRepository).should(never()).save(any(Category.class));
@@ -240,11 +227,10 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve deletar categoria existente sem lançar exceção")
         void shouldDeleteExistingCategory() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.existsByIdAndMerchantId(categoryId, merchantId)).willReturn(true);
             willDoNothing().given(categoryRepository).deleteByIdAndMerchantId(categoryId, merchantId);
 
-            assertThatNoException().isThrownBy(() -> categoryService.delete(categoryId));
+            assertThatNoException().isThrownBy(() -> categoryService.delete(merchantId, categoryId));
 
             then(categoryRepository).should().deleteByIdAndMerchantId(categoryId, merchantId);
         }
@@ -252,10 +238,9 @@ class CategoryServiceTest {
         @Test
         @DisplayName("deve lançar CategoryNotFoundException ao deletar categoria inexistente")
         void shouldThrowWhenCategoryNotFoundForDelete() {
-            given(merchantContext.getMerchantId()).willReturn(merchantId);
             given(categoryRepository.existsByIdAndMerchantId(categoryId, merchantId)).willReturn(false);
 
-            assertThatThrownBy(() -> categoryService.delete(categoryId))
+            assertThatThrownBy(() -> categoryService.delete(merchantId, categoryId))
                     .isInstanceOf(CategoryNotFoundException.class);
 
             then(categoryRepository).should(never()).deleteByIdAndMerchantId(any(), any());

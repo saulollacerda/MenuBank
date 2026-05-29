@@ -23,13 +23,13 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
 
     @BeforeEach
     void setup() {
-        merchant = createMerchantAndAuthenticate();
+        merchant = createMerchant();
     }
 
     @Test
     @DisplayName("create deve persistir taxa ligada ao merchant")
     void create_shouldPersistFee() {
-        FeeResponse response = feeService.create(FeeRequest.builder()
+        FeeResponse response = feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("Pix").feeRate(new BigDecimal("0.0099")).build());
 
         Fee persisted = feeRepository.findById(response.getId()).orElseThrow();
@@ -40,10 +40,10 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("create deve rejeitar nome duplicado dentro do merchant")
     void create_shouldRejectDuplicateName() {
-        feeService.create(FeeRequest.builder()
+        feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("Pix").feeRate(new BigDecimal("0.01")).build());
 
-        assertThatThrownBy(() -> feeService.create(FeeRequest.builder()
+        assertThatThrownBy(() -> feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("Pix").feeRate(new BigDecimal("0.02")).build()))
                 .isInstanceOf(DuplicateFeeException.class);
     }
@@ -51,7 +51,7 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findByNameIgnoreCaseAndMerchantId deve achar taxa case-insensitive (usado no import da Anota.AI)")
     void findByName_shouldBeCaseInsensitive() {
-        feeService.create(FeeRequest.builder()
+        feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("money").feeRate(new BigDecimal("0.05")).build());
 
         var found = feeRepository.findByNameIgnoreCaseAndMerchantId("MONEY", merchant.getId());
@@ -62,10 +62,10 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("update deve modificar nome e taxa")
     void update_shouldModifyFee() {
-        FeeResponse created = feeService.create(FeeRequest.builder()
+        FeeResponse created = feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("Old").feeRate(new BigDecimal("0.01")).build());
 
-        feeService.update(created.getId(), FeeRequest.builder()
+        feeService.update(merchant.getId(), created.getId(), FeeRequest.builder()
                 .name("New").feeRate(new BigDecimal("0.05")).build());
 
         Fee persisted = feeRepository.findById(created.getId()).orElseThrow();
@@ -76,10 +76,10 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("delete deve remover taxa")
     void delete_shouldRemove() {
-        FeeResponse created = feeService.create(FeeRequest.builder()
+        FeeResponse created = feeService.create(merchant.getId(), FeeRequest.builder()
                 .name("X").feeRate(new BigDecimal("0.01")).build());
 
-        feeService.delete(created.getId());
+        feeService.delete(merchant.getId(), created.getId());
 
         assertThat(feeRepository.findById(created.getId())).isEmpty();
     }
@@ -87,12 +87,12 @@ class FeeServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("findAll deve paginar isolando por merchant")
     void findAll_shouldIsolate() {
-        feeService.create(FeeRequest.builder().name("Meu").feeRate(new BigDecimal("0.01")).build());
+        feeService.create(merchant.getId(), FeeRequest.builder().name("Meu").feeRate(new BigDecimal("0.01")).build());
 
-        authenticateAs(createMerchant("Outro"));
-        feeService.create(FeeRequest.builder().name("Do Outro").feeRate(new BigDecimal("0.02")).build());
+        Merchant outro = createMerchant("Outro");
+        feeService.create(outro.getId(), FeeRequest.builder().name("Do Outro").feeRate(new BigDecimal("0.02")).build());
 
-        var page = feeService.findAll(null, PageRequest.of(0, 10));
+        var page = feeService.findAll(outro.getId(), null, PageRequest.of(0, 10));
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getName()).isEqualTo("Do Outro");
     }
