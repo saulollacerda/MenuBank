@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "info": {
+    "_id": "ORDER_ID_PLACEHOLDER",
+    "check": 1,
+    "type": "DELIVERY",
+    "salesChannel": "anotaai",
+    "from": "menu-share-adm",
+    "shortReference": 5175,
+    "createdAt": "2026-05-22T15:00:00.000Z",
+    "total": 18.0,
+    "deliveryFee": 0,
+    "additionalFees": [],
+    "discounts": [],
+    "customer": {
+      "id": "cust-1",
+      "name": "Teste",
+      "phone": "43123456789"
+    },
+    "items": [
+      {
+        "_id": "oi-1",
+        "name": "Açaí 330ml",
+        "quantity": 1,
+        "price": 15.0,
+        "total": 18.0,
+        "internalId": "product-internal-id",
+        "externalId": "",
+        "subItems": [
+          {
+            "name": "leite ninho",
+            "quantity": 3,
+            "price": 1.0,
+            "total": 3.0,
+            "internalId": "complement-item-id",
+            "externalId": ""
+          }
+        ]
+      }
+    ],
+    "payments": [
+      {
+        "name": "money",
+        "code": "money",
+        "value": "18",
+        "prepaid": false
+      }
+    ],
+    "observation": null
+  }
+}

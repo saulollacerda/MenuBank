@@ -1,70 +1,54 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { LoginRequest, LoginResponse } from '@/types/Auth'
-import type { UserRequest } from '@/types/User'
+import type { LoginRequest } from '@/types/Auth'
+import type { UserRequest, UserResponse } from '@/types/User'
+import { authProvider, AuthError, type AuthSession } from '@/lib/authProvider'
 import { authService } from '@/services/authService'
-
-const TOKEN_KEY = 'menubank_token'
-const USER_KEY = 'menubank_user'
-
-interface StoredUser {
-  userId: string
-  email: string
-  restaurantName: string
-}
+import { userService } from '@/services/userService'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
-  const user = ref<StoredUser | null>(loadUser())
+  const session = ref<AuthSession | null>(null)
+  const currentUser = ref<UserResponse | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const awaitingEmailConfirmation = ref(false)
+  let initialized = false
 
-  const isAuthenticated = computed(() => !!token.value)
-  const restaurantName = computed(() => user.value?.restaurantName ?? '')
+  const isAuthenticated = computed(() => !!session.value)
+  const restaurantName = computed(() => currentUser.value?.merchantName ?? '')
 
-  function loadUser(): StoredUser | null {
-    const raw = localStorage.getItem(USER_KEY)
-    if (!raw) return null
-    try {
-      return JSON.parse(raw) as StoredUser
-    } catch {
-      return null
+  /** Loads the persisted session and subscribes to auth changes. */
+  async function init() {
+    if (initialized) return
+    initialized = true
+    session.value = await authProvider.init()
+    authProvider.onAuthChange((newSession) => {
+      session.value = newSession
+      if (!newSession) currentUser.value = null
+    })
+    // Page refresh with an existing session: load the merchant so restaurantName etc.
+    // are available. Best-effort — never block app mount on a network error.
+    if (session.value) {
+      try {
+        await ensureProvisionedAndLoad()
+      } catch {
+        // ignored — views can retry via fetchCurrentUser
+      }
     }
-  }
-
-  function saveSession(response: LoginResponse) {
-    token.value = response.token
-    user.value = {
-      userId: response.userId,
-      email: response.email,
-      restaurantName: response.restaurantName,
-    }
-    localStorage.setItem(TOKEN_KEY, response.token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
-  }
-
-  function clearSession() {
-    token.value = null
-    user.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
   }
 
   async function login(request: LoginRequest) {
     loading.value = true
     error.value = null
     try {
-      const response = await authService.login(request)
-      saveSession(response)
-      return response
+      session.value = await authProvider.signIn(request.email, request.password)
+      await ensureProvisionedAndLoad()
     } catch (e: unknown) {
-      const err = e as { response?: { status?: number } }
-      if (err.response?.status === 401) {
-        error.value = 'Email ou senha inválidos'
-      } else if (err.response?.status === 403) {
-        error.value = 'Conta de usuário inativa'
-      } else {
-        error.value = 'Erro ao fazer login. Tente novamente.'
+      if (e instanceof AuthError) {
+        error.value =
+          e.code === 'email_not_confirmed'
+            ? 'Confirme seu email antes de entrar.'
+            : 'Email ou senha inválidos'
       }
       throw e
     } finally {
@@ -75,16 +59,29 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(request: UserRequest) {
     loading.value = true
     error.value = null
+    awaitingEmailConfirmation.value = false
     try {
-      const response = await authService.register(request)
-      saveSession(response)
-      return response
-    } catch (e: unknown) {
-      const err = e as { response?: { status?: number } }
-      if (err.response?.status === 409) {
-        error.value = 'Email ou CNPJ já cadastrado'
+      const { session: newSession } = await authProvider.signUp({
+        email: request.email,
+        password: request.password,
+        merchantName: request.merchantName,
+        cnpj: request.cnpj,
+        phone: request.phone ?? null,
+      })
+      if (newSession) {
+        // No email confirmation (local dev): session is available immediately.
+        session.value = newSession
+        await ensureProvisionedAndLoad()
       } else {
-        error.value = 'Erro ao criar conta. Tente novamente.'
+        // Email confirmation ON (Supabase): no session yet. Provision happens on first login.
+        awaitingEmailConfirmation.value = true
+      }
+    } catch (e: unknown) {
+      if (e instanceof AuthError) {
+        error.value =
+          e.code === 'email_exists'
+            ? 'Email já cadastrado'
+            : 'Erro ao criar conta. Tente novamente.'
       }
       throw e
     } finally {
@@ -92,21 +89,87 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
-    clearSession()
+  /**
+   * Loads the current merchant. On the first authenticated access the merchant does
+   * not exist yet (backend returns 403), so we provision it from the business data
+   * stored in the Supabase user metadata, then load it.
+   */
+  async function ensureProvisionedAndLoad(): Promise<UserResponse> {
+    try {
+      currentUser.value = await userService.getMe()
+      return currentUser.value
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } }).response?.status
+      if (status !== 403) {
+        error.value = 'Erro ao carregar perfil'
+        throw e
+      }
+      const user = session.value?.user
+      const meta = (user?.user_metadata ?? {}) as {
+        merchantName?: string
+        cnpj?: string
+        phone?: string | null
+      }
+      await authService.provision({
+        merchantName: meta.merchantName ?? '',
+        cnpj: meta.cnpj ?? '',
+        email: user?.email ?? '',
+        phone: meta.phone ?? undefined,
+      })
+      currentUser.value = await userService.getMe()
+      return currentUser.value
+    }
+  }
+
+  async function logout() {
+    await authProvider.signOut()
+    session.value = null
+    currentUser.value = null
+  }
+
+  async function fetchCurrentUser() {
+    if (!isAuthenticated.value) return null
+    loading.value = true
+    error.value = null
+    try {
+      currentUser.value = await userService.getMe()
+      return currentUser.value
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar perfil'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateAnotaAIKey(key: string | null) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await userService.updateAnotaAIKey({ anotaAiApiKey: key })
+      currentUser.value = response
+      return response
+    } catch (e: unknown) {
+      error.value = 'Erro ao salvar a chave do Anota.AI'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
   return {
-    token,
-    user,
+    session,
+    currentUser,
     loading,
     error,
+    awaitingEmailConfirmation,
     isAuthenticated,
     restaurantName,
+    init,
     login,
     register,
     logout,
-    clearSession,
+    fetchCurrentUser,
+    updateAnotaAIKey,
   }
 })
-

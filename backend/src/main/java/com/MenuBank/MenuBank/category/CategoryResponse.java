@@ -12,5 +12,7 @@ public class CategoryResponse {
 
     private UUID id;
     private String name;
+    private Long productCount;
+    private String colorHex;
 }
 

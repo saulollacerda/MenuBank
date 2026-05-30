@@ -7,13 +7,26 @@ vi.mock('@/services/orderService')
 
 const mockedService = vi.mocked(orderService)
 
+function asPage<T>(content: T[], size = 20) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: content.length === 0 ? 0 : 1,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: content.length === 0,
+  }
+}
+
 describe('orderStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchAll should populate items', async () => {
+  it('fetchPage should populate items and pagination state', async () => {
     const mockData = [
       {
         id: '1',
@@ -26,39 +39,17 @@ describe('orderStore', () => {
         items: [],
       },
     ]
-    mockedService.findAll.mockResolvedValue(mockData)
+    mockedService.findAll.mockResolvedValue(asPage(mockData))
 
     const store = useOrderStore()
-    await store.fetchAll()
+    await store.fetchPage({ search: 'joão' })
 
     expect(store.items).toEqual(mockData)
+    expect(store.search).toBe('joão')
     expect(store.loading).toBe(false)
   })
 
-  it('fetchAll should not call service again when data is already loaded', async () => {
-    const mockData = [
-      {
-        id: '1',
-        dateTime: '2026-03-24T10:00:00',
-        customerId: 'c1',
-        customerName: 'João',
-        status: 'PENDING' as const,
-        totalValue: 50.0,
-        estimatedProfit: 20.0,
-        items: [],
-      },
-    ]
-    mockedService.findAll.mockResolvedValue(mockData)
-
-    const store = useOrderStore()
-    await store.fetchAll()
-    await store.fetchAll()
-
-    expect(mockedService.findAll).toHaveBeenCalledTimes(1)
-    expect(store.items).toEqual(mockData)
-  })
-
-  it('create should add item to the list', async () => {
+  it('create should refetch the current page', async () => {
     const created = {
       id: '1',
       dateTime: '2026-03-24T10:00:00',
@@ -70,6 +61,7 @@ describe('orderStore', () => {
       items: [],
     }
     mockedService.create.mockResolvedValue(created)
+    mockedService.findAll.mockResolvedValue(asPage([created]))
 
     const store = useOrderStore()
     await store.create({
@@ -86,25 +78,14 @@ describe('orderStore', () => {
     expect(store.items).toContainEqual(created)
   })
 
-  it('remove should filter out the item', async () => {
-    const store = useOrderStore()
-    store.items = [
-      {
-        id: '1',
-        dateTime: '2026-03-24T10:00:00',
-        customerId: 'c1',
-        customerName: 'João',
-        status: 'PENDING',
-        totalValue: 50.0,
-        estimatedProfit: 20.0,
-        items: [],
-      },
-    ]
+  it('remove should call service and refetch the current page', async () => {
     mockedService.remove.mockResolvedValue()
+    mockedService.findAll.mockResolvedValue(asPage([]))
 
+    const store = useOrderStore()
     await store.remove('1')
 
+    expect(mockedService.remove).toHaveBeenCalledWith('1')
     expect(store.items).toHaveLength(0)
   })
 })
-

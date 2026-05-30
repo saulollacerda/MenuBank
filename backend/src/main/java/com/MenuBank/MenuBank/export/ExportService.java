@@ -1,6 +1,5 @@
 package com.MenuBank.MenuBank.export;
 
-import com.MenuBank.MenuBank.common.UserContext;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
@@ -27,13 +26,11 @@ import java.util.*;
 public class ExportService {
 
     private final OrderRepository orderRepository;
-    private final UserContext userContext;
 
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     @Transactional(readOnly = true)
-    public byte[] generateDashboardExport(LocalDate startDate, LocalDate endDate) {
-        UUID ownerId = userContext.getUserId();
+    public byte[] generateDashboardExport(UUID merchantId, LocalDate startDate, LocalDate endDate) {
 
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : LocalDate.now();
@@ -41,8 +38,8 @@ public class ExportService {
         LocalDateTime startDt = start.atStartOfDay();
         LocalDateTime endDt = end.atTime(23, 59, 59);
 
-        List<Order> orders = orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(
-                ownerId, startDt, endDt, OrderStatus.PAID);
+        List<Order> orders = orderRepository.findAllForReportByMerchantAndPeriodAndStatus(
+                merchantId, startDt, endDt, OrderStatus.PAID);
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             CellStyle headerStyle = createHeaderStyle(workbook);
@@ -92,8 +89,8 @@ public class ExportService {
         BigDecimal estimatedCost = totalSales.subtract(estimatedProfit);
 
         BigDecimal feeTotal = orders.stream()
-                .filter(o -> o.getPaymentMethod() != null)
-                .map(o -> o.getTotalValue().multiply(o.getPaymentMethod().getFeeRate()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
+                .filter(o -> o.getFee() != null)
+                .map(o -> o.getTotalValue().multiply(o.getFee().getFeeRate()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
 
@@ -136,17 +133,17 @@ public class ExportService {
             createCell(row, 0, order.getDateTime().format(DATE_TIME_FMT), null);
             createCell(row, 1, order.getCustomer() != null ? order.getCustomer().getName() : "", null);
 
-            String pmName = order.getPaymentMethod() != null ? order.getPaymentMethod().getName() : "";
+            String pmName = order.getFee() != null ? order.getFee().getName() : "";
             createCell(row, 2, pmName, null);
 
-            double feeRate = order.getPaymentMethod() != null
-                    ? order.getPaymentMethod().getFeeRate()
+            double feeRate = order.getFee() != null
+                    ? order.getFee().getFeeRate()
                     .setScale(2, RoundingMode.HALF_UP).doubleValue()
                     : 0.0;
             row.createCell(3).setCellValue(feeRate);
 
-            double feeAmount = order.getPaymentMethod() != null
-                    ? order.getTotalValue().multiply(order.getPaymentMethod().getFeeRate()).divide(BigDecimal.valueOf(100))
+            double feeAmount = order.getFee() != null
+                    ? order.getTotalValue().multiply(order.getFee().getFeeRate()).divide(BigDecimal.valueOf(100))
                     .setScale(2, RoundingMode.HALF_UP).doubleValue()
                     : 0.0;
             row.createCell(4).setCellValue(feeAmount);
@@ -270,8 +267,8 @@ public class ExportService {
     }
 
     private BigDecimal calculateItemCost(OrderItem item) {
-        BigDecimal baseUnitCost = (item.getProduct() != null && item.getProduct().getEstimatedCost() != null)
-                ? item.getProduct().getEstimatedCost()
+        BigDecimal baseUnitCost = item.getUnitCost() != null
+                ? item.getUnitCost()
                 : BigDecimal.ZERO;
         BigDecimal extrasUnitCost = calculateExtrasUnitCost(item);
         return baseUnitCost.add(extrasUnitCost).multiply(BigDecimal.valueOf(item.getQuantity()));
@@ -290,6 +287,8 @@ public class ExportService {
         return switch (status) {
             case PAID -> "Pago";
             case PENDING -> "Pendente";
+            case READY -> "Pronto";
+            case DELIVERED -> "Entregue";
             case CANCELLED -> "Cancelado";
         };
     }

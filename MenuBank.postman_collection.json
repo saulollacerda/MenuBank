@@ -1,0 +1,763 @@
+{
+  "info": {
+    "_postman_id": "menubank-collection-v1",
+    "name": "MenuBank API",
+    "description": "Collection completa da API do MenuBank — sistema de gestão financeira para restaurantes de delivery.\n\nPara começar:\n1. Configure o environment 'MenuBank Local'\n2. Execute 'Auth / Login' para obter o token (salvo automaticamente)\n3. As demais requisições já usam o token via variável {{token}}",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Autenticação e registro de usuários.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"restaurante@exemplo.com\",\n  \"password\": \"senha123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Autentica um usuário e retorna o token de acesso JWT. O token é salvo automaticamente na variável `token` do environment via script de teste."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    const token = json.token || json.accessToken || json.access_token;",
+                  "    if (token) {",
+                  "        pm.environment.set('token', token);",
+                  "        console.log('Token salvo no environment.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantName\": \"Meu Restaurante\",\n  \"cnpj\": \"12.345.678/0001-90\",\n  \"email\": \"restaurante@exemplo.com\",\n  \"password\": \"senha123\",\n  \"confirmPassword\": \"senha123\",\n  \"phone\": \"(11) 99999-9999\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Registra um novo usuário (restaurante) no sistema. Retorna o token de acesso JWT após o registro."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    const token = json.token || json.accessToken || json.access_token;",
+                  "    if (token) {",
+                  "        pm.environment.set('token', token);",
+                  "        console.log('Token salvo no environment.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Gerenciamento de usuários do sistema.",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantName\": \"Meu Restaurante\",\n  \"cnpj\": \"12.345.678/0001-90\",\n  \"email\": \"restaurante@exemplo.com\",\n  \"password\": \"senha123\",\n  \"confirmPassword\": \"senha123\",\n  \"phone\": \"(11) 99999-9999\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria um novo usuário. Retorna 201 Created com os dados do usuário criado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('userId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/{{userId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Retorna os dados de um usuário pelo seu UUID. Substitua `{{userId}}` pelo ID real ou preencha a variável no environment."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{userId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantName\": \"Restaurante Atualizado\",\n  \"cnpj\": \"12.345.678/0001-90\",\n  \"email\": \"novo@exemplo.com\",\n  \"password\": \"novaSenha123\",\n  \"confirmPassword\": \"novaSenha123\",\n  \"phone\": \"(11) 88888-8888\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza os dados de um usuário pelo seu UUID. Retorna 200 OK com os dados atualizados."
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/users/{{userId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Remove um usuário pelo seu UUID. Retorna 204 No Content em caso de sucesso."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "description": "Gerenciamento de categorias de produtos.",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lanches\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria uma nova categoria de produto. Retorna 201 Created com os dados da categoria."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('categoryId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/categories/{{categoryId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", "{{categoryId}}"]
+            },
+            "description": "Retorna uma categoria pelo seu UUID."
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories"]
+            },
+            "description": "Retorna a lista de todas as categorias cadastradas."
+          }
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/categories/{{categoryId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", "{{categoryId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bebidas\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza o nome de uma categoria pelo seu UUID. Retorna 200 OK com os dados atualizados."
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/categories/{{categoryId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", "{{categoryId}}"]
+            },
+            "description": "Remove uma categoria pelo seu UUID. Retorna 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ingredients",
+      "description": "Gerenciamento de ingredientes usados nas receitas dos produtos.",
+      "item": [
+        {
+          "name": "Create Ingredient",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/ingredients",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ingredients"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Queijo Mussarela\",\n  \"unit\": \"g\",\n  \"costPerUnit\": 0.05,\n  \"defaultQuantity\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria um novo ingrediente. O campo `unit` define a unidade de medida (ex: g, kg, ml, un). `costPerUnit` é o custo por unidade. `defaultQuantity` é a quantidade padrão por uso (opcional)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('ingredientId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Ingredient by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ingredients/{{ingredientId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ingredients", "{{ingredientId}}"]
+            },
+            "description": "Retorna um ingrediente pelo seu UUID."
+          }
+        },
+        {
+          "name": "List Ingredients",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ingredients",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ingredients"]
+            },
+            "description": "Retorna a lista de todos os ingredientes cadastrados."
+          }
+        },
+        {
+          "name": "Update Ingredient",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/ingredients/{{ingredientId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ingredients", "{{ingredientId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Queijo Mussarela Premium\",\n  \"unit\": \"g\",\n  \"costPerUnit\": 0.07,\n  \"defaultQuantity\": 120\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza os dados de um ingrediente pelo seu UUID. Retorna 200 OK com os dados atualizados."
+          }
+        },
+        {
+          "name": "Delete Ingredient",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/ingredients/{{ingredientId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ingredients", "{{ingredientId}}"]
+            },
+            "description": "Remove um ingrediente pelo seu UUID. Retorna 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "description": "Gerenciamento de produtos do cardápio.",
+      "item": [
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X-Burguer\",\n  \"price\": 25.90,\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria um novo produto vinculado a uma categoria. O `categoryId` deve ser um UUID válido de uma categoria existente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('productId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/products/{{productId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Retorna um produto pelo seu UUID, incluindo os itens da receita."
+          }
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Retorna a lista de todos os produtos cadastrados."
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/products/{{productId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X-Burguer Especial\",\n  \"price\": 29.90,\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza os dados de um produto pelo seu UUID. Retorna 200 OK com os dados atualizados."
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/products/{{productId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Remove um produto pelo seu UUID. Retorna 204 No Content."
+          }
+        },
+        {
+          "name": "Recipe Items",
+          "description": "Itens de receita vinculados a um produto. Definem quais ingredientes compõem o produto e em quais quantidades, permitindo o cálculo de custo estimado.",
+          "item": [
+            {
+              "name": "Add Recipe Item",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "url": {
+                  "raw": "{{base_url}}/api/products/{{productId}}/recipe-items",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "products", "{{productId}}", "recipe-items"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ingredientId\": \"{{ingredientId}}\",\n  \"quantity\": 150\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Adiciona um ingrediente à receita de um produto. A `quantity` é medida na unidade definida no ingrediente."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const json = pm.response.json();",
+                      "    if (json.id) pm.environment.set('recipeItemId', json.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Recipe Items",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/products/{{productId}}/recipe-items",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "products", "{{productId}}", "recipe-items"]
+                },
+                "description": "Retorna todos os itens da receita de um produto."
+              }
+            },
+            {
+              "name": "Update Recipe Item",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "url": {
+                  "raw": "{{base_url}}/api/products/{{productId}}/recipe-items/{{recipeItemId}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "products", "{{productId}}", "recipe-items", "{{recipeItemId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ingredientId\": \"{{ingredientId}}\",\n  \"quantity\": 200\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Atualiza a quantidade de um ingrediente na receita de um produto."
+              }
+            },
+            {
+              "name": "Delete Recipe Item",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/api/products/{{productId}}/recipe-items/{{recipeItemId}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "products", "{{productId}}", "recipe-items", "{{recipeItemId}}"]
+                },
+                "description": "Remove um ingrediente da receita de um produto. Retorna 204 No Content."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "description": "Gerenciamento de clientes do restaurante.",
+      "item": [
+        {
+          "name": "Create Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/customers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva\",\n  \"phone\": \"(11) 99999-1234\",\n  \"email\": \"joao@exemplo.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria um novo cliente. Os campos `phone` e `email` são opcionais."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('customerId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Customer by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/customers/{{customerId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers", "{{customerId}}"]
+            },
+            "description": "Retorna um cliente pelo seu UUID."
+          }
+        },
+        {
+          "name": "List Customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/customers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers"]
+            },
+            "description": "Retorna a lista de todos os clientes cadastrados."
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/customers/{{customerId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers", "{{customerId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva Atualizado\",\n  \"phone\": \"(11) 88888-5678\",\n  \"email\": \"joao.novo@exemplo.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza os dados de um cliente pelo seu UUID."
+          }
+        },
+        {
+          "name": "Delete Customer",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/customers/{{customerId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers", "{{customerId}}"]
+            },
+            "description": "Remove um cliente pelo seu UUID. Retorna 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Gerenciamento de pedidos. Um pedido pertence a um cliente e contém um ou mais itens (produtos), cada um podendo ter ingredientes extras.",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/orders",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"status\": \"PENDING\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 2,\n      \"extraIngredients\": [\n        {\n          \"ingredientId\": \"{{ingredientId}}\",\n          \"quantity\": 50\n        }\n      ]\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Cria um novo pedido. O `status` é opcional e pode ser `PENDING`, `PAID` ou `CANCELLED`. Cada item deve ter ao menos um produto e quantidade mínima de 1. Os `extraIngredients` são opcionais por item."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) pm.environment.set('orderId', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{orderId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "description": "Retorna um pedido pelo seu UUID, incluindo os itens e ingredientes extras."
+          }
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/orders",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders"]
+            },
+            "description": "Retorna a lista de todos os pedidos cadastrados."
+          }
+        },
+        {
+          "name": "Update Order",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{orderId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"status\": \"PAID\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1,\n      \"extraIngredients\": []\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Atualiza os dados de um pedido. Útil para alterar o status (ex: de PENDING para PAID ou CANCELLED)."
+          }
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{orderId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "description": "Remove um pedido pelo seu UUID. Retorna 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "Visão consolidada de KPIs e métricas financeiras do restaurante. Todos os dados podem ser filtrados por intervalo de datas.",
+      "item": [
+        {
+          "name": "Get Dashboard (hoje)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard"]
+            },
+            "description": "Retorna os KPIs do dia atual (sem filtro de data). Inclui: Total de Vendas, Quantidade de Pedidos, Ticket Médio, Lucro Estimado, Vendas por Dia e Top 5 Produtos."
+          }
+        },
+        {
+          "name": "Get Dashboard (filtro por período)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard?startDate={{startDate}}&endDate={{endDate}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "{{startDate}}",
+                  "description": "Data inicial no formato YYYY-MM-DD (ex: 2026-05-01)"
+                },
+                {
+                  "key": "endDate",
+                  "value": "{{endDate}}",
+                  "description": "Data final no formato YYYY-MM-DD (ex: 2026-05-14)"
+                }
+              ]
+            },
+            "description": "Retorna os KPIs filtrados pelo período definido. As datas devem ser informadas no formato `YYYY-MM-DD`. Ambos os parâmetros são opcionais — se omitidos, retorna os dados do dia atual."
+          }
+        }
+      ]
+    }
+  ]
+}

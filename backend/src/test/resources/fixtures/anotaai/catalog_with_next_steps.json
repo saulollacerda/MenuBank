@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-extra",
+      "title": "Adicionais",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "extra-1",
+          "title": "Bacon",
+          "out": false,
+          "week_prices": [
+            { "price": 2.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        },
+        {
+          "id": "extra-2",
+          "title": "Queijo",
+          "out": false,
+          "week_prices": [
+            { "price": 3.0, "short_name": "sun" }
+          ],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-1",
+      "title": "Lanches",
+      "is_additional": false,
+      "itens": [
+        {
+          "id": "item-1",
+          "title": "Lanche",
+          "out": false,
+          "week_prices": [
+            { "price": 12.0, "short_name": "sun" }
+          ],
+          "next_steps": [
+            { "category_id": "cat-extra", "category_title": "Adicionais", "min": 0, "max": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

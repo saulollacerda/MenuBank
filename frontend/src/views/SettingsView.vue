@@ -1,0 +1,455 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/authStore'
+import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
+
+const authStore = useAuthStore()
+
+const apiKey = ref('')
+const showKey = ref(false)
+const successMessage = ref<string | null>(null)
+const loadError = ref<string | null>(null)
+const section = ref<'loja' | 'ints' | 'horario' | 'alerta' | 'time' | 'billing' | 'danger'>('loja')
+
+const inputType = computed(() => (showKey.value ? 'text' : 'password'))
+
+const user = computed(() => authStore.currentUser)
+const initials = computed(() => {
+  const name = authStore.restaurantName || 'MB'
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || 'MB'
+})
+
+async function loadProfile() {
+  loadError.value = null
+  try {
+    const u = await authStore.fetchCurrentUser()
+    apiKey.value = u?.anotaAiApiKey ?? ''
+  } catch {
+    loadError.value = 'Não foi possível carregar suas configurações.'
+  }
+}
+
+async function handleSaveKey() {
+  successMessage.value = null
+  try {
+    const trimmed = apiKey.value.trim()
+    await authStore.updateAnotaAIKey(trimmed.length > 0 ? trimmed : null)
+    successMessage.value = 'Chave do Anota.AI salva com sucesso.'
+    setTimeout(() => (successMessage.value = null), 4000)
+  } catch {
+    /* error in store */
+  }
+}
+
+const SUBNAV: Array<{
+  id: typeof section.value
+  ic: string
+  l: string
+  danger?: boolean
+}> = [
+  { id: 'loja', ic: 'box', l: 'Perfil da loja' },
+  { id: 'ints', ic: 'sync', l: 'Integrações' },
+  { id: 'horario', ic: 'clock', l: 'Horários' },
+  { id: 'alerta', ic: 'bell', l: 'Alertas' },
+  { id: 'time', ic: 'user', l: 'Time' },
+  { id: 'billing', ic: 'card', l: 'Plano e pagamento' },
+  { id: 'danger', ic: 'alert', l: 'Zona perigosa', danger: true },
+]
+
+onMounted(loadProfile)
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; flex: 1">
+    <UITopbar
+      title="Configurações"
+      subtitle="Perfil da loja, integrações e preferências"
+    />
+
+    <div style="flex: 1; padding: 28px; display: flex; gap: 20px; overflow: hidden; min-height: 0">
+      <!-- Sub-nav -->
+      <div style="width: 220px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0">
+        <div
+          v-for="it in SUBNAV"
+          :key="it.id"
+          class="settings-subnav-item"
+          :style="{
+            padding: '10px 14px',
+            borderRadius: '9px',
+            background: section === it.id ? UI.panel : 'transparent',
+            border: section === it.id ? `1px solid ${UI.border}` : '1px solid transparent',
+            color: it.danger ? UI.rose : section === it.id ? UI.text : UI.textSub,
+            fontSize: '13px',
+            fontWeight: section === it.id ? 600 : 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            cursor: 'pointer',
+          }"
+          @click="section = it.id"
+        >
+          <UIIcon :name="it.ic" :size="15" />
+          {{ it.l }}
+        </div>
+      </div>
+
+      <!-- Right content -->
+      <div
+        style="
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          overflow: auto;
+          min-height: 0;
+        "
+      >
+        <div
+          v-if="loadError"
+          :style="{
+            padding: '10px 14px',
+            background: UI.roseBg,
+            color: UI.rose2,
+            borderRadius: '10px',
+            fontSize: '13px',
+          }"
+        >
+          {{ loadError }}
+        </div>
+        <div
+          v-if="authStore.error"
+          :style="{
+            padding: '10px 14px',
+            background: UI.roseBg,
+            color: UI.rose2,
+            borderRadius: '10px',
+            fontSize: '13px',
+          }"
+        >
+          {{ authStore.error }}
+        </div>
+        <div
+          v-if="successMessage"
+          :style="{
+            padding: '10px 14px',
+            background: UI.emeraldBg,
+            color: UI.emerald2,
+            borderRadius: '10px',
+            fontSize: '13px',
+          }"
+        >
+          {{ successMessage }}
+        </div>
+
+        <!-- Perfil da loja -->
+        <UICard v-if="section === 'loja'" :padding="22">
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              margin-bottom: 4px;
+            "
+          >
+            <div>
+              <div
+                :style="{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: UI.text,
+                  letterSpacing: '-0.3px',
+                }"
+              >
+                Perfil da loja
+              </div>
+              <div :style="{ fontSize: '12px', color: UI.textSub, marginTop: '4px' }">
+                Informações principais do seu cadastro.
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 22px; margin-top: 22px; align-items: flex-start">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
+              <div
+                :style="{
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50px',
+                  background: 'linear-gradient(135deg,#10b981,#059669)',
+                  color: '#fff',
+                  fontSize: '36px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }"
+              >
+                {{ initials }}
+              </div>
+              <UIBtn variant="secondary" size="sm" icon="upload">Trocar logo</UIBtn>
+            </div>
+
+            <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
+              <UIField label="Nome da loja">
+                <UIInput :model-value="user?.merchantName ?? ''" disabled />
+              </UIField>
+              <UIField label="CNPJ">
+                <UIInput :model-value="user?.cnpj ?? ''" disabled />
+              </UIField>
+              <UIField label="Email">
+                <UIInput :model-value="user?.email ?? ''" icon="mail" disabled />
+              </UIField>
+              <UIField label="Telefone">
+                <UIInput :model-value="user?.phone ?? ''" disabled />
+              </UIField>
+            </div>
+          </div>
+
+          <div
+            :style="{
+              marginTop: '22px',
+              padding: '12px 14px',
+              background: UI.amberBg,
+              color: UI.amber2,
+              borderRadius: '9px',
+              fontSize: '12.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }"
+          >
+            <UIIcon name="info" :size="16" />
+            A edição dos dados da loja ainda não está disponível no backend
+            (apenas a chave Anota.AI é editável hoje).
+          </div>
+        </UICard>
+
+        <!-- Integrações -->
+        <UICard v-if="section === 'ints'" :padding="22">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 14px;
+            "
+          >
+            <div>
+              <div
+                :style="{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: UI.text,
+                  letterSpacing: '-0.3px',
+                }"
+              >
+                Integrações
+              </div>
+              <div :style="{ fontSize: '12px', color: UI.textSub, marginTop: '4px' }">
+                Conecte canais de venda externos.
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div
+              :style="{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '14px',
+                padding: '14px',
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '11px',
+                flexDirection: 'column',
+              }"
+            >
+              <div style="display: flex; align-items: center; gap: 14px; width: 100%">
+                <div
+                  :style="{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '9px',
+                    background: apiKey ? UI.emeraldBg : UI.bg,
+                    color: apiKey ? UI.emerald2 : UI.textMute,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }"
+                >
+                  <UIIcon name="sync" :size="16" />
+                </div>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '13.5px', fontWeight: 600 }">Anota.AI</div>
+                  <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
+                    Importação automática de pedidos · sincronização de cardápio.
+                  </div>
+                </div>
+                <UIPill :color="apiKey ? 'emerald' : 'gray'" dot>
+                  {{ apiKey ? 'Conectado' : 'Desconectado' }}
+                </UIPill>
+              </div>
+
+              <form
+                style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 4px"
+                @submit.prevent="handleSaveKey"
+              >
+                <UIField
+                  label="Token de integração"
+                  hint="Cole aqui o token de integração fornecido pelo Anota.AI."
+                >
+                  <UIInput v-model="apiKey" :type="inputType" placeholder="Cole o token do Anota.AI">
+                    <template #rightAddon>
+                      <span
+                        :style="{
+                          fontSize: '11.5px',
+                          color: UI.blue,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }"
+                        @click="showKey = !showKey"
+                      >
+                        {{ showKey ? 'ocultar' : 'mostrar' }}
+                      </span>
+                    </template>
+                  </UIInput>
+                </UIField>
+                <div style="display: flex; justify-content: flex-end">
+                  <UIBtn
+                    variant="primary"
+                    icon="check"
+                    type="submit"
+                    :disabled="authStore.loading"
+                  >
+                    {{ authStore.loading ? 'Salvando…' : 'Salvar token' }}
+                  </UIBtn>
+                </div>
+              </form>
+            </div>
+
+            <div
+              v-for="g in [
+                { name: 'iFood', desc: 'Em breve · backend ainda não suporta esta integração.' },
+                { name: 'WhatsApp Business', desc: 'Em breve · notificações de status para o cliente.' },
+                { name: 'Mercado Pago', desc: 'Em breve · conciliação de recebíveis.' },
+              ]"
+              :key="g.name"
+              :style="{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '12px 14px',
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '11px',
+              }"
+            >
+              <div
+                :style="{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '9px',
+                  background: UI.bg,
+                  color: UI.textMute,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }"
+              >
+                <UIIcon name="sync" :size="16" />
+              </div>
+              <div style="flex: 1">
+                <div :style="{ fontSize: '13.5px', fontWeight: 600 }">{{ g.name }}</div>
+                <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
+                  {{ g.desc }}
+                </div>
+              </div>
+              <UIPill color="gray" dot>Em breve</UIPill>
+            </div>
+          </div>
+        </UICard>
+
+        <!-- Placeholder sections -->
+        <UICard
+          v-if="['horario', 'alerta', 'time', 'billing'].includes(section)"
+          :padding="22"
+        >
+          <div
+            :style="{
+              fontSize: '16px',
+              fontWeight: 700,
+              color: UI.text,
+              letterSpacing: '-0.3px',
+              marginBottom: '6px',
+            }"
+          >
+            {{ SUBNAV.find((s) => s.id === section)?.l }}
+          </div>
+          <div :style="{ fontSize: '12.5px', color: UI.textSub, marginBottom: '18px' }">
+            Esta seção ainda não está disponível.
+          </div>
+          <div
+            :style="{
+              padding: '14px',
+              background: UI.amberBg,
+              color: UI.amber2,
+              borderRadius: '10px',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }"
+          >
+            <UIIcon name="info" :size="16" />
+            O backend ainda não expõe os campos necessários para esta tela. Consulte
+            <code style="font-family: ui-monospace, monospace">docs/BACKEND_GAPS.md</code>.
+          </div>
+        </UICard>
+
+        <UICard v-if="section === 'danger'" :padding="22">
+          <div
+            :style="{
+              fontSize: '16px',
+              fontWeight: 700,
+              color: UI.rose,
+              letterSpacing: '-0.3px',
+              marginBottom: '6px',
+            }"
+          >
+            Zona perigosa
+          </div>
+          <div :style="{ fontSize: '12.5px', color: UI.textSub, marginBottom: '18px' }">
+            Ações destrutivas. Só faça aqui o que você tem certeza.
+          </div>
+          <div
+            :style="{
+              padding: '14px',
+              background: UI.roseBg,
+              color: UI.rose2,
+              borderRadius: '10px',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }"
+          >
+            <UIIcon name="alert" :size="16" />
+            Funcionalidades como excluir conta / cancelar plano ainda não existem no backend.
+          </div>
+        </UICard>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.settings-subnav-item {
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.settings-subnav-item:hover {
+  opacity: 0.85;
+}
+</style>

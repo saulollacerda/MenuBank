@@ -2,13 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useProductStore } from '@/stores/productStore'
 import { productService } from '@/services/productService'
-import { recipeItemService } from '@/services/recipeItemService'
+import { includeService } from '@/services/includeService'
 
 vi.mock('@/services/productService')
-vi.mock('@/services/recipeItemService')
+vi.mock('@/services/includeService')
 
 const mockedProductService = vi.mocked(productService)
-const mockedRecipeItemService = vi.mocked(recipeItemService)
+const mockedIncludeService = vi.mocked(includeService)
+
+function asPage<T>(content: T[], size = 20) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: content.length === 0 ? 0 : 1,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: content.length === 0,
+  }
+}
 
 describe('productStore', () => {
   beforeEach(() => {
@@ -16,118 +29,96 @@ describe('productStore', () => {
     vi.clearAllMocks()
   })
 
-  it('fetchAll should populate items', async () => {
+  it('fetchPage should populate items and pagination state', async () => {
     const mockData = [
       {
         id: '1',
         name: 'Hambúrguer',
         price: 25.0,
-        estimatedCost: 10.0,
-        margin: 15.0,
         status: 'ACTIVE' as const,
-        cmv: 10.0,
         categoryId: 'cat1',
         categoryName: 'Lanches',
       },
     ]
-    mockedProductService.findAll.mockResolvedValue(mockData)
+    mockedProductService.findAll.mockResolvedValue(asPage(mockData))
 
     const store = useProductStore()
-    await store.fetchAll()
+    await store.fetchPage({ search: 'hamb', page: 0 })
 
     expect(store.items).toEqual(mockData)
+    expect(store.totalElements).toBe(1)
+    expect(store.search).toBe('hamb')
     expect(store.loading).toBe(false)
   })
 
-  it('fetchAll should not call service again when data is already loaded', async () => {
-    const mockData = [
-      {
-        id: '1',
-        name: 'Hambúrguer',
-        price: 25.0,
-        estimatedCost: 10.0,
-        margin: 15.0,
-        status: 'ACTIVE' as const,
-        cmv: 10.0,
-        categoryId: 'cat1',
-        categoryName: 'Lanches',
-      },
-    ]
-    mockedProductService.findAll.mockResolvedValue(mockData)
+  it('fetchAll should call service with size=1000 (legacy entry point)', async () => {
+    mockedProductService.findAll.mockResolvedValue(asPage([], 1000))
 
     const store = useProductStore()
     await store.fetchAll()
-    await store.fetchAll()
 
-    expect(mockedProductService.findAll).toHaveBeenCalledTimes(1)
-    expect(store.items).toEqual(mockData)
+    expect(mockedProductService.findAll).toHaveBeenCalledWith({ search: '', page: 0, size: 1000 })
   })
 
-  it('create should add item to the list', async () => {
+  it('fetchAll should NOT pollute pagination state (size stays at default)', async () => {
+    mockedProductService.findAll.mockResolvedValue(asPage([], 1000))
+
+    const store = useProductStore()
+    await store.fetchAll()
+
+    expect(store.size).toBe(20)
+    expect(store.page).toBe(0)
+    expect(store.search).toBe('')
+  })
+
+  it('create should refetch the current page', async () => {
     const created = {
       id: '1',
       name: 'Hambúrguer',
       price: 25.0,
-      estimatedCost: null,
-      margin: null,
       status: 'ACTIVE' as const,
-      cmv: null,
       categoryId: 'cat1',
       categoryName: 'Lanches',
     }
     mockedProductService.create.mockResolvedValue(created)
+    mockedProductService.findAll.mockResolvedValue(asPage([created]))
 
     const store = useProductStore()
     await store.create({ name: 'Hambúrguer', price: 25.0, categoryId: 'cat1' })
 
+    expect(mockedProductService.create).toHaveBeenCalled()
     expect(store.items).toContainEqual(created)
   })
 
-  it('fetchRecipeItems should populate recipeItems', async () => {
-    const mockRecipeItems = [
+  it('fetchIncludes should populate includes', async () => {
+    const mockIncludes = [
       {
-        id: 'r1',
+        id: 'inc1',
         productId: 'p1',
-        ingredientId: 'i1',
-        ingredientName: 'Farinha',
-        ingredientUnit: 'kg',
-        quantity: 0.5,
-        costPerUnit: 5.0,
-        totalCost: 2.5,
+        name: 'Copo',
+        cost: 0.5,
+        quantity: 1,
+        totalCost: 0.5,
       },
     ]
-    mockedRecipeItemService.findByProductId.mockResolvedValue(mockRecipeItems)
+    mockedIncludeService.findByProductId.mockResolvedValue(mockIncludes)
 
     const store = useProductStore()
-    await store.fetchRecipeItems('p1')
+    await store.fetchIncludes('p1')
 
-    expect(store.recipeItems).toEqual(mockRecipeItems)
+    expect(store.includes).toEqual(mockIncludes)
   })
 
-  it('addRecipeItem should add to recipeItems and refresh product', async () => {
-    const newRecipeItem = {
-      id: 'r1',
+  it('addInclude should append to includes', async () => {
+    const newInclude = {
+      id: 'inc1',
       productId: 'p1',
-      ingredientId: 'i1',
-      ingredientName: 'Farinha',
-      ingredientUnit: 'kg',
-      quantity: 0.5,
-      costPerUnit: 5.0,
-      totalCost: 2.5,
+      name: 'Copo',
+      cost: 0.5,
+      quantity: 1,
+      totalCost: 0.5,
     }
-    const updatedProduct = {
-      id: 'p1',
-      name: 'Hambúrguer',
-      price: 25.0,
-      estimatedCost: 2.5,
-      margin: 22.5,
-      status: 'ACTIVE' as const,
-      cmv: 2.5,
-      categoryId: 'cat1',
-      categoryName: 'Lanches',
-    }
-    mockedRecipeItemService.add.mockResolvedValue(newRecipeItem)
-    mockedProductService.findById.mockResolvedValue(updatedProduct)
+    mockedIncludeService.add.mockResolvedValue(newInclude)
 
     const store = useProductStore()
     store.items = [
@@ -135,54 +126,61 @@ describe('productStore', () => {
         id: 'p1',
         name: 'Hambúrguer',
         price: 25.0,
-        estimatedCost: null,
-        margin: null,
         status: 'ACTIVE',
-        cmv: null,
         categoryId: 'cat1',
         categoryName: 'Lanches',
       },
     ]
 
-    await store.addRecipeItem('p1', { ingredientId: 'i1', quantity: 0.5 })
+    await store.addInclude('p1', { name: 'Copo', cost: 0.5, quantity: 1 })
 
-    expect(store.recipeItems).toContainEqual(newRecipeItem)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    expect(store.items[0]!.estimatedCost).toBe(2.5)
+    expect(store.includes).toContainEqual(newInclude)
   })
 
-  it('remove should filter out the item', async () => {
+  it('removeInclude should remove from includes', async () => {
     const store = useProductStore()
-    store.items = [
-      {
-        id: '1',
-        name: 'Hambúrguer',
-        price: 25.0,
-        estimatedCost: null,
-        margin: null,
-        status: 'ACTIVE',
-        cmv: null,
-        categoryId: 'cat1',
-        categoryName: 'Lanches',
-      },
-      {
-        id: '2',
-        name: 'Pizza',
-        price: 35.0,
-        estimatedCost: null,
-        margin: null,
-        status: 'ACTIVE',
-        cmv: null,
-        categoryId: 'cat1',
-        categoryName: 'Lanches',
-      },
+    store.includes = [
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
     ]
-    mockedProductService.remove.mockResolvedValue()
+    mockedIncludeService.remove.mockResolvedValue()
 
+    await store.removeInclude('p1', 'inc1')
+
+    expect(store.includes).toEqual([
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
+    ])
+  })
+
+  it('clearRecipe should empty includes', async () => {
+    const store = useProductStore()
+    store.includes = [
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
+    ]
+    mockedIncludeService.clear.mockResolvedValue(1)
+
+    const deleted = await store.clearRecipe('p1')
+
+    expect(deleted).toBe(1)
+    expect(store.includes).toEqual([])
+  })
+
+  it('remove should call service and refetch the current page', async () => {
+    const remaining = {
+      id: '2',
+      name: 'Pizza',
+      price: 35.0,
+      status: 'ACTIVE' as const,
+      categoryId: 'cat1',
+      categoryName: 'Lanches',
+    }
+    mockedProductService.remove.mockResolvedValue()
+    mockedProductService.findAll.mockResolvedValue(asPage([remaining]))
+
+    const store = useProductStore()
     await store.remove('1')
 
-    expect(store.items).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    expect(store.items[0]!.id).toBe('2')
+    expect(mockedProductService.remove).toHaveBeenCalledWith('1')
+    expect(store.items).toEqual([remaining])
   })
 })

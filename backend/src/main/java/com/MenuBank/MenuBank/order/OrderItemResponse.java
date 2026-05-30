@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.order;
 
+import com.MenuBank.MenuBank.product.IncludeResponse;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -20,6 +21,16 @@ public class OrderItemResponse {
     private BigDecimal unitCost;
     private BigDecimal totalCost;
 
+    /**
+     * Insumos da ficha técnica do produto (Includes) no momento da consulta.
+     * Esses são os ingredientes base do produto, fixos por receita.
+     */
+    @Builder.Default
+    private List<IncludeResponse> insumos = List.of();
+
+    /**
+     * Ingredientes extras adicionados pelo cliente neste pedido (subItems no Anota.AI).
+     */
     @Builder.Default
     private List<OrderItemExtraIngredientResponse> extraIngredients = List.of();
 }

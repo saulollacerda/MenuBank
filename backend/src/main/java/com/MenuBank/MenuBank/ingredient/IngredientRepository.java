@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.ingredient;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -8,14 +10,17 @@ import java.util.UUID;
 
 public interface IngredientRepository extends JpaRepository<Ingredient, UUID> {
 
-    boolean existsByNameAndOwnerId(String name, UUID ownerId);
+    boolean existsByNameAndMerchantId(String name, UUID merchantId);
 
-    Optional<Ingredient> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Ingredient> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Ingredient> findAllByOwnerId(UUID ownerId);
+    List<Ingredient> findAllByMerchantId(UUID merchantId);
 
-    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+    Page<Ingredient> findAllByMerchantIdAndNameContainingIgnoreCase(UUID merchantId, String name, Pageable pageable);
 
-    void deleteByIdAndOwnerId(UUID id, UUID ownerId);
+    boolean existsByIdAndMerchantId(UUID id, UUID merchantId);
+
+    void deleteByIdAndMerchantId(UUID id, UUID merchantId);
+
+    Optional<Ingredient> findByCanonicalNameAndMerchantId(String canonicalName, UUID merchantId);
 }
-

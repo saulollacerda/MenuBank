@@ -1,0 +1,82 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-acai-toppings",
+      "title": "Toppings de Açaí",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "topping-banana",
+          "title": "Banana",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "topping-morango",
+          "title": "Morango",
+          "out": false,
+          "week_prices": [{ "price": 1.5, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "topping-leite",
+          "title": "Leite Condensado",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "topping-granola",
+          "title": "Granola",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "topping-paco",
+          "title": "Paçoca",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "id": "cat-acai-toppings-shadow",
+      "title": "Acai Extras",
+      "is_additional": true,
+      "itens": [
+        {
+          "id": "extra-banana",
+          "title": "Banana",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "extra-morango",
+          "title": "Morango",
+          "out": false,
+          "week_prices": [{ "price": 1.5, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "extra-leite",
+          "title": "Leite Condensado",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        },
+        {
+          "id": "extra-granola",
+          "title": "Granola",
+          "out": false,
+          "week_prices": [{ "price": 1.0, "short_name": "sun" }],
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

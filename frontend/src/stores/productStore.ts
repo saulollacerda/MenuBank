@@ -1,41 +1,74 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ProductRequest, ProductResponse, RecipeItemResponse } from '@/types/Product'
-import type { RecipeItemRequest } from '@/types/Product'
+import { createStaleCache } from '@/utils/staleCache'
+
+const TTL_MS = 5 * 60 * 1000
+import type {
+  ProductRequest,
+  ProductResponse,
+  IncludeRequest,
+  IncludeResponse,
+} from '@/types/Product'
+import type { PageParams } from '@/types/Page'
+import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 import { productService } from '@/services/productService'
-import { recipeItemService } from '@/services/recipeItemService'
+import { includeService } from '@/services/includeService'
 
 export const useProductStore = defineStore('product', () => {
   const items = ref<ProductResponse[]>([])
-  const recipeItems = ref<RecipeItemResponse[]>([])
+  const includes = ref<IncludeResponse[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const cache = createStaleCache(TTL_MS)
 
-  let fetchAllInFlight: Promise<void> | null = null
+  // pagination state
+  const search = ref('')
+  const page = ref(0)
+  const size = ref(DEFAULT_PAGE_SIZE)
+  const totalElements = ref(0)
+  const totalPages = ref(0)
 
-  async function fetchAll(force = false) {
-    if (!force && loaded.value) return
-    if (!force && fetchAllInFlight) return fetchAllInFlight
-
+  async function fetchPage(params: PageParams = {}) {
     loading.value = true
     error.value = null
+    try {
+      const result = await productService.findAll({
+        search: params.search ?? search.value,
+        page: params.page ?? page.value,
+        size: params.size ?? size.value,
+      })
+      items.value = result.content
+      search.value = params.search ?? search.value
+      page.value = result.number
+      size.value = result.size
+      totalElements.value = result.totalElements
+      totalPages.value = result.totalPages
+      loaded.value = true
+    } catch (e: unknown) {
+      loaded.value = false
+      error.value = 'Erro ao carregar produtos'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
 
-    fetchAllInFlight = (async () => {
-      try {
-        items.value = await productService.findAll()
-        loaded.value = true
-      } catch (e: unknown) {
-        loaded.value = false
-        error.value = 'Erro ao carregar produtos'
-        throw e
-      } finally {
-        loading.value = false
-        fetchAllInFlight = null
-      }
-    })()
-
-    return fetchAllInFlight
+  async function fetchAll(force = false) {
+    if (!force && loaded.value && !cache.isStale()) return
+    loading.value = true
+    error.value = null
+    try {
+      const result = await productService.findAll({ search: '', page: 0, size: 1000 })
+      items.value = result.content
+      loaded.value = true
+      cache.markFresh()
+    } catch (e: unknown) {
+      error.value = 'Erro ao carregar produtos'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
   async function create(request: ProductRequest) {
@@ -43,8 +76,8 @@ export const useProductStore = defineStore('product', () => {
     error.value = null
     try {
       const created = await productService.create(request)
-      items.value.push(created)
-      loaded.value = true
+      cache.invalidate()
+      await fetchPage({})
       return created
     } catch (e: unknown) {
       error.value = 'Erro ao criar produto'
@@ -61,7 +94,6 @@ export const useProductStore = defineStore('product', () => {
       const updated = await productService.update(id, request)
       const index = items.value.findIndex((item) => item.id === id)
       if (index !== -1) items.value[index] = updated
-      loaded.value = true
       return updated
     } catch (e: unknown) {
       error.value = 'Erro ao atualizar produto'
@@ -76,8 +108,8 @@ export const useProductStore = defineStore('product', () => {
     error.value = null
     try {
       await productService.remove(id)
-      items.value = items.value.filter((item) => item.id !== id)
-      loaded.value = true
+      cache.invalidate()
+      await fetchPage({})
     } catch (e: unknown) {
       error.value = 'Erro ao excluir produto'
       throw e
@@ -86,11 +118,11 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function fetchRecipeItems(productId: string) {
+  async function fetchIncludes(productId: string) {
     loading.value = true
     error.value = null
     try {
-      recipeItems.value = await recipeItemService.findByProductId(productId)
+      includes.value = await includeService.findByProductId(productId)
     } catch (e: unknown) {
       error.value = 'Erro ao carregar ficha técnica'
       throw e
@@ -99,37 +131,59 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function addRecipeItem(productId: string, request: RecipeItemRequest) {
+  async function addInclude(productId: string, request: IncludeRequest) {
     loading.value = true
     error.value = null
     try {
-      const created = await recipeItemService.add(productId, request)
-      recipeItems.value.push(created)
-      // Refresh the product to get updated estimatedCost/margin
-      const updated = await productService.findById(productId)
-      const index = items.value.findIndex((item) => item.id === productId)
-      if (index !== -1) items.value[index] = updated
+      const created = await includeService.add(productId, request)
+      includes.value.push(created)
       return created
     } catch (e: unknown) {
-      error.value = 'Erro ao adicionar ingrediente à ficha técnica'
+      error.value = 'Erro ao adicionar item à ficha técnica'
       throw e
     } finally {
       loading.value = false
     }
   }
 
-  async function removeRecipeItem(productId: string, recipeItemId: string) {
+  async function batchAddIncludes(productId: string, requests: IncludeRequest[]) {
     loading.value = true
     error.value = null
     try {
-      await recipeItemService.remove(productId, recipeItemId)
-      recipeItems.value = recipeItems.value.filter((item) => item.id !== recipeItemId)
-      // Refresh the product to get updated estimatedCost/margin
-      const updated = await productService.findById(productId)
-      const index = items.value.findIndex((item) => item.id === productId)
-      if (index !== -1) items.value[index] = updated
+      const created = await includeService.addBatch(productId, requests)
+      includes.value.push(...created)
+      return created
     } catch (e: unknown) {
-      error.value = 'Erro ao remover ingrediente da ficha técnica'
+      error.value = 'Erro ao salvar itens em lote'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function clearRecipe(productId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      const deleted = await includeService.clear(productId)
+      includes.value = []
+      return deleted
+    } catch (e: unknown) {
+      error.value = 'Erro ao limpar ficha técnica'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function removeInclude(productId: string, includeId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await includeService.remove(productId, includeId)
+      includes.value = includes.value.filter((item) => item.id !== includeId)
+    } catch (e: unknown) {
+      error.value = 'Erro ao remover item da ficha técnica'
       throw e
     } finally {
       loading.value = false
@@ -138,16 +192,23 @@ export const useProductStore = defineStore('product', () => {
 
   return {
     items,
-    recipeItems,
+    includes,
     loading,
     error,
+    search,
+    page,
+    size,
+    totalElements,
+    totalPages,
+    fetchPage,
     fetchAll,
     create,
     update,
     remove,
-    fetchRecipeItems,
-    addRecipeItem,
-    removeRecipeItem,
+    fetchIncludes,
+    addInclude,
+    batchAddIncludes,
+    removeInclude,
+    clearRecipe,
   }
 })
-

@@ -1,86 +1,205 @@
 package com.MenuBank.MenuBank.ingredient;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.merchant.MerchantRepository;
+import com.MenuBank.MenuBank.notification.NotificationService;
+import com.MenuBank.MenuBank.product.IncludeRepository;
+import com.MenuBank.MenuBank.product.IngredientProductUsageResponse;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class IngredientService {
 
     private final IngredientRepository ingredientRepository;
-    private final UserContext userContext;
+    private final MerchantRepository merchantRepository;
+    private final NotificationService notificationService;
+    private final IncludeRepository includeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public IngredientService(IngredientRepository ingredientRepository, UserContext userContext) {
+    public IngredientService(IngredientRepository ingredientRepository,
+                             MerchantRepository merchantRepository,
+                             NotificationService notificationService,
+                             IncludeRepository includeRepository,
+                             ApplicationEventPublisher eventPublisher) {
         this.ingredientRepository = ingredientRepository;
-        this.userContext = userContext;
+        this.merchantRepository = merchantRepository;
+        this.notificationService = notificationService;
+        this.includeRepository = includeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
-    public IngredientResponse create(IngredientRequest request) {
-        UUID ownerId = userContext.getUserId();
-
-        if (ingredientRepository.existsByNameAndOwnerId(request.getName(), ownerId)) {
+    @Transactional
+    public IngredientResponse create(UUID merchantId, IngredientRequest request) {
+        if (ingredientRepository.existsByNameAndMerchantId(request.getName(), merchantId)) {
             throw new DuplicateIngredientException("nome");
         }
 
+        String canonicalName = IngredientNameNormalizer.normalize(request.getName());
         Ingredient ingredient = Ingredient.builder()
-                .ownerId(ownerId)
+                .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
+                .canonicalName(canonicalName)
                 .unit(request.getUnit())
                 .costPerUnit(request.getCostPerUnit())
+                .salePrice(request.getSalePrice())
                 .defaultQuantity(request.getDefaultQuantity())
-                .status(IngredientStatus.ACTIVE)
+                .status(request.getStatus() != null ? request.getStatus() : IngredientStatus.ACTIVE)
+                .stockQuantity(request.getStockQuantity())
+                .lastReplenishedAt(request.getLastReplenishedAt())
+                .lowStockThreshold(request.getLowStockThreshold())
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
+        notificationService.resolveMissingIngredient(canonicalName, merchantId);
+        eventPublisher.publishEvent(new IngredientCreatedEvent(merchantId, saved.getId(), canonicalName));
         return toResponse(saved);
     }
 
-    public IngredientResponse findById(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
+    public IngredientResponse findById(UUID merchantId, UUID id) {
+        Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
         return toResponse(ingredient);
     }
 
-    public List<IngredientResponse> findAll() {
-        UUID ownerId = userContext.getUserId();
-        return ingredientRepository.findAllByOwnerId(ownerId).stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<IngredientResponse> findAll(UUID merchantId, String search, Pageable pageable) {
+        String term = search == null ? "" : search;
+        Page<Ingredient> page = ingredientRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
+        Map<String, Long> usageCounts = fetchUsageCounts(page.getContent(), merchantId);
+        return page.map(i -> toResponse(i, (Long) usageCounts.getOrDefault(
+                i.getName() == null ? "" : i.getName().toLowerCase(), 0L)));
     }
 
-    public IngredientResponse update(UUID id, IngredientRequest request) {
-        UUID ownerId = userContext.getUserId();
-        Ingredient ingredient = ingredientRepository.findByIdAndOwnerId(id, ownerId)
+    private Map<String, Long> fetchUsageCounts(List<Ingredient> ingredients, UUID merchantId) {
+        if (ingredients.isEmpty()) {
+            return Map.of();
+        }
+        List<String> names = ingredients.stream()
+                .map(Ingredient::getName)
+                .filter(java.util.Objects::nonNull)
+                .map(String::toLowerCase)
+                .distinct()
+                .toList();
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : includeRepository.countByLowercaseNameInForMerchant(merchantId, names)) {
+            counts.put((String) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    @Transactional
+    public IngredientResponse update(UUID merchantId, UUID id, IngredientRequest request) {
+        Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
         ingredient.setName(request.getName());
+        ingredient.setCanonicalName(IngredientNameNormalizer.normalize(request.getName()));
         ingredient.setUnit(request.getUnit());
         ingredient.setCostPerUnit(request.getCostPerUnit());
         ingredient.setDefaultQuantity(request.getDefaultQuantity());
+        if (request.getSalePrice() != null) {
+            ingredient.setSalePrice(request.getSalePrice());
+        }
+        if (request.getStatus() != null) {
+            ingredient.setStatus(request.getStatus());
+        }
+        if (request.getStockQuantity() != null) {
+            ingredient.setStockQuantity(request.getStockQuantity());
+        }
+        if (request.getLastReplenishedAt() != null) {
+            ingredient.setLastReplenishedAt(request.getLastReplenishedAt());
+        }
+        if (request.getLowStockThreshold() != null) {
+            ingredient.setLowStockThreshold(request.getLowStockThreshold());
+        }
 
-        Ingredient saved = ingredientRepository.save(ingredient);
-        return toResponse(saved);
+        return toResponse(ingredientRepository.save(ingredient));
     }
 
-    public void delete(UUID id) {
-        UUID ownerId = userContext.getUserId();
-        if (!ingredientRepository.existsByIdAndOwnerId(id, ownerId)) {
+    @Transactional
+    public IngredientResponse updateCost(UUID merchantId, UUID id, IngredientCostRequest request) {
+        Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
+                .orElseThrow(() -> new IngredientNotFoundException(id));
+
+        ingredient.setCostPerUnit(request.getCostPerUnit());
+        if (request.getDefaultQuantity() != null) {
+            ingredient.setDefaultQuantity(request.getDefaultQuantity());
+        }
+        if (request.getUnit() != null && !request.getUnit().isBlank()) {
+            ingredient.setUnit(request.getUnit());
+        }
+
+        return toResponse(ingredientRepository.save(ingredient));
+    }
+
+    @Transactional
+    public void delete(UUID merchantId, UUID id) {
+        if (!ingredientRepository.existsByIdAndMerchantId(id, merchantId)) {
             throw new IngredientNotFoundException(id);
         }
-        ingredientRepository.deleteByIdAndOwnerId(id, ownerId);
+        ingredientRepository.deleteByIdAndMerchantId(id, merchantId);
+    }
+
+    /**
+     * Retorna os produtos cujas fichas tecnicas (includes) contem este ingrediente
+     * (match por nome, case-insensitive).
+     */
+    public List<IngredientProductUsageResponse> fetchUsages(UUID merchantId, UUID id) {
+        Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
+                .orElseThrow(() -> new IngredientNotFoundException(id));
+
+        return includeRepository
+                .findByNameIgnoreCaseAndProductMerchantId(ingredient.getName(), merchantId)
+                .stream()
+                .map(inc -> {
+                    BigDecimal cost = inc.getCost() != null ? inc.getCost() : BigDecimal.ZERO;
+                    BigDecimal qty = inc.getQuantity() != null ? inc.getQuantity() : BigDecimal.ONE;
+                    BigDecimal total = cost.multiply(qty).setScale(4, RoundingMode.HALF_UP);
+                    return IngredientProductUsageResponse.builder()
+                            .includeId(inc.getId())
+                            .productId(inc.getProduct().getId())
+                            .productName(inc.getProduct().getName())
+                            .quantity(qty)
+                            .cost(cost)
+                            .totalCost(total)
+                            .build();
+                })
+                .toList();
     }
 
     private IngredientResponse toResponse(Ingredient ingredient) {
+        return toResponse(ingredient, null);
+    }
+
+    private IngredientResponse toResponse(Ingredient ingredient, Long usageCount) {
+        BigDecimal totalStockCost = null;
+        if (ingredient.getStockQuantity() != null && ingredient.getCostPerUnit() != null) {
+            totalStockCost = ingredient.getStockQuantity().multiply(ingredient.getCostPerUnit())
+                    .setScale(4, RoundingMode.HALF_UP);
+        }
         return IngredientResponse.builder()
                 .id(ingredient.getId())
                 .name(ingredient.getName())
                 .unit(ingredient.getUnit())
                 .costPerUnit(ingredient.getCostPerUnit())
+                .salePrice(ingredient.getSalePrice())
                 .defaultQuantity(ingredient.getDefaultQuantity())
                 .status(ingredient.getStatus())
+                .stockQuantity(ingredient.getStockQuantity())
+                .lastReplenishedAt(ingredient.getLastReplenishedAt())
+                .lowStockThreshold(ingredient.getLowStockThreshold())
+                .totalStockCost(totalStockCost)
+                .usageCount(usageCount)
                 .build();
     }
 }

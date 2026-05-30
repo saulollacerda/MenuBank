@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.dashboard;
 
-import com.MenuBank.MenuBank.common.UserContext;
+import com.MenuBank.MenuBank.merchant.Merchant;
+
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
@@ -31,13 +32,10 @@ class DashboardServiceTest {
     @Mock
     private OrderRepository orderRepository;
 
-    @Mock
-    private UserContext userContext;
-
     @InjectMocks
     private DashboardService dashboardService;
 
-    private UUID ownerId;
+    private UUID merchantId;
     private LocalDate startDate;
     private LocalDate endDate;
     private Product productBurguer;
@@ -46,19 +44,19 @@ class DashboardServiceTest {
 
     @BeforeEach
     void setUp() {
-        ownerId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
         startDate = LocalDate.of(2026, 3, 1);
         endDate = LocalDate.of(2026, 3, 31);
 
         customer = Customer.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("João Silva")
                 .build();
 
         productBurguer = Product.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("X-Burguer")
                 .price(new BigDecimal("25.00"))
                 .status(ProductStatus.ACTIVE)
@@ -66,7 +64,7 @@ class DashboardServiceTest {
 
         productPizza = Product.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .name("Pizza Margherita")
                 .price(new BigDecimal("45.00"))
                 .status(ProductStatus.ACTIVE)
@@ -78,7 +76,7 @@ class DashboardServiceTest {
                              List<OrderItem> items) {
         Order order = Order.builder()
                 .id(UUID.randomUUID())
-                .ownerId(ownerId)
+                .merchant(Merchant.builder().id(merchantId).build())
                 .dateTime(dateTime)
                 .customer(customer)
                 .status(status)
@@ -116,11 +114,10 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTotalSales()).isEqualByComparingTo(new BigDecimal("300.00"));
         }
@@ -137,11 +134,10 @@ class DashboardServiceTest {
                             new BigDecimal("15.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getOrderCount()).isEqualTo(3L);
         }
@@ -156,14 +152,60 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             // (100 + 200) / 2 = 150
             assertThat(result.getAverageTicket()).isEqualByComparingTo(new BigDecimal("150.00"));
+        }
+
+        @Test
+        @DisplayName("deve calcular totalSalesChangePct comparando com período anterior")
+        void shouldCalculateTotalSalesChangePct() {
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(
+                            List.of(buildOrder(startDate.atTime(10, 0), new BigDecimal("200.00"),
+                                    new BigDecimal("60.00"), OrderStatus.PAID, List.of())),
+                            List.of(buildOrder(startDate.minusDays(31).atTime(10, 0), new BigDecimal("100.00"),
+                                    new BigDecimal("30.00"), OrderStatus.PAID, List.of()))
+                    );
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            // (200 - 100) / 100 * 100 = 100.00
+            assertThat(result.getTotalSalesChangePct()).isEqualByComparingTo(new BigDecimal("100.00"));
+        }
+
+        @Test
+        @DisplayName("deve calcular estimatedMarginPct (estimatedProfit / totalSales × 100)")
+        void shouldCalculateEstimatedMarginPct() {
+            List<Order> paidOrders = List.of(
+                    buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
+                            new BigDecimal("60.00"), OrderStatus.PAID, List.of())
+            );
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(paidOrders);
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            assertThat(result.getEstimatedMarginPct()).isEqualByComparingTo(new BigDecimal("60.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar customerCount obtido do repository")
+        void shouldReturnCustomerCount() {
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+            given(orderRepository.countDistinctCustomersByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(7L, 4L);
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            assertThat(result.getCustomerCount()).isEqualTo(7L);
+            // (7 - 4) / 4 * 100 = 75.00
+            assertThat(result.getCustomerCountChangePct()).isEqualByComparingTo(new BigDecimal("75.00"));
         }
 
         @Test
@@ -176,11 +218,10 @@ class DashboardServiceTest {
                             new BigDecimal("70.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("100.00"));
         }
@@ -197,11 +238,10 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar KPIs zerados quando não há pedidos no período")
         void shouldReturnZeroKpisWhenNoOrders() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTotalSales()).isEqualByComparingTo(BigDecimal.ZERO);
             assertThat(result.getOrderCount()).isEqualTo(0L);
@@ -212,11 +252,10 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar salesByDay vazio quando não há pedidos")
         void shouldReturnEmptySalesByDay() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getSalesByDay()).isEmpty();
         }
@@ -224,11 +263,10 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar topProducts vazio quando não há pedidos")
         void shouldReturnEmptyTopProducts() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTopProducts()).isEmpty();
         }
@@ -257,11 +295,10 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getSalesByDay()).hasSize(2);
 
@@ -290,11 +327,10 @@ class DashboardServiceTest {
                             new BigDecimal("20.00"), OrderStatus.PAID, List.of())
             );
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getSalesByDay()).hasSize(3);
             assertThat(result.getSalesByDay().get(0).getDate()).isEqualTo(day1);
@@ -320,11 +356,10 @@ class DashboardServiceTest {
             Order order = buildOrder(startDate.atTime(10, 0), new BigDecimal("500.00"),
                     new BigDecimal("150.00"), OrderStatus.PAID, List.of(item1, item2));
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order));
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTopProducts()).hasSize(2);
             assertThat(result.getTopProducts().get(0).getProductName()).isEqualTo("Pizza Margherita");
@@ -348,11 +383,10 @@ class DashboardServiceTest {
                     List.of(buildItem(p1, 10), buildItem(p2, 8), buildItem(p3, 6),
                             buildItem(p4, 4), buildItem(p5, 2), buildItem(p6, 1)));
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order));
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTopProducts()).hasSize(5);
             assertThat(result.getTopProducts().get(0).getProductName()).isEqualTo("Produto A");
@@ -369,11 +403,10 @@ class DashboardServiceTest {
                     new BigDecimal("30.00"), OrderStatus.PAID,
                     List.of(buildItem(productBurguer, 7)));
 
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order1, order2));
 
-            DashboardResponse result = dashboardService.getDashboard(startDate, endDate);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getTopProducts()).hasSize(1);
             assertThat(result.getTopProducts().get(0).getProductName()).isEqualTo("X-Burguer");
@@ -392,19 +425,86 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve usar data de hoje quando startDate e endDate são nulos")
         void shouldUseCurrentDateWhenDatesAreNull() {
-            given(userContext.getUserId()).willReturn(ownerId);
-            given(orderRepository.findByOwnerIdAndDateTimeBetweenAndStatus(eq(ownerId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
-            DashboardResponse result = dashboardService.getDashboard(null, null);
+            DashboardResponse result = dashboardService.getDashboard(merchantId, null, null);
 
             assertThat(result).isNotNull();
-            then(orderRepository).should().findByOwnerIdAndDateTimeBetweenAndStatus(
-                    eq(ownerId),
+            then(orderRepository).should(atLeastOnce()).findAllForReportByMerchantAndPeriodAndStatus(
+                    eq(merchantId),
                     eq(LocalDate.now().atStartOfDay()),
                     eq(LocalDate.now().atTime(23, 59, 59)),
                     eq(OrderStatus.PAID)
             );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // peakHours()
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("peakHours(startDate, endDate)")
+    class PeakHours {
+
+        @Test
+        @DisplayName("deve retornar items com hour/orderCount/pct calculados")
+        void shouldReturnPeakHoursWithPct() {
+            given(orderRepository.peakHoursByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(List.of(
+                            new Object[]{11, 3L},
+                            new Object[]{12, 7L}
+                    ));
+
+            List<PeakHour> result = dashboardService.peakHours(merchantId, startDate, endDate);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getHour()).isEqualTo(11);
+            assertThat(result.get(0).getOrderCount()).isEqualTo(3L);
+            // 3 / 10 * 100 = 30.00
+            assertThat(result.get(0).getPct()).isEqualByComparingTo(new BigDecimal("30.00"));
+            assertThat(result.get(1).getHour()).isEqualTo(12);
+            assertThat(result.get(1).getPct()).isEqualByComparingTo(new BigDecimal("70.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar lista vazia quando não há pedidos no período")
+        void shouldReturnEmptyWhenNoOrders() {
+            given(orderRepository.peakHoursByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
+                    .willReturn(List.of());
+
+            List<PeakHour> result = dashboardService.peakHours(merchantId, startDate, endDate);
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // channels()
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("channels(startDate, endDate)")
+    class Channels {
+
+        @Test
+        @DisplayName("deve retornar contagem por origin com pct")
+        void shouldReturnChannelsWithPct() {
+            given(orderRepository.countByOriginForMerchant(eq(merchantId), any(), any()))
+                    .willReturn(List.of(
+                            new Object[]{com.MenuBank.MenuBank.order.OrderOrigin.MENUBANK, 3L},
+                            new Object[]{com.MenuBank.MenuBank.order.OrderOrigin.ANOTA_AI, 1L}
+                    ));
+
+            List<ChannelBreakdown> result = dashboardService.channels(merchantId, startDate, endDate);
+
+            assertThat(result).hasSize(2);
+            BigDecimal menubankPct = result.stream()
+                    .filter(c -> c.getOrigin() == com.MenuBank.MenuBank.order.OrderOrigin.MENUBANK)
+                    .findFirst().get().getPct();
+            // 3 / 4 * 100 = 75.00
+            assertThat(menubankPct).isEqualByComparingTo(new BigDecimal("75.00"));
         }
     }
 }

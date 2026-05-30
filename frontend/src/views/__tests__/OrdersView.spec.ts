@@ -5,6 +5,9 @@ let orderStoreMock: any
 let customerStoreMock: any
 let productStoreMock: any
 let ingredientStoreMock: any
+let feeStoreMock: any
+let anotaAIStoreMock: any
+let notificationStoreMock: any
 
 vi.mock('@/stores/orderStore', () => ({
   useOrderStore: () => orderStoreMock,
@@ -22,6 +25,18 @@ vi.mock('@/stores/ingredientStore', () => ({
   useIngredientStore: () => ingredientStoreMock,
 }))
 
+vi.mock('@/stores/feeStore', () => ({
+  useFeeStore: () => feeStoreMock,
+}))
+
+vi.mock('@/stores/anotaAIStore', () => ({
+  useAnotaAIStore: () => anotaAIStoreMock,
+}))
+
+vi.mock('@/stores/notificationStore', () => ({
+  useNotificationStore: () => notificationStoreMock,
+}))
+
 import OrdersView from '@/views/OrdersView.vue'
 
 describe('OrdersView', () => {
@@ -30,7 +45,16 @@ describe('OrdersView', () => {
       items: [],
       loading: false,
       error: null,
+      search: '',
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
       fetchAll: vi.fn(),
+      fetchPage: vi.fn(),
+      findById: vi.fn(async (id: string) =>
+        orderStoreMock.items.find((o: { id: string }) => o.id === id),
+      ),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn(),
       remove: vi.fn(),
@@ -65,6 +89,34 @@ describe('OrdersView', () => {
       loading: false,
       error: null,
       fetchAll: vi.fn(),
+    }
+
+    feeStoreMock = {
+      items: [],
+      loading: false,
+      error: null,
+      fetchAll: vi.fn(),
+    }
+
+    anotaAIStoreMock = {
+      syncingOrders: false,
+      syncingCatalog: false,
+      lastResult: null,
+      error: null,
+      syncOrders: vi.fn(),
+      syncCatalog: vi.fn(),
+      clearResult: vi.fn(),
+    }
+
+    notificationStoreMock = {
+      items: [],
+      unreadCount: 0,
+      loading: false,
+      error: null,
+      fetchAll: vi.fn(),
+      refreshCount: vi.fn(),
+      markRead: vi.fn(),
+      dismiss: vi.fn(),
     }
   })
 
@@ -160,7 +212,7 @@ describe('OrdersView', () => {
     const html = detail.html()
     expect(html).toContain('Bacon')
     expect(html).toContain('50')
-    expect(html).toMatch(/Total de custos/i)
+    expect(html).toMatch(/Custo/i)
     expect(detail.get('[data-testid="order-detail-total-cost"]').text()).toMatch(/34/)
     expect(detail.get('[data-testid="order-detail-estimated-profit"]').text()).toMatch(/26/)
     expect(detail.get('[data-testid="order-detail-margin"]').text()).toMatch(/43[,.]/)

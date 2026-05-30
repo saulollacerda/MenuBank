@@ -1,9 +1,11 @@
 package com.MenuBank.MenuBank.category;
 
+import com.MenuBank.MenuBank.auth.AuthHelper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,12 +34,18 @@ class CategoryControllerTest {
     @MockitoBean
     private CategoryService categoryService;
 
+    @MockitoBean
+    private AuthHelper authHelper;
+
     private UUID categoryId;
+    private UUID merchantId;
     private CategoryResponse categoryResponse;
 
     @BeforeEach
     void setUp() {
         categoryId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        given(authHelper.getMerchantId(any(Authentication.class))).willReturn(merchantId);
 
         categoryResponse = CategoryResponse.builder()
                 .id(categoryId)
@@ -62,7 +70,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 201 com CategoryResponse ao criar categoria válida")
         void shouldReturn201WithCategoryResponse() throws Exception {
-            given(categoryService.create(any(CategoryRequest.class))).willReturn(categoryResponse);
+            given(categoryService.create(any(), any(CategoryRequest.class))).willReturn(categoryResponse);
 
             mockMvc.perform(post("/api/categories")
                             .with(csrf())
@@ -97,7 +105,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 409 quando nome já está em uso")
         void shouldReturn409WhenNameAlreadyInUse() throws Exception {
-            given(categoryService.create(any(CategoryRequest.class)))
+            given(categoryService.create(any(), any(CategoryRequest.class)))
                     .willThrow(new DuplicateCategoryException("nome"));
 
             mockMvc.perform(post("/api/categories")
@@ -119,7 +127,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 200 com CategoryResponse quando categoria existe")
         void shouldReturn200WhenCategoryExists() throws Exception {
-            given(categoryService.findById(categoryId)).willReturn(categoryResponse);
+            given(categoryService.findById(any(), eq(categoryId))).willReturn(categoryResponse);
 
             mockMvc.perform(get("/api/categories/{id}", categoryId))
                     .andExpect(status().isOk())
@@ -130,7 +138,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando categoria não encontrada")
         void shouldReturn404WhenCategoryNotFound() throws Exception {
-            given(categoryService.findById(categoryId))
+            given(categoryService.findById(any(), eq(categoryId)))
                     .willThrow(new CategoryNotFoundException(categoryId));
 
             mockMvc.perform(get("/api/categories/{id}", categoryId))
@@ -147,26 +155,34 @@ class CategoryControllerTest {
     class GetAllCategories {
 
         @Test
-        @DisplayName("deve retornar 200 com lista de categorias")
-        void shouldReturn200WithCategoryList() throws Exception {
-            given(categoryService.findAll()).willReturn(List.of(categoryResponse));
+        @DisplayName("deve retornar 200 com página de categorias")
+        void shouldReturn200WithCategoryPage() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(categoryService.findAll(any(), eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(categoryResponse), pageable, 1));
 
             mockMvc.perform(get("/api/categories"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$[0].id").value(categoryId.toString()))
-                    .andExpect(jsonPath("$[0].name").value("Lanches"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].id").value(categoryId.toString()))
+                    .andExpect(jsonPath("$.content[0].name").value("Lanches"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
         }
 
         @Test
-        @DisplayName("deve retornar 200 com lista vazia quando não há categorias")
-        void shouldReturn200WithEmptyList() throws Exception {
-            given(categoryService.findAll()).willReturn(List.of());
+        @DisplayName("deve repassar parâmetro search ao service")
+        void shouldPassSearchParamToService() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(categoryService.findAll(any(), eq("lan"), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(categoryResponse), pageable, 1));
 
-            mockMvc.perform(get("/api/categories"))
+            mockMvc.perform(get("/api/categories").param("search", "lan"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$").isEmpty());
+                    .andExpect(jsonPath("$.content[0].name").value("Lanches"));
         }
     }
 
@@ -181,7 +197,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 200 com CategoryResponse atualizado")
         void shouldReturn200WithUpdatedResponse() throws Exception {
-            given(categoryService.update(eq(categoryId), any(CategoryRequest.class)))
+            given(categoryService.update(any(), eq(categoryId), any(CategoryRequest.class)))
                     .willReturn(categoryResponse);
 
             mockMvc.perform(put("/api/categories/{id}", categoryId)
@@ -195,7 +211,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 404 quando categoria não encontrada para atualização")
         void shouldReturn404WhenCategoryNotFoundForUpdate() throws Exception {
-            given(categoryService.update(eq(categoryId), any(CategoryRequest.class)))
+            given(categoryService.update(any(), eq(categoryId), any(CategoryRequest.class)))
                     .willThrow(new CategoryNotFoundException(categoryId));
 
             mockMvc.perform(put("/api/categories/{id}", categoryId)
@@ -227,7 +243,7 @@ class CategoryControllerTest {
         @Test
         @DisplayName("deve retornar 204 ao deletar categoria existente")
         void shouldReturn204WhenDeleted() throws Exception {
-            willDoNothing().given(categoryService).delete(categoryId);
+            willDoNothing().given(categoryService).delete(any(), eq(categoryId));
 
             mockMvc.perform(delete("/api/categories/{id}", categoryId)
                             .with(csrf()))
@@ -238,7 +254,7 @@ class CategoryControllerTest {
         @DisplayName("deve retornar 404 ao tentar deletar categoria inexistente")
         void shouldReturn404WhenCategoryNotFoundForDelete() throws Exception {
             willThrow(new CategoryNotFoundException(categoryId))
-                    .given(categoryService).delete(categoryId);
+                    .given(categoryService).delete(any(), eq(categoryId));
 
             mockMvc.perform(delete("/api/categories/{id}", categoryId)
                             .with(csrf()))

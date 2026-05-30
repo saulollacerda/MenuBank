@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "info": {
+    "_id": "ORDER_ID_PLACEHOLDER",
+    "check": 1,
+    "type": "DELIVERY",
+    "salesChannel": "ifood",
+    "from": "ifood-marketplace",
+    "shortReference": 7452,
+    "createdAt": "2026-05-24T18:00:00.000Z",
+    "total": 18.49,
+    "deliveryFee": 0,
+    "additionalFees": [],
+    "discounts": [],
+    "customer": {
+      "id": null,
+      "name": "Cliente iFood",
+      "phone": "43123456789",
+      "localizer": "12345678"
+    },
+    "items": [
+      {
+        "_id": "ifood-oi-1",
+        "id": 0,
+        "name": "Açaí 330 ml",
+        "quantity": 1,
+        "price": 18.49,
+        "total": 18.49,
+        "externalId": "",
+        "internalId": "",
+        "subItems": [
+          {
+            "name": "leite ninho",
+            "quantity": 1,
+            "price": 0,
+            "total": 0,
+            "externalId": "",
+            "internalId": ""
+          },
+          {
+            "name": "chocoball",
+            "quantity": 1,
+            "price": 0,
+            "total": 0,
+            "externalId": "",
+            "internalId": ""
+          }
+        ]
+      }
+    ],
+    "payments": [
+      {
+        "name": "pix-ifood",
+        "code": "pix-ifood",
+        "value": "18.49",
+        "prepaid": true
+      }
+    ],
+    "merchant": {
+      "name": "Restaurante Exemplo",
+      "id": "aabb1122",
+      "unit": "ccdd3344"
+    },
+    "ifood_order_integration": { "order_v4": false },
+    "observation": ""
+  }
+}

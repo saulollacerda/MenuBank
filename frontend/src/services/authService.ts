@@ -1,16 +1,14 @@
 import api from './api'
-import type { LoginRequest, LoginResponse } from '@/types/Auth'
-import type { UserRequest } from '@/types/User'
+import type { ProvisionRequest } from '@/types/Auth'
+import type { UserResponse } from '@/types/User'
 
 export const authService = {
-  async login(request: LoginRequest): Promise<LoginResponse> {
-    const { data } = await api.post<LoginResponse>('/auth/login', request)
-    return data
-  },
-
-  async register(request: UserRequest): Promise<LoginResponse> {
-    const { data } = await api.post<LoginResponse>('/auth/register', request)
+  /**
+   * Links the authenticated Supabase user to a MenuBank merchant (just-in-time,
+   * idempotent on the backend). Called on first authenticated access.
+   */
+  async provision(request: ProvisionRequest): Promise<UserResponse> {
+    const { data } = await api.post<UserResponse>('/auth/provision', request)
     return data
   },
 }
-
