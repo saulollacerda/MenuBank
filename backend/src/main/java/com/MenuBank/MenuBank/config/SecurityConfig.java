@@ -33,6 +33,10 @@ public class SecurityConfig {
                     .csrf(AbstractHttpConfigurer::disable)
                     .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                     .authorizeHttpRequests(auth -> auth
+                            // Dev-only local auth endpoints (the controller exists only under
+                            // dev/test profiles; in prod these paths 404). Public so a user can
+                            // obtain a token without a bearer token.
+                            .requestMatchers("/api/auth/dev-login", "/api/auth/dev-register").permitAll()
                             .anyRequest().authenticated()
                     )
                     .addFilterBefore(new JwtAuthFilter(jwtDecoder), UsernamePasswordAuthenticationFilter.class)

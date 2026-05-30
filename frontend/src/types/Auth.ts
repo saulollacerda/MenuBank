@@ -3,10 +3,11 @@ export interface LoginRequest {
   password: string
 }
 
-export interface LoginResponse {
-  token: string
-  merchantId: string
-  email: string
+/** Business data sent to POST /api/auth/provision on first authenticated access. */
+export interface ProvisionRequest {
   merchantName: string
+  cnpj: string
+  email: string
+  phone?: string
 }
 

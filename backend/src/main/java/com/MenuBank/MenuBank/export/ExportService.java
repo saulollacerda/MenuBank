@@ -38,7 +38,7 @@ public class ExportService {
         LocalDateTime startDt = start.atStartOfDay();
         LocalDateTime endDt = end.atTime(23, 59, 59);
 
-        List<Order> orders = orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(
+        List<Order> orders = orderRepository.findAllForReportByMerchantAndPeriodAndStatus(
                 merchantId, startDt, endDt, OrderStatus.PAID);
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {

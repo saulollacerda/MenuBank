@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -59,14 +60,14 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const token = localStorage.getItem('menubank_token')
+  const auth = useAuthStore()
   const isPublic = to.meta.public === true
 
-  if (!token && !isPublic) {
+  if (!auth.isAuthenticated && !isPublic) {
     return { name: 'login' }
   }
 
-  if (token && isPublic) {
+  if (auth.isAuthenticated && isPublic) {
     return { name: 'dashboard' }
   }
 })

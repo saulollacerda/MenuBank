@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import type { UserRequest } from '@/types/User'
 import { UI, UIField, UIInput, UIIcon } from '@/design'
 
-const router = useRouter()
 const authStore = useAuthStore()
 
 const validationError = ref<string | null>(null)
@@ -54,7 +52,8 @@ async function handleSubmit() {
   }
   try {
     await authStore.register(form.value)
-    router.push('/')
+    // Email confirmation is required: stay here and show the confirmation notice
+    // (authStore.awaitingEmailConfirmation becomes true).
   } catch {
     // store has error
   }
@@ -228,7 +227,25 @@ async function handleSubmit() {
           {{ validationError || authStore.error }}
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 14px">
+        <div
+          v-if="authStore.awaitingEmailConfirmation"
+          :style="{
+            padding: '16px',
+            background: 'rgba(16,185,129,0.10)',
+            border: `1px solid ${UI.emerald}`,
+            borderRadius: '10px',
+            fontSize: '13.5px',
+            color: UI.text,
+            lineHeight: 1.6,
+          }"
+        >
+          <strong>Quase lá!</strong> Enviamos um email de confirmação para
+          <strong>{{ form.email }}</strong>. Confirme seu email e depois
+          <RouterLink to="/login" :style="{ color: UI.blue, fontWeight: 600 }">faça login</RouterLink>
+          para concluir o cadastro.
+        </div>
+
+        <div v-else style="display: flex; flex-direction: column; gap: 14px">
           <UIField label="Nome do Restaurante">
             <UIInput id="merchantName" v-model="form.merchantName" placeholder="Ex: Pizzaria Napoli" />
           </UIField>

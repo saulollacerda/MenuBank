@@ -4,25 +4,19 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import App from '../App.vue'
 
-const mockStorage: Record<string, string> = {}
-const localStorageMock: Storage = {
-  getItem: vi.fn((key: string) => mockStorage[key] ?? null),
-  setItem: vi.fn((key: string, value: string) => {
-    mockStorage[key] = value
-  }),
-  removeItem: vi.fn((key: string) => {
-    delete mockStorage[key]
-  }),
-  clear: vi.fn(() => {
-    Object.keys(mockStorage).forEach((key) => delete mockStorage[key])
-  }),
-  get length() {
-    return Object.keys(mockStorage).length
-  },
-  key: vi.fn((index: number) => Object.keys(mockStorage)[index] ?? null),
-}
+// Toggle auth state per test via a hoisted holder the mocked store reads from.
+const authState = vi.hoisted(() => ({ authenticated: true }))
 
-vi.stubGlobal('localStorage', localStorageMock)
+vi.mock('@/stores/authStore', () => ({
+  useAuthStore: () => ({
+    get isAuthenticated() {
+      return authState.authenticated
+    },
+    restaurantName: '',
+    currentUser: null,
+    logout: vi.fn(),
+  }),
+}))
 
 const router = createRouter({
   history: createWebHistory(),
@@ -44,17 +38,11 @@ const router = createRouter({
 
 describe('App', () => {
   beforeEach(() => {
-    localStorageMock.clear()
+    authState.authenticated = true
     vi.clearAllMocks()
   })
 
   it('renders the sidebar with navigation links when authenticated', async () => {
-    localStorageMock.setItem('menubank_token', 'fake-token')
-    localStorageMock.setItem(
-      'menubank_user',
-      JSON.stringify({ userId: '1', email: 'test@test.com', restaurantName: 'Teste' }),
-    )
-
     router.push('/')
     await router.isReady()
 
@@ -74,12 +62,6 @@ describe('App', () => {
   })
 
   it('has the correct layout structure when authenticated', async () => {
-    localStorageMock.setItem('menubank_token', 'fake-token')
-    localStorageMock.setItem(
-      'menubank_user',
-      JSON.stringify({ userId: '1', email: 'test@test.com', restaurantName: 'Teste' }),
-    )
-
     router.push('/')
     await router.isReady()
 
@@ -95,6 +77,7 @@ describe('App', () => {
   })
 
   it('does not render sidebar when not authenticated', async () => {
+    authState.authenticated = false
     router.push('/login')
     await router.isReady()
 

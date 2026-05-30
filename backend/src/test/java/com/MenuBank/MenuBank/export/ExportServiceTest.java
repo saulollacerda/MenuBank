@@ -122,7 +122,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar byte array não-vazio para um workbook válido")
         void shouldReturnNonEmptyByteArray() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -133,7 +133,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve retornar um arquivo .xlsx válido (legível pelo Apache POI)")
         void shouldReturnValidXlsxFile() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -148,7 +148,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve gerar workbook com 3 abas")
         void shouldGenerateWorkbookWithThreeSheets() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -170,7 +170,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Resumo Financeiro' como primeira aba")
         void shouldCreateResumoFinanceiroAsFirstSheet() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -191,7 +191,7 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -215,7 +215,7 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -241,7 +241,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Pedidos' como segunda aba")
         void shouldCreatePedidosAsSecondSheet() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -262,7 +262,7 @@ class ExportServiceTest {
                             new BigDecimal("60.00"), null, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -282,7 +282,7 @@ class ExportServiceTest {
                             new BigDecimal("30.00"), fee, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -307,7 +307,7 @@ class ExportServiceTest {
         @Test
         @DisplayName("deve criar aba 'Desempenho por Produto' como terceira aba")
         void shouldCreateDesempenhoPorProdutoAsThirdSheet() throws Exception {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(any(), any(), any(), any()))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(any(), any(), any(), any()))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -329,7 +329,7 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -353,7 +353,7 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item2))
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
@@ -400,7 +400,7 @@ class ExportServiceTest {
                             new BigDecimal("20.00"), null, List.of(item))
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(orders);
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);

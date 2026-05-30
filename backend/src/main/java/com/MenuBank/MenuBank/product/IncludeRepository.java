@@ -2,8 +2,11 @@ package com.MenuBank.MenuBank.product;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,6 +14,11 @@ import java.util.UUID;
 public interface IncludeRepository extends JpaRepository<Include, UUID> {
 
     List<Include> findByProductIdAndProductMerchantId(UUID productId, UUID merchantId);
+
+    @Query("SELECT i FROM Include i WHERE i.product.id IN :productIds AND i.product.merchant.id = :merchantId")
+    List<Include> findAllByProductIdInAndProductMerchantId(
+            @Param("productIds") Collection<UUID> productIds,
+            @Param("merchantId") UUID merchantId);
 
     List<Include> findByProductIdAndProductMerchantIdOrderBySortOrderAsc(UUID productId, UUID merchantId);
 

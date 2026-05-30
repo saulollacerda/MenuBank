@@ -4,6 +4,7 @@ import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import com.MenuBank.MenuBank.product.IngredientProductUsageResponse;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,15 +25,18 @@ public class IngredientService {
     private final MerchantRepository merchantRepository;
     private final NotificationService notificationService;
     private final IncludeRepository includeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public IngredientService(IngredientRepository ingredientRepository,
                              MerchantRepository merchantRepository,
                              NotificationService notificationService,
-                             IncludeRepository includeRepository) {
+                             IncludeRepository includeRepository,
+                             ApplicationEventPublisher eventPublisher) {
         this.ingredientRepository = ingredientRepository;
         this.merchantRepository = merchantRepository;
         this.notificationService = notificationService;
         this.includeRepository = includeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -58,6 +62,7 @@ public class IngredientService {
 
         Ingredient saved = ingredientRepository.save(ingredient);
         notificationService.resolveMissingIngredient(canonicalName, merchantId);
+        eventPublisher.publishEvent(new IngredientCreatedEvent(merchantId, saved.getId(), canonicalName));
         return toResponse(saved);
     }
 

@@ -1,5 +1,8 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { createStaleCache } from '@/utils/staleCache'
+
+const TTL_MS = 5 * 60 * 1000
 import type { CustomerRequest, CustomerResponse } from '@/types/Customer'
 import type { PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
@@ -10,6 +13,7 @@ export const useCustomerStore = defineStore('customer', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const cache = createStaleCache(TTL_MS)
 
   const search = ref('')
   const page = ref(0)
@@ -45,13 +49,14 @@ export const useCustomerStore = defineStore('customer', () => {
   // Legacy entry point: fills `items` for forms/dropdowns without touching
   // pagination state (so a later list view starts with default size).
   async function fetchAll(force = false) {
-    if (!force && loaded.value) return
+    if (!force && loaded.value && !cache.isStale()) return
     loading.value = true
     error.value = null
     try {
       const result = await customerService.findAll({ search: '', page: 0, size: 1000 })
       items.value = result.content
       loaded.value = true
+      cache.markFresh()
     } catch (e: unknown) {
       error.value = 'Erro ao carregar clientes'
       throw e
@@ -65,6 +70,7 @@ export const useCustomerStore = defineStore('customer', () => {
     error.value = null
     try {
       const created = await customerService.create(request)
+      cache.invalidate()
       await fetchPage({})
       return created
     } catch (e: unknown) {
@@ -96,6 +102,7 @@ export const useCustomerStore = defineStore('customer', () => {
     error.value = null
     try {
       await customerService.remove(id)
+      cache.invalidate()
       await fetchPage({})
     } catch (e: unknown) {
       error.value = 'Erro ao excluir cliente'

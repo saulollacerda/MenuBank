@@ -52,14 +52,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
     return `${resolvedStartDate.value}|${resolvedEndDate.value}`
   }
 
-  async function fetchDashboard(force = false) {
+  async function fetchDashboard(force = false, silent = false) {
     const key = getCurrentKey()
 
     if (!force && loaded.value && loadedKey.value === key) return
     if (!force && fetchDashboardInFlight) return fetchDashboardInFlight
 
     loading.value = true
-    error.value = null
+    if (!silent) error.value = null
 
     fetchDashboardInFlight = (async () => {
       try {
@@ -69,10 +69,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
         )
         loaded.value = true
         loadedKey.value = key
+        error.value = null
       } catch (e: unknown) {
         loaded.value = false
         loadedKey.value = null
-        error.value = 'Erro ao carregar dashboard'
+        if (!silent) error.value = 'Erro ao carregar dashboard'
         throw e
       } finally {
         loading.value = false

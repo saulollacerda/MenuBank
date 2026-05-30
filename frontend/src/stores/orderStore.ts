@@ -25,9 +25,9 @@ export const useOrderStore = defineStore('order', () => {
     })
   }
 
-  async function fetchPage(params: OrderFilterParams = {}) {
+  async function fetchPage(params: OrderFilterParams = {}, silent = false) {
     loading.value = true
-    error.value = null
+    if (!silent) error.value = null
     try {
       const effectiveSort = params.sort ?? sort.value
       const result = await orderService.findAll({
@@ -44,9 +44,10 @@ export const useOrderStore = defineStore('order', () => {
       totalElements.value = result.totalElements
       totalPages.value = result.totalPages
       loaded.value = true
+      error.value = null
     } catch (e: unknown) {
       loaded.value = false
-      error.value = 'Erro ao carregar pedidos'
+      if (!silent) error.value = 'Erro ao carregar pedidos'
       throw e
     } finally {
       loading.value = false

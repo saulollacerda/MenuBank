@@ -122,7 +122,7 @@ public class DashboardService {
     }
 
     private PeriodMetrics computeMetrics(UUID merchantId, LocalDateTime start, LocalDateTime end) {
-        List<Order> paidOrders = orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(
+        List<Order> paidOrders = orderRepository.findAllForReportByMerchantAndPeriodAndStatus(
                 merchantId, start, end, OrderStatus.PAID);
 
         BigDecimal totalSales = paidOrders.stream()

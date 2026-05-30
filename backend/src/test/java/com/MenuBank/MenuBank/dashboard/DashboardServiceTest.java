@@ -114,7 +114,7 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -134,7 +134,7 @@ class DashboardServiceTest {
                             new BigDecimal("15.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -152,7 +152,7 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -164,7 +164,7 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve calcular totalSalesChangePct comparando com período anterior")
         void shouldCalculateTotalSalesChangePct() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(
                             List.of(buildOrder(startDate.atTime(10, 0), new BigDecimal("200.00"),
                                     new BigDecimal("60.00"), OrderStatus.PAID, List.of())),
@@ -185,7 +185,7 @@ class DashboardServiceTest {
                     buildOrder(startDate.atTime(10, 0), new BigDecimal("100.00"),
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -196,7 +196,7 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar customerCount obtido do repository")
         void shouldReturnCustomerCount() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
             given(orderRepository.countDistinctCustomersByMerchantIdAndDateTimeBetween(eq(merchantId), any(), any()))
                     .willReturn(7L, 4L);
@@ -218,7 +218,7 @@ class DashboardServiceTest {
                             new BigDecimal("70.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -238,7 +238,7 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar KPIs zerados quando não há pedidos no período")
         void shouldReturnZeroKpisWhenNoOrders() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -252,7 +252,7 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar salesByDay vazio quando não há pedidos")
         void shouldReturnEmptySalesByDay() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -263,7 +263,7 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve retornar topProducts vazio quando não há pedidos")
         void shouldReturnEmptyTopProducts() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -295,7 +295,7 @@ class DashboardServiceTest {
                             new BigDecimal("60.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -327,7 +327,7 @@ class DashboardServiceTest {
                             new BigDecimal("20.00"), OrderStatus.PAID, List.of())
             );
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(paidOrders);
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -356,7 +356,7 @@ class DashboardServiceTest {
             Order order = buildOrder(startDate.atTime(10, 0), new BigDecimal("500.00"),
                     new BigDecimal("150.00"), OrderStatus.PAID, List.of(item1, item2));
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order));
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -383,7 +383,7 @@ class DashboardServiceTest {
                     List.of(buildItem(p1, 10), buildItem(p2, 8), buildItem(p3, 6),
                             buildItem(p4, 4), buildItem(p5, 2), buildItem(p6, 1)));
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order));
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -403,7 +403,7 @@ class DashboardServiceTest {
                     new BigDecimal("30.00"), OrderStatus.PAID,
                     List.of(buildItem(productBurguer, 7)));
 
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of(order1, order2));
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
@@ -425,13 +425,13 @@ class DashboardServiceTest {
         @Test
         @DisplayName("deve usar data de hoje quando startDate e endDate são nulos")
         void shouldUseCurrentDateWhenDatesAreNull() {
-            given(orderRepository.findByMerchantIdAndDateTimeBetweenAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             DashboardResponse result = dashboardService.getDashboard(merchantId, null, null);
 
             assertThat(result).isNotNull();
-            then(orderRepository).should(atLeastOnce()).findByMerchantIdAndDateTimeBetweenAndStatus(
+            then(orderRepository).should(atLeastOnce()).findAllForReportByMerchantAndPeriodAndStatus(
                     eq(merchantId),
                     eq(LocalDate.now().atStartOfDay()),
                     eq(LocalDate.now().atTime(23, 59, 59)),

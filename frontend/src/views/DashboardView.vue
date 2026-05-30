@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useOrderStore } from '@/stores/orderStore'
@@ -101,12 +102,19 @@ onMounted(() => {
   notif.fetchAll().catch(() => {})
 })
 
+usePolling(() => { orderStore.fetchPage({ page: 0 }, true).catch(() => {}) }, 30_000)
+usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, 60_000)
+
 function navOrders() {
   router.push('/orders')
 }
 
 function navIngredients() {
   router.push('/ingredients')
+}
+
+function navIngredientsWithName(name: string | null) {
+  router.push({ name: 'ingredients', query: name ? { createName: name } : {} })
 }
 </script>
 
@@ -502,7 +510,7 @@ function navIngredients() {
                 <span>{{ a.message }}</span>
                 <span
                   :style="{ color: UI.blue, fontWeight: 600, cursor: 'pointer' }"
-                  @click="navIngredients"
+                  @click="navIngredientsWithName(a.referenceDisplay)"
                 >
                   Cadastrar
                 </span>

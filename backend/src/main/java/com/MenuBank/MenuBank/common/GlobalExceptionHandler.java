@@ -13,6 +13,7 @@ import com.MenuBank.MenuBank.product.ProductNotFoundException;
 import com.MenuBank.MenuBank.fee.DuplicateFeeException;
 import com.MenuBank.MenuBank.fee.FeeNotFoundException;
 import com.MenuBank.MenuBank.product.IncludeNotFoundException;
+import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
 import com.MenuBank.MenuBank.merchant.DuplicateMerchantException;
 import com.MenuBank.MenuBank.merchant.MerchantNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,13 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidCredentials(InvalidCredentialsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Credenciais inválidas");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

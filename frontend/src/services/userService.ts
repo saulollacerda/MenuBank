@@ -2,8 +2,9 @@ import api from './api'
 import type { AnotaAIKeyRequest, UserResponse } from '@/types/User'
 
 export const userService = {
-  async getById(id: string): Promise<UserResponse> {
-    const { data } = await api.get<UserResponse>(`/merchants/${id}`)
+  /** Current authenticated merchant (resolved server-side from the token). */
+  async getMe(): Promise<UserResponse> {
+    const { data } = await api.get<UserResponse>('/merchants/me')
     return data
   },
 

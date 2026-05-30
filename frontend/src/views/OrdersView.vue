@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
@@ -233,6 +234,8 @@ onMounted(() => {
   ingredientStore.fetchAll()
   feeStore.fetchAll()
 })
+
+usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
 </script>
 
 <template>

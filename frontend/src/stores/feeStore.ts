@@ -1,5 +1,8 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { createStaleCache } from '@/utils/staleCache'
+
+const TTL_MS = 5 * 60 * 1000
 import type { FeeRequest, FeeResponse } from '@/types/Fee'
 import type { PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
@@ -10,6 +13,7 @@ export const useFeeStore = defineStore('fee', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const cache = createStaleCache(TTL_MS)
 
   const search = ref('')
   const page = ref(0)
@@ -43,13 +47,14 @@ export const useFeeStore = defineStore('fee', () => {
   }
 
   async function fetchAll(force = false) {
-    if (!force && loaded.value) return
+    if (!force && loaded.value && !cache.isStale()) return
     loading.value = true
     error.value = null
     try {
       const result = await feeService.findAll({ search: '', page: 0, size: 1000 })
       items.value = result.content
       loaded.value = true
+      cache.markFresh()
     } catch (e: unknown) {
       error.value = 'Erro ao carregar taxas'
       throw e
@@ -63,6 +68,7 @@ export const useFeeStore = defineStore('fee', () => {
     error.value = null
     try {
       const created = await feeService.create(request)
+      cache.invalidate()
       await fetchPage({})
       return created
     } catch (e: unknown) {
@@ -94,6 +100,7 @@ export const useFeeStore = defineStore('fee', () => {
     error.value = null
     try {
       await feeService.remove(id)
+      cache.invalidate()
       await fetchPage({})
     } catch (e: unknown) {
       error.value = 'Erro ao excluir taxa'

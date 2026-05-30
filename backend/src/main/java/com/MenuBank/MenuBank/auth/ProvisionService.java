@@ -8,6 +8,7 @@ import com.MenuBank.MenuBank.merchant.MerchantNotFoundException;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.merchant.MerchantResponse;
 import com.MenuBank.MenuBank.merchant.MerchantStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +22,8 @@ import java.time.LocalDateTime;
 @Service
 public class ProvisionService {
 
-    private static final String PROVIDER = "supabase";
+    @Value("${app.auth.provider:supabase}")
+    private String provider = "supabase";
 
     private final MerchantRepository merchantRepository;
     private final IdentityRepository identityRepository;
@@ -34,7 +36,7 @@ public class ProvisionService {
 
     @Transactional
     public MerchantResponse provision(String providerUserId, ProvisionRequest request) {
-        var existing = identityRepository.findByProviderAndProviderUserId(PROVIDER, providerUserId);
+        var existing = identityRepository.findByProviderAndProviderUserId(provider, providerUserId);
         if (existing.isPresent()) {
             Merchant merchant = merchantRepository.findById(existing.get().getMerchantId())
                     .orElseThrow(() -> new MerchantNotFoundException(existing.get().getMerchantId()));
@@ -61,7 +63,7 @@ public class ProvisionService {
 
         identityRepository.save(Identity.builder()
                 .merchantId(saved.getId())
-                .provider(PROVIDER)
+                .provider(provider)
                 .providerUserId(providerUserId)
                 .createdAt(now)
                 .build());

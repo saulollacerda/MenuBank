@@ -34,7 +34,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query(
             value = """
                     SELECT o FROM Order o
-                    JOIN o.customer c
+                    LEFT JOIN FETCH o.customer c
+                    LEFT JOIN FETCH o.fee
                     WHERE o.merchant.id = :merchantId
                     AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))
                     """,
@@ -58,6 +59,25 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByMerchantIdAndDateTimeBetweenAndStatus(UUID merchantId, LocalDateTime start, LocalDateTime end, OrderStatus status);
 
+    List<Order> findByMerchantIdAndOriginAndDateTimeBetween(UUID merchantId, OrderOrigin origin, LocalDateTime start, LocalDateTime end);
+
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            LEFT JOIN FETCH o.items i
+            LEFT JOIN FETCH i.product p
+            LEFT JOIN FETCH p.category
+            LEFT JOIN FETCH o.fee
+            LEFT JOIN FETCH o.customer
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            AND o.status = :status
+            """)
+    List<Order> findAllForReportByMerchantAndPeriodAndStatus(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("status") OrderStatus status);
+
     boolean existsByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
 
     Optional<Order> findByExternalOrderIdAndMerchantId(String externalOrderId, UUID merchantId);
@@ -78,7 +98,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query(
             value = """
                     SELECT o FROM Order o
-                    JOIN o.customer c
+                    LEFT JOIN FETCH o.customer c
+                    LEFT JOIN FETCH o.fee
                     WHERE o.merchant.id = :merchantId
                     AND o.status = :status
                     AND LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))

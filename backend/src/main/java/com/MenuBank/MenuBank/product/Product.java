@@ -4,6 +4,7 @@ import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "products")
+@BatchSize(size = 50)
 @Data
 @Builder
 @NoArgsConstructor
@@ -48,6 +50,7 @@ public class Product {
     private Category category;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Builder.Default

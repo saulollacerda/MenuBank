@@ -1,5 +1,8 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { createStaleCache } from '@/utils/staleCache'
+
+const TTL_MS = 5 * 60 * 1000
 import type {
   ProductRequest,
   ProductResponse,
@@ -17,6 +20,7 @@ export const useProductStore = defineStore('product', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const cache = createStaleCache(TTL_MS)
 
   // pagination state
   const search = ref('')
@@ -51,13 +55,14 @@ export const useProductStore = defineStore('product', () => {
   }
 
   async function fetchAll(force = false) {
-    if (!force && loaded.value) return
+    if (!force && loaded.value && !cache.isStale()) return
     loading.value = true
     error.value = null
     try {
       const result = await productService.findAll({ search: '', page: 0, size: 1000 })
       items.value = result.content
       loaded.value = true
+      cache.markFresh()
     } catch (e: unknown) {
       error.value = 'Erro ao carregar produtos'
       throw e
@@ -71,6 +76,7 @@ export const useProductStore = defineStore('product', () => {
     error.value = null
     try {
       const created = await productService.create(request)
+      cache.invalidate()
       await fetchPage({})
       return created
     } catch (e: unknown) {
@@ -102,6 +108,7 @@ export const useProductStore = defineStore('product', () => {
     error.value = null
     try {
       await productService.remove(id)
+      cache.invalidate()
       await fetchPage({})
     } catch (e: unknown) {
       error.value = 'Erro ao excluir produto'

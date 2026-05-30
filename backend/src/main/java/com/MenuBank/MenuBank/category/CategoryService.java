@@ -73,10 +73,10 @@ public class CategoryService {
         String term = search == null ? "" : search;
         Page<Category> page = categoryRepository.findAllByMerchantIdAndNameContainingIgnoreCase(merchantId, term, pageable);
         List<UUID> ids = page.getContent().stream().map(Category::getId).toList();
-        Map<UUID, Long> counts = ids.stream()
-                .collect(Collectors.toMap(
-                        id -> id,
-                        id -> productRepository.countByCategoryIdAndMerchantId(id, merchantId)));
+        Map<UUID, Long> counts = ids.isEmpty() ? Map.of() :
+                productRepository.countByCategoryIdsAndMerchantId(ids, merchantId)
+                        .stream()
+                        .collect(Collectors.toMap(row -> (UUID) row[0], row -> (Long) row[1]));
         return page.map(c -> toResponse(c, counts.getOrDefault(c.getId(), 0L)));
     }
 

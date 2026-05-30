@@ -4,21 +4,22 @@ import { ref } from 'vue'
 import RegisterView from '@/views/RegisterView.vue'
 
 const registerMock = vi.fn()
-const pushMock = vi.fn()
 const error = ref<string | null>(null)
 const loading = ref(false)
+const awaitingEmailConfirmation = ref(false)
 
 vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({
     register: registerMock,
-    loading,
-    error,
-  }),
-}))
-
-vi.mock('vue-router', () => ({
-  useRouter: () => ({
-    push: pushMock,
+    get loading() {
+      return loading.value
+    },
+    get error() {
+      return error.value
+    },
+    get awaitingEmailConfirmation() {
+      return awaitingEmailConfirmation.value
+    },
   }),
 }))
 
@@ -53,9 +54,9 @@ async function fillForm(wrapper: ReturnType<typeof mountView>, overrides?: Parti
 
 beforeEach(() => {
   registerMock.mockReset()
-  pushMock.mockReset()
   error.value = null
   loading.value = false
+  awaitingEmailConfirmation.value = false
 })
 
 describe('RegisterView', () => {
@@ -79,14 +80,11 @@ describe('RegisterView', () => {
     expect(wrapper.text()).toContain('As senhas não conferem')
   })
 
-  it('envia cadastro válido e redireciona', async () => {
+  it('envia cadastro válido e mostra aviso de confirmação de email', async () => {
     const wrapper = mountView()
 
-    registerMock.mockResolvedValueOnce({
-      token: 'token',
-      userId: '123',
-      email: 'teste@email.com',
-      merchantName: 'Restaurante Teste',
+    registerMock.mockImplementation(async () => {
+      awaitingEmailConfirmation.value = true
     })
 
     await fillForm(wrapper)
@@ -102,7 +100,6 @@ describe('RegisterView', () => {
       confirmPassword: 'senha123',
       phone: '11999999999',
     })
-    expect(pushMock).toHaveBeenCalledWith('/')
+    expect(wrapper.text()).toContain('email de confirmação')
   })
 })
-

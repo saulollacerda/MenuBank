@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.fee.Fee;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -64,6 +65,7 @@ public class Order {
     private OrderOrigin origin;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 30)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private List<OrderItem> items;

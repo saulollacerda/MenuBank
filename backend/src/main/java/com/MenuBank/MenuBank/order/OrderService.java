@@ -25,7 +25,10 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
@@ -103,7 +106,18 @@ public class OrderService {
         Page<Order> page = status == null
                 ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
                 : orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(merchantId, status, term, pageable);
-        return page.map(this::toResponse);
+
+        Set<UUID> productIds = page.getContent().stream()
+                .filter(o -> o.getItems() != null)
+                .flatMap(o -> o.getItems().stream())
+                .map(i -> i.getProduct().getId())
+                .collect(Collectors.toSet());
+        Map<UUID, List<Include>> includesByProduct = productIds.isEmpty() ? Map.of() :
+                includeRepository.findAllByProductIdInAndProductMerchantId(productIds, merchantId)
+                        .stream()
+                        .collect(Collectors.groupingBy(inc -> inc.getProduct().getId()));
+
+        return page.map(o -> toResponse(o, includesByProduct));
     }
 
     @Transactional(readOnly = true)
@@ -229,10 +243,14 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
+        return toResponse(order, null);
+    }
+
+    private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct) {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
         UUID orderMerchantId = order.getMerchant().getId();
         List<OrderItemResponse> itemResponses = items.stream()
-                .map(item -> toItemResponse(item, orderMerchantId))
+                .map(item -> toItemResponse(item, orderMerchantId, includesByProduct))
                 .toList();
 
         Fee fee = order.getFee();
@@ -275,6 +293,10 @@ public class OrderService {
     }
 
     private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId) {
+        return toItemResponse(item, merchantId, null);
+    }
+
+    private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId, Map<UUID, List<Include>> includesByProduct) {
         List<OrderItemExtraIngredientResponse> extraResponses = item.getExtraIngredients() != null
                 ? item.getExtraIngredients().stream().map(extra -> {
                     BigDecimal totalCost = extra.getQuantity()
@@ -294,8 +316,9 @@ public class OrderService {
                 : List.of();
 
         // Insumos = Includes da ficha técnica do produto (snapshot atual).
-        List<Include> productIncludes = includeRepository
-                .findByProductIdAndProductMerchantId(item.getProduct().getId(), merchantId);
+        List<Include> productIncludes = includesByProduct != null
+                ? includesByProduct.getOrDefault(item.getProduct().getId(), List.of())
+                : includeRepository.findByProductIdAndProductMerchantId(item.getProduct().getId(), merchantId);
         List<IncludeResponse> insumos = productIncludes.stream()
                 .map(this::toIncludeResponse)
                 .toList();
