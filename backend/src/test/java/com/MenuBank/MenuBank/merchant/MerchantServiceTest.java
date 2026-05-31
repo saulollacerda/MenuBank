@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.merchant;
 
+import com.MenuBank.MenuBank.billing.SubscriptionService;
 import com.MenuBank.MenuBank.common.ForbiddenException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,9 @@ class MerchantServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private SubscriptionService subscriptionService;
 
     @InjectMocks
     private MerchantService merchantService;
