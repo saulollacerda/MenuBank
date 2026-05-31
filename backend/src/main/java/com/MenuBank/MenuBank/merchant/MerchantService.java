@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.merchant;
 
+import com.MenuBank.MenuBank.billing.SubscriptionService;
 import com.MenuBank.MenuBank.common.ForbiddenException;
 import com.MenuBank.MenuBank.config.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -15,10 +16,14 @@ public class MerchantService {
 
     private final MerchantRepository merchantRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SubscriptionService subscriptionService;
 
-    public MerchantService(MerchantRepository merchantRepository, PasswordEncoder passwordEncoder) {
+    public MerchantService(MerchantRepository merchantRepository,
+                           PasswordEncoder passwordEncoder,
+                           SubscriptionService subscriptionService) {
         this.merchantRepository = merchantRepository;
         this.passwordEncoder = passwordEncoder;
+        this.subscriptionService = subscriptionService;
     }
 
     public MerchantResponse create(MerchantRequest request) {
@@ -40,6 +45,7 @@ public class MerchantService {
                 .build();
 
         Merchant saved = merchantRepository.save(merchant);
+        subscriptionService.createTrial(saved.getId());
         return toResponse(saved);
     }
 

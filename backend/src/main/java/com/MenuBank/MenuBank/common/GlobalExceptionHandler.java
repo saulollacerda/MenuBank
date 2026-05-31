@@ -14,6 +14,8 @@ import com.MenuBank.MenuBank.fee.DuplicateFeeException;
 import com.MenuBank.MenuBank.fee.FeeNotFoundException;
 import com.MenuBank.MenuBank.product.IncludeNotFoundException;
 import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
+import com.MenuBank.MenuBank.billing.DuplicateRevenueReportException;
+import com.MenuBank.MenuBank.billing.SubscriptionNotFoundException;
 import com.MenuBank.MenuBank.merchant.DuplicateMerchantException;
 import com.MenuBank.MenuBank.merchant.MerchantNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -161,5 +163,19 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Notificação não encontrada");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(SubscriptionNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleSubscriptionNotFound(SubscriptionNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Assinatura não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(DuplicateRevenueReportException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateRevenueReport(DuplicateRevenueReportException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 }

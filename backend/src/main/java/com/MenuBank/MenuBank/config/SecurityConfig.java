@@ -37,6 +37,7 @@ public class SecurityConfig {
                             // dev/test profiles; in prod these paths 404). Public so a user can
                             // obtain a token without a bearer token.
                             .requestMatchers("/api/auth/dev-login", "/api/auth/dev-register").permitAll()
+                            .requestMatchers("/api/plans").permitAll()
                             .anyRequest().authenticated()
                     )
                     .addFilterBefore(new JwtAuthFilter(jwtDecoder), UsernamePasswordAuthenticationFilter.class)
