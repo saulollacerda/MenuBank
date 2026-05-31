@@ -61,7 +61,7 @@ public class IngredientService {
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
-        notificationService.resolveMissingIngredient(canonicalName, merchantId);
+        notificationService.deleteMissingIngredient(canonicalName, merchantId);
         eventPublisher.publishEvent(new IngredientCreatedEvent(merchantId, saved.getId(), canonicalName));
         return toResponse(saved);
     }

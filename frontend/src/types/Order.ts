@@ -47,6 +47,7 @@ export interface OrderRequest {
   customerId: string
   status?: OrderStatus
   feeId?: string
+  origin?: OrderOrigin
   items: OrderItemRequest[]
 }
 

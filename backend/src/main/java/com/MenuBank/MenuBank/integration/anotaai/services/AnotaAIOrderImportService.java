@@ -39,6 +39,10 @@ public class AnotaAIOrderImportService {
 
     private static final Logger log = LoggerFactory.getLogger(AnotaAIOrderImportService.class);
 
+    // Anota.AI/iFood enviam createdAt em UTC. Convertemos sempre para o fuso de
+    // Brasília — não dependemos do timezone do servidor (em prod/Railway é UTC).
+    private static final ZoneId BRAZIL_ZONE = ZoneId.of("America/Sao_Paulo");
+
     private final MerchantRepository merchantRepository;
     private final OrderRepository orderRepository;
     private final FeeRepository feeRepository;
@@ -143,15 +147,15 @@ public class AnotaAIOrderImportService {
 
     LocalDateTime parseCreatedAt(String createdAt) {
         if (createdAt == null || createdAt.isBlank()) {
-            return LocalDateTime.now();
+            return LocalDateTime.now(BRAZIL_ZONE);
         }
         try {
             return OffsetDateTime.parse(createdAt)
-                    .atZoneSameInstant(ZoneId.systemDefault())
+                    .atZoneSameInstant(BRAZIL_ZONE)
                     .toLocalDateTime();
         } catch (RuntimeException e) {
             log.warn("[Anota.AI] createdAt inválido '{}', usando hora atual", createdAt);
-            return LocalDateTime.now();
+            return LocalDateTime.now(BRAZIL_ZONE);
         }
     }
 

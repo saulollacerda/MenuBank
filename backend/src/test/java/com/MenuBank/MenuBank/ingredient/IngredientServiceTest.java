@@ -196,8 +196,8 @@ class IngredientServiceTest {
         }
 
         @Test
-        @DisplayName("deve resolver notificações pendentes 'MISSING_INGREDIENT' do canonical name após salvar")
-        void shouldResolvePendingMissingIngredientNotificationsAfterSave() {
+        @DisplayName("deve apagar as notificações 'MISSING_INGREDIENT' do canonical name após salvar")
+        void shouldDeleteMissingIngredientNotificationsAfterSave() {
             IngredientRequest withAccent = IngredientRequest.builder()
                     .name("Açaí Premium").unit("ml")
                     .costPerUnit(new BigDecimal("0.05"))
@@ -208,7 +208,7 @@ class IngredientServiceTest {
 
             ingredientService.create(merchantId, withAccent);
 
-            then(notificationService).should().resolveMissingIngredient("acai premium", merchantId);
+            then(notificationService).should().deleteMissingIngredient("acai premium", merchantId);
         }
     }
 

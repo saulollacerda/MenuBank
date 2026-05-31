@@ -178,6 +178,36 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("deve usar o canal (origin) informado no request")
+        void shouldUseOriginFromRequest() {
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest withOrigin = OrderRequest.builder()
+                    .customerId(customerId)
+                    .origin(OrderOrigin.IFOOD)
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.create(merchantId, withOrigin);
+
+            then(orderRepository).should().save(argThat(saved -> saved.getOrigin() == OrderOrigin.IFOOD));
+        }
+
+        @Test
+        @DisplayName("deve usar MENUBANK como canal padrão quando origin não é informado")
+        void shouldDefaultOriginToMenubank() {
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.create(merchantId, orderRequest);
+
+            then(orderRepository).should().save(argThat(saved -> saved.getOrigin() == OrderOrigin.MENUBANK));
+        }
+
+        @Test
         @DisplayName("deve definir status como PAID (concluído) por padrão")
         void shouldSetStatusToPaidByDefault() {
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));

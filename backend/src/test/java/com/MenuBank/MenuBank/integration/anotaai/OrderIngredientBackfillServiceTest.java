@@ -23,7 +23,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -548,5 +551,19 @@ class OrderIngredientBackfillServiceTest {
         // O segundo pedido deve ter sido processado mesmo com a falha no primeiro
         assertThat(item2.getExtraIngredients()).hasSize(1);
         verify(orderRepository, times(1)).save(order2);
+    }
+
+    @Test
+    @DisplayName("onIngredientCreated deve escutar AFTER_COMMIT para evitar race com o commit do ingrediente")
+    void onIngredientCreated_shouldListenAfterCommit() throws NoSuchMethodException {
+        Method method = OrderIngredientBackfillService.class
+                .getMethod("onIngredientCreated", IngredientCreatedEvent.class);
+
+        TransactionalEventListener annotation = method.getAnnotation(TransactionalEventListener.class);
+
+        assertThat(annotation)
+                .as("backfill deve usar @TransactionalEventListener para rodar só após o commit")
+                .isNotNull();
+        assertThat(annotation.phase()).isEqualTo(TransactionPhase.AFTER_COMMIT);
     }
 }

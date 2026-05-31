@@ -72,19 +72,19 @@ class NotificationServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("createMissingIngredient deve criar nova notificação se a anterior estiver RESOLVED")
-    void createMissingIngredient_shouldCreateNewWhenPreviousIsResolved() {
+    @DisplayName("createMissingIngredient deve criar nova notificação se a anterior foi apagada")
+    void createMissingIngredient_shouldCreateNewWhenPreviousWasDeleted() {
         Merchant merchant = createMerchant();
 
         Notification first = notificationService.createMissingIngredient(
                 "Leite Ninho", "leite ninho", merchant.getId());
-        notificationService.resolveMissingIngredient("leite ninho", merchant.getId());
+        notificationService.deleteMissingIngredient("leite ninho", merchant.getId());
 
         Notification second = notificationService.createMissingIngredient(
                 "leite ninho", "leite ninho", merchant.getId());
 
         assertThat(second.getId()).isNotEqualTo(first.getId());
-        assertThat(notificationRepository.count()).isEqualTo(2);
+        assertThat(notificationRepository.count()).isEqualTo(1);
     }
 
     @Test
@@ -103,28 +103,25 @@ class NotificationServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("resolveMissingIngredient deve marcar todas as notificações pendentes do mesmo canonical como RESOLVED")
-    void resolveMissingIngredient_shouldMarkAllPendingAsResolved() {
+    @DisplayName("deleteMissingIngredient deve apagar todas as notificações do mesmo canonical name")
+    void deleteMissingIngredient_shouldDeleteAllForCanonicalName() {
         Merchant merchant = createMerchant();
         notificationService.createMissingIngredient("Leite Ninho", "leite ninho", merchant.getId());
 
-        int resolvedCount = notificationService.resolveMissingIngredient("leite ninho", merchant.getId());
+        int deletedCount = notificationService.deleteMissingIngredient("leite ninho", merchant.getId());
 
-        assertThat(resolvedCount).isEqualTo(1);
-        List<Notification> all = notificationRepository.findAll();
-        assertThat(all).hasSize(1);
-        assertThat(all.get(0).getStatus()).isEqualTo(NotificationStatus.RESOLVED);
-        assertThat(all.get(0).getResolvedAt()).isNotNull();
+        assertThat(deletedCount).isEqualTo(1);
+        assertThat(notificationRepository.findAll()).isEmpty();
     }
 
     @Test
-    @DisplayName("resolveMissingIngredient deve retornar 0 quando não há pendente para o canonical name")
-    void resolveMissingIngredient_shouldReturnZeroWhenNoPendingExists() {
+    @DisplayName("deleteMissingIngredient deve retornar 0 quando não há notificação para o canonical name")
+    void deleteMissingIngredient_shouldReturnZeroWhenNoneExists() {
         Merchant merchant = createMerchant();
 
-        int resolvedCount = notificationService.resolveMissingIngredient("inexistente", merchant.getId());
+        int deletedCount = notificationService.deleteMissingIngredient("inexistente", merchant.getId());
 
-        assertThat(resolvedCount).isZero();
+        assertThat(deletedCount).isZero();
     }
 
     @Test

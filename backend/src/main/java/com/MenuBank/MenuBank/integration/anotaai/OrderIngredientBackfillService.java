@@ -15,20 +15,24 @@ import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.product.OrderCostCalculatorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
 public class OrderIngredientBackfillService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderIngredientBackfillService.class);
+
+    private static final ZoneId BRAZIL_ZONE = ZoneId.of("America/Sao_Paulo");
 
     private final MerchantRepository merchantRepository;
     private final IngredientRepository ingredientRepository;
@@ -49,7 +53,7 @@ public class OrderIngredientBackfillService {
     }
 
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional
     public void onIngredientCreated(IngredientCreatedEvent event) {
         Merchant merchant = merchantRepository.findById(event.merchantId()).orElse(null);
@@ -61,8 +65,9 @@ public class OrderIngredientBackfillService {
         Ingredient ingredient = ingredientRepository.findById(event.ingredientId()).orElse(null);
         if (ingredient == null) return;
 
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
+        LocalDate today = LocalDate.now(BRAZIL_ZONE);
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
 
         List<Order> orders = orderRepository.findByMerchantIdAndOriginAndDateTimeBetween(
                 event.merchantId(), OrderOrigin.ANOTA_AI, startOfDay, endOfDay);

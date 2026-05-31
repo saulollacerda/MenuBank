@@ -97,13 +97,14 @@ watch(
 )
 
 onMounted(() => {
-  dash.fetchDashboard()
+  // Dashboard sempre busca dados frescos ao abrir (sem cache) — muda com frequência.
+  dash.fetchDashboard(true)
   orderStore.fetchPage({ page: 0 }).catch(() => {})
   notif.fetchAll().catch(() => {})
 })
 
 usePolling(() => { orderStore.fetchPage({ page: 0 }, true).catch(() => {}) }, 30_000)
-usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, 60_000)
+usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, 30_000)
 
 function navOrders() {
   router.push('/orders')

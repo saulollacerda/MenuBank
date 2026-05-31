@@ -74,8 +74,8 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("create deve auto-resolver notificações pendentes do mesmo canonical name")
-    void create_shouldAutoResolvePendingMissingIngredientNotifications() {
+    @DisplayName("create deve apagar notificações pendentes do mesmo canonical name")
+    void create_shouldDeletePendingMissingIngredientNotifications() {
         // Cria uma notificação pendente
         Notification notif = notificationService.createMissingIngredient(
                 "Leite Ninho", "leite ninho", merchant.getId());
@@ -86,8 +86,8 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
                 .name("Leite Ninho").unit("g").costPerUnit(new BigDecimal("0.05"))
                 .defaultQuantity(new BigDecimal("20")).build());
 
-        Notification reloaded = notificationRepository.findById(notif.getId()).orElseThrow();
-        assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.RESOLVED);
+        // A notificação deve ter sido removida, não apenas resolvida
+        assertThat(notificationRepository.findById(notif.getId())).isEmpty();
     }
 
     @Test

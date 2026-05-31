@@ -47,6 +47,7 @@ const editingOrderId = ref<string | null>(null)
 
 const form = ref<OrderRequest>({
   customerId: '',
+  origin: 'MENUBANK',
   items: [{ productId: '', quantity: 1, extraIngredients: [] }],
 })
 
@@ -138,6 +139,7 @@ function openCreate() {
   editingOrderId.value = null
   form.value = {
     customerId: '',
+    origin: 'MENUBANK',
     items: [{ productId: '', quantity: 1, extraIngredients: [] }],
   }
   showModal.value = true
@@ -148,6 +150,7 @@ function openEdit(o: OrderResponse) {
     customerId: o.customerId,
     status: o.status,
     feeId: o.feeId,
+    origin: o.origin,
     items: o.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -631,6 +634,13 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                 <option v-for="c in customerStore.items" :key="c.id" :value="c.id">
                   {{ c.name }}
                 </option>
+              </UISelect>
+            </UIField>
+            <UIField label="Canal">
+              <UISelect v-model="form.origin" data-testid="order-origin-select">
+                <option value="MENUBANK">MenuBank</option>
+                <option value="ANOTA_AI">Anota.AI</option>
+                <option value="IFOOD">iFood</option>
               </UISelect>
             </UIField>
             <UIField v-if="editingOrderId" label="Status">

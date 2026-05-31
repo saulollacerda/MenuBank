@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,25 +51,16 @@ public class NotificationService {
     }
 
     /**
-     * Marks every pending {@link NotificationType#MISSING_INGREDIENT} notification for
-     * the given canonical name as RESOLVED. Invoked when the merchant finally registers the
-     * ingredient.
+     * Deletes every {@link NotificationType#MISSING_INGREDIENT} notification for the given
+     * canonical name. Invoked when the merchant finally registers the ingredient, so the
+     * alert disappears entirely instead of lingering as a resolved item.
+     *
+     * @return the number of notifications removed
      */
     @Transactional
-    public int resolveMissingIngredient(String canonicalName, UUID merchantId) {
-        List<Notification> pending = notificationRepository
-                .findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
-                        merchantId, NotificationType.MISSING_INGREDIENT, canonicalName, NotificationStatus.RESOLVED);
-        if (pending.isEmpty()) {
-            return 0;
-        }
-        Instant now = Instant.now();
-        pending.forEach(n -> {
-            n.setStatus(NotificationStatus.RESOLVED);
-            n.setResolvedAt(now);
-        });
-        notificationRepository.saveAll(pending);
-        return pending.size();
+    public int deleteMissingIngredient(String canonicalName, UUID merchantId) {
+        return (int) notificationRepository.deleteByMerchantIdAndTypeAndReferenceData(
+                merchantId, NotificationType.MISSING_INGREDIENT, canonicalName);
     }
 
     public Page<NotificationResponse> findAll(UUID merchantId, Pageable pageable) {

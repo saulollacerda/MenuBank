@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
+
+    // Pedidos manuais usam a hora de Brasília — não dependemos do timezone do servidor
+    // (em prod/Railway é UTC), que adiantaria o horário em 3h.
+    private static final ZoneId BRAZIL_ZONE = ZoneId.of("America/Sao_Paulo");
 
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
@@ -73,12 +78,12 @@ public class OrderService {
 
         Order order = Order.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
-                .dateTime(LocalDateTime.now())
+                .dateTime(LocalDateTime.now(BRAZIL_ZONE))
                 .customer(customer)
                 .fee(fee)
                 .status(OrderStatus.PAID)
                 .totalValue(totalValue)
-                .origin(OrderOrigin.MENUBANK)
+                .origin(request.getOrigin() != null ? request.getOrigin() : OrderOrigin.MENUBANK)
                 .items(items)
                 .build();
 
@@ -154,6 +159,9 @@ public class OrderService {
         order.setTotalValue(totalValue);
         if (request.getStatus() != null) {
             order.setStatus(request.getStatus());
+        }
+        if (request.getOrigin() != null) {
+            order.setOrigin(request.getOrigin());
         }
         newItems.forEach(item -> item.setOrder(order));
         if (order.getItems() == null) {

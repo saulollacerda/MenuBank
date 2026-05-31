@@ -103,49 +103,33 @@ class NotificationServiceTest {
     }
 
     @Nested
-    @DisplayName("resolveMissingIngredient()")
-    class ResolveMissingIngredient {
+    @DisplayName("deleteMissingIngredient()")
+    class DeleteMissingIngredient {
 
         @Test
-        @DisplayName("deve marcar notificações pendentes como RESOLVED e setar resolvedAt")
-        void shouldResolveAllPendingForCanonicalName() {
-            Notification n1 = Notification.builder()
-                    .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
-                    .type(NotificationType.MISSING_INGREDIENT)
-                    .referenceData("pistache").referenceDisplay("Pistache")
-                    .status(NotificationStatus.UNREAD).createdAt(Instant.now())
-                    .title("t").message("m").build();
-            Notification n2 = Notification.builder()
-                    .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
-                    .type(NotificationType.MISSING_INGREDIENT)
-                    .referenceData("pistache").referenceDisplay("Pistache")
-                    .status(NotificationStatus.READ).createdAt(Instant.now())
-                    .title("t").message("m").build();
-            given(notificationRepository.findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
-                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
-                    .willReturn(List.of(n1, n2));
-            given(notificationRepository.saveAll(anyList())).willAnswer(inv -> inv.getArgument(0));
+        @DisplayName("deve apagar as notificações MISSING_INGREDIENT do canonical name e retornar a quantidade removida")
+        void shouldDeleteAllForCanonicalName() {
+            given(notificationRepository.deleteByMerchantIdAndTypeAndReferenceData(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache"))
+                    .willReturn(2L);
 
-            int resolved = notificationService.resolveMissingIngredient("pistache", merchantId);
+            int deleted = notificationService.deleteMissingIngredient("pistache", merchantId);
 
-            assertThat(resolved).isEqualTo(2);
-            assertThat(n1.getStatus()).isEqualTo(NotificationStatus.RESOLVED);
-            assertThat(n1.getResolvedAt()).isNotNull();
-            assertThat(n2.getStatus()).isEqualTo(NotificationStatus.RESOLVED);
-            assertThat(n2.getResolvedAt()).isNotNull();
+            assertThat(deleted).isEqualTo(2);
+            then(notificationRepository).should().deleteByMerchantIdAndTypeAndReferenceData(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache");
         }
 
         @Test
-        @DisplayName("deve retornar 0 quando não há notificações pendentes")
-        void shouldReturnZeroWhenNoPending() {
-            given(notificationRepository.findAllByMerchantIdAndTypeAndReferenceDataAndStatusNot(
-                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache", NotificationStatus.RESOLVED))
-                    .willReturn(List.of());
+        @DisplayName("deve retornar 0 quando não há notificação para o canonical name")
+        void shouldReturnZeroWhenNone() {
+            given(notificationRepository.deleteByMerchantIdAndTypeAndReferenceData(
+                    merchantId, NotificationType.MISSING_INGREDIENT, "pistache"))
+                    .willReturn(0L);
 
-            int resolved = notificationService.resolveMissingIngredient("pistache", merchantId);
+            int deleted = notificationService.deleteMissingIngredient("pistache", merchantId);
 
-            assertThat(resolved).isZero();
-            then(notificationRepository).should(never()).saveAll(anyList());
+            assertThat(deleted).isZero();
         }
     }
 

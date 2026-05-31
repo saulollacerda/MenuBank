@@ -140,6 +140,7 @@ describe('OrdersView', () => {
 
     expect(orderStoreMock.create).toHaveBeenCalledWith({
       customerId: 'c1',
+      origin: 'MENUBANK',
       items: [
         {
           productId: 'p1',

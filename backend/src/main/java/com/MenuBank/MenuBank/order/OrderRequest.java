@@ -23,5 +23,8 @@ public class OrderRequest {
     private OrderStatus status;
 
     private UUID feeId;
+
+    /** Canal de origem do pedido. Quando ausente, o backend assume MENUBANK. */
+    private OrderOrigin origin;
 }
 
