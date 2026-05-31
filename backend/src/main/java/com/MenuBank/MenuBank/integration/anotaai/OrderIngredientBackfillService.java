@@ -54,7 +54,6 @@ public class OrderIngredientBackfillService {
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional
     public void onIngredientCreated(IngredientCreatedEvent event) {
         Merchant merchant = merchantRepository.findById(event.merchantId()).orElse(null);
         if (merchant == null) return;
