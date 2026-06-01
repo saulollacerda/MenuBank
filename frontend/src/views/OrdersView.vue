@@ -140,6 +140,7 @@ function openCreate() {
   form.value = {
     customerId: '',
     origin: 'MENUBANK',
+    feeId: '',
     items: [{ productId: '', quantity: 1, extraIngredients: [] }],
   }
   showModal.value = true
@@ -149,7 +150,7 @@ function openEdit(o: OrderResponse) {
   form.value = {
     customerId: o.customerId,
     status: o.status,
-    feeId: o.feeId,
+    feeId: o.feeId ?? '',
     origin: o.origin,
     items: o.items.map((item) => ({
       productId: item.productId,
@@ -185,10 +186,11 @@ function onExtraChange(extra: OrderItemExtraIngredientRequest, id: string) {
 }
 async function handleSubmit() {
   try {
+    const payload = { ...form.value, feeId: form.value.feeId || undefined }
     if (editingOrderId.value) {
-      await orderStore.update(editingOrderId.value, form.value)
+      await orderStore.update(editingOrderId.value, payload)
     } else {
-      await orderStore.create(form.value)
+      await orderStore.create(payload)
     }
     closeModal()
   } catch {
@@ -650,9 +652,9 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                 <option value="CANCELLED">Cancelado</option>
               </UISelect>
             </UIField>
-            <UIField label="Taxa de entrega">
+            <UIField label="Taxa">
               <UISelect v-model="form.feeId" data-testid="order-fee-select">
-                <option :value="undefined">Nenhuma</option>
+                <option value="">Nenhuma</option>
                 <option v-for="f in feeStore.items" :key="f.id" :value="f.id">
                   {{ f.name }} ({{ f.feeRate }}%)
                 </option>

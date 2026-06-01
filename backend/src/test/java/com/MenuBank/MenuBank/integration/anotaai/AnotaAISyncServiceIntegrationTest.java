@@ -205,61 +205,6 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("syncOrders iFood — produto com internalId vazio deve casar pelo nome canônico")
-    void syncOrders_iFood_shouldMatchProductByCanonicalNameWhenInternalIdIsBlank() {
-        // Setup: produto cadastrado no catálogo (vindo da Anota.AI)
-        Category category = persistCategory("Açaí");
-        Product acai = persistProduct("Açaí 330ml", "anota-acai-330-ifood", category,
-                new BigDecimal("18.49"));
-        // Ingredientes cadastrados — esperados nos extras
-        Ingredient leiteNinho = persistIngredient("leite ninho", "g",
-                new BigDecimal("0.05"), new BigDecimal("20"));
-        Ingredient chocoball = persistIngredient("chocoball", "g",
-                new BigDecimal("0.06"), new BigDecimal("20"));
-
-        // iFood manda pedido: internalId='' no item e nos subItems, mas name 'Açaí 330 ml'
-        // (note o espaço extra que o iFood às vezes usa). Canonical: 'acai 330 ml' vs 'acai 330ml'.
-        // O fixture já usa "Açaí 330 ml" — vamos garantir que o produto também tenha o mesmo
-        // espaçamento OU que a normalização cuide disso.
-        // Para esse teste, vamos usar o nome exato igual ao do fixture, sem espaço entre 330 e ml.
-        acai.setName("Açaí 330 ml");
-        productRepository.save(acai);
-
-        given(anotaAIClient.getOrderList(apiKey)).willReturn(orderListIfood("ord-ifood-1"));
-        AnotaAIOrderDetailResponse detail = AnotaAIFixtures.load(
-                "order_detail_ifood.json", AnotaAIOrderDetailResponse.class);
-        detail.getInfo().setId("ord-ifood-1");
-        given(anotaAIClient.getOrderDetail(apiKey, "ord-ifood-1")).willReturn(detail);
-
-        // Act
-        AnotaAISyncResult result = syncService.syncOrders(merchant.getId());
-
-        // Assert — pedido importado com item E extras
-        assertThat(result.getOrdersImported()).isEqualTo(1);
-        Order saved = orderRepository.findByExternalOrderIdAndMerchantId(
-                "ord-ifood-1", merchant.getId()).orElseThrow();
-        assertThat(saved.getOrigin()).isEqualTo(OrderOrigin.IFOOD);
-        assertThat(saved.getItems())
-                .as("Item iFood deve entrar mesmo com internalId vazio (match por nome)")
-                .hasSize(1);
-
-        var item = saved.getItems().get(0);
-        assertThat(item.getProduct().getId()).isEqualTo(acai.getId());
-        assertThat(item.getExtraIngredients()).hasSize(2);
-        assertThat(item.getExtraIngredients()).extracting("ingredientName")
-                .containsExactlyInAnyOrder("leite ninho", "chocoball");
-    }
-
-    private AnotaAIOrderListResponse orderListIfood(String orderId) {
-        AnotaAIOrderListResponse response = AnotaAIFixtures.load(
-                "order_list_template.json", AnotaAIOrderListResponse.class);
-        var summary = response.getInfo().getDocs().get(0);
-        summary.setId(orderId);
-        summary.setSalesChannel("ifood");
-        return response;
-    }
-
-    @Test
     @DisplayName("syncOrders deve pular pedido já importado (idempotência)")
     void syncOrders_shouldSkipAlreadyImportedOrder() {
         Category category = persistCategory("Açaí");

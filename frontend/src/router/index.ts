@@ -18,6 +18,12 @@ const router = createRouter({
     },
     {
       path: '/',
+      name: 'landing',
+      component: () => import('@/views/LandingView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/dashboard',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
     },
@@ -67,7 +73,7 @@ router.beforeEach((to) => {
     return { name: 'login' }
   }
 
-  if (auth.isAuthenticated && isPublic) {
+  if (auth.isAuthenticated && isPublic && to.name !== 'landing') {
     return { name: 'dashboard' }
   }
 })

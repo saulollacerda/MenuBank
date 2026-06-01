@@ -176,6 +176,22 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
+  async function updateInclude(productId: string, includeId: string, request: IncludeRequest) {
+    loading.value = true
+    error.value = null
+    try {
+      const updated = await includeService.update(productId, includeId, request)
+      const idx = includes.value.findIndex((i) => i.id === includeId)
+      if (idx !== -1) includes.value[idx] = updated
+      return updated
+    } catch (e: unknown) {
+      error.value = 'Erro ao atualizar item da ficha técnica'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function removeInclude(productId: string, includeId: string) {
     loading.value = true
     error.value = null
@@ -208,6 +224,7 @@ export const useProductStore = defineStore('product', () => {
     fetchIncludes,
     addInclude,
     batchAddIncludes,
+    updateInclude,
     removeInclude,
     clearRecipe,
   }

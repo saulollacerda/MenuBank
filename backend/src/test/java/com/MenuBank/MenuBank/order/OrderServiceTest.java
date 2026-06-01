@@ -14,6 +14,7 @@ import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
 import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,11 +111,12 @@ class OrderServiceTest {
                 .status(IngredientStatus.ACTIVE)
                 .build();
 
-        // Mock receita do produto: 1 include × custo 12.00 = unitCost 12.00
+        // Mock receita do produto: 1 include (insumo/embalagem) × custo 12.00 = unitCost 12.00
         Include defaultRecipe = Include.builder()
                 .product(product).name("CustoBase")
                 .cost(new BigDecimal("12.00"))
-                .quantity(BigDecimal.ONE).build();
+                .quantity(BigDecimal.ONE)
+                .kind(IncludeKind.PACKAGING).build();
         lenient().when(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
                 .thenReturn(List.of(defaultRecipe));
 
@@ -531,6 +533,34 @@ class OrderServiceTest {
             assertThat(item.getInsumos().get(0).getCost()).isEqualByComparingTo(new BigDecimal("12.00"));
             assertThat(item.getInsumos().get(0).getQuantity()).isEqualByComparingTo(BigDecimal.ONE);
             assertThat(item.getInsumos().get(0).getTotalCost()).isEqualByComparingTo(new BigDecimal("12.00"));
+        }
+
+        @Test
+        @DisplayName("insumos NÃO devem incluir Includes do tipo INGREDIENT nem de kind nulo")
+        void shouldExcludeIngredientKindIncludesFromInsumos() {
+            Include packaging = Include.builder()
+                    .product(product).name("Copo")
+                    .cost(new BigDecimal("0.35")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build();
+            Include specificIngredient = Include.builder()
+                    .product(product).name("Creme de Ovomaltine")
+                    .cost(new BigDecimal("0.80")).quantity(new BigDecimal("150"))
+                    .kind(IncludeKind.INGREDIENT).build();
+            Include legacyNullKind = Include.builder()
+                    .product(product).name("Açaí Goat")
+                    .cost(new BigDecimal("0.02")).quantity(new BigDecimal("150"))
+                    .build();
+            given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
+                    .willReturn(List.of(packaging, specificIngredient, legacyNullKind));
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            OrderItemResponse item = result.getItems().get(0);
+            assertThat(item.getInsumos())
+                    .as("apenas Includes PACKAGING entram em insumos")
+                    .hasSize(1);
+            assertThat(item.getInsumos().get(0).getName()).isEqualTo("Copo");
         }
 
         @Test

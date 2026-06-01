@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.order;
 
+import com.MenuBank.MenuBank.fee.Fee;
 import com.MenuBank.MenuBank.product.Product;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,6 +91,52 @@ class OrderCalculationsTest {
     void shouldReturnZeroForNullOrder() {
         assertThat(OrderCalculations.calculateEstimatedProfit(null))
                 .isEqualByComparingTo("0");
+    }
+
+    private Order orderWithFee(BigDecimal totalValue, BigDecimal deliveryFee,
+                               BigDecimal totalCost, BigDecimal feeRate) {
+        return Order.builder()
+                .totalValue(totalValue)
+                .deliveryFee(deliveryFee)
+                .totalCost(totalCost)
+                .fee(Fee.builder().name("Pix").feeRate(feeRate).build())
+                .build();
+    }
+
+    @Test
+    @DisplayName("deduz a taxa (feeRate %) do lucro, sobre (totalValue − deliveryFee)")
+    void shouldDeductFeeFromProfit() {
+        Order o = orderWithFee(new BigDecimal("50.00"), new BigDecimal("5.00"),
+                new BigDecimal("12.00"), new BigDecimal("10"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // base = 50 − 5 = 45; taxa = 45 × 10% = 4.50; lucro = 45 − 12 − 4.50 = 28.50
+        assertThat(profit).isEqualByComparingTo("28.50");
+    }
+
+    @Test
+    @DisplayName("base da taxa exclui a taxa de entrega (não incide sobre deliveryFee)")
+    void shouldApplyFeeOnSubtotalExcludingDelivery() {
+        Order o = orderWithFee(new BigDecimal("100.00"), new BigDecimal("10.00"),
+                BigDecimal.ZERO, new BigDecimal("10"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // base = 100 − 10 = 90; taxa = 90 × 10% = 9.00; lucro = 90 − 0 − 9 = 81.00
+        // (se incidisse sobre totalValue seria 10.00 → lucro 80.00)
+        assertThat(profit).isEqualByComparingTo("81.00");
+    }
+
+    @Test
+    @DisplayName("taxa zero não altera o lucro")
+    void shouldNotChangeProfitWhenFeeRateIsZero() {
+        Order o = orderWithFee(new BigDecimal("50.00"), new BigDecimal("5.00"),
+                new BigDecimal("12.00"), BigDecimal.ZERO);
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        assertThat(profit).isEqualByComparingTo("33.00");
     }
 
     // -------------------------------------------------------------------------

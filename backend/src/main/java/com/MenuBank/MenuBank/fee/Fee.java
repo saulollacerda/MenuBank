@@ -28,6 +28,6 @@ public class Fee {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, precision = 5, scale = 4)
+    @Column(nullable = false, precision = 7, scale = 4)
     private BigDecimal feeRate;
 }

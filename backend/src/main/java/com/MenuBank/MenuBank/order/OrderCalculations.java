@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.order;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 public final class OrderCalculations {
@@ -35,25 +36,48 @@ public final class OrderCalculations {
     }
 
     /**
-     * Lucro estimado do pedido = totalValue − deliveryFee − totalCost.
+     * Lucro estimado do pedido = (totalValue − deliveryFee) − totalCost − taxa.
      * <p>
      * Todos os campos podem ser {@code null}; tratados como zero. A taxa de entrega
      * é deduzida porque é repassada ao entregador/plataforma e não fica com o
-     * restaurante. Taxas de meio de pagamento ainda NÃO entram nesta fórmula.
+     * restaurante. A taxa de meio de pagamento ({@code fee.feeRate}, em %) incide
+     * sobre o subtotal dos produtos ({@code totalValue − deliveryFee}) e também é
+     * deduzida, pois é cobrada pela plataforma/adquirente.
      */
     public static BigDecimal calculateEstimatedProfit(Order order) {
         if (order == null) return BigDecimal.ZERO;
-        return calculateEstimatedProfit(order.getTotalValue(), order.getDeliveryFee(), order.getTotalCost());
+        BigDecimal feeRate = order.getFee() != null ? order.getFee().getFeeRate() : null;
+        return calculateEstimatedProfit(order.getTotalValue(), order.getDeliveryFee(),
+                order.getTotalCost(), feeRate);
+    }
+
+    /**
+     * @deprecated use {@link #calculateEstimatedProfit(BigDecimal, BigDecimal, BigDecimal, BigDecimal)}
+     * para incluir a taxa de meio de pagamento. Mantido para compatibilidade.
+     */
+    @Deprecated
+    public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
+                                                       BigDecimal deliveryFee,
+                                                       BigDecimal totalCost) {
+        return calculateEstimatedProfit(totalValue, deliveryFee, totalCost, null);
     }
 
     /**
      * Overload usado em {@code toResponse}, quando {@code totalCost} já foi resolvido
      * a partir do snapshot ou recalculado a partir dos items (fallback legado).
+     *
+     * @param feeRate percentual da taxa de meio de pagamento (ex.: {@code 2.5} = 2,5%);
+     *                {@code null}/zero = sem taxa.
      */
     public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
                                                        BigDecimal deliveryFee,
-                                                       BigDecimal totalCost) {
-        return nz(totalValue).subtract(nz(deliveryFee)).subtract(nz(totalCost));
+                                                       BigDecimal totalCost,
+                                                       BigDecimal feeRate) {
+        BigDecimal subtotal = nz(totalValue).subtract(nz(deliveryFee));
+        BigDecimal feeAmount = subtotal
+                .multiply(nz(feeRate))
+                .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+        return subtotal.subtract(nz(totalCost)).subtract(feeAmount);
     }
 
     private static BigDecimal nz(BigDecimal value) {
