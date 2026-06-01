@@ -142,6 +142,32 @@ class IngredientControllerTest {
         }
 
         @Test
+        @DisplayName("deve aceitar costPerUnit zero")
+        void shouldAcceptCostPerUnitZero() throws Exception {
+            IngredientResponse zeroResponse = IngredientResponse.builder()
+                    .id(ingredientId)
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(BigDecimal.ZERO)
+                    .status(IngredientStatus.ACTIVE)
+                    .build();
+            given(ingredientService.create(any(), any(IngredientRequest.class))).willReturn(zeroResponse);
+
+            IngredientRequest request = IngredientRequest.builder()
+                    .name("Açúcar refinado")
+                    .unit("g")
+                    .costPerUnit(BigDecimal.ZERO)
+                    .build();
+
+            mockMvc.perform(post("/api/ingredients")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.costPerUnit").value(0));
+        }
+
+        @Test
         @DisplayName("deve retornar 400 quando costPerUnit tem mais de 4 casas decimais")
         void shouldReturn400WhenCostPerUnitHasMoreThanFourDecimals() throws Exception {
             IngredientRequest request = IngredientRequest.builder()
