@@ -158,6 +158,31 @@ class IncludeServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    @DisplayName("add deve persistir kind PACKAGING quando enviado")
+    void add_shouldPersistKindPackaging() {
+        IncludeRequest request = IncludeRequest.builder()
+                .name("copo").cost(new BigDecimal("0.50")).quantity(BigDecimal.ONE)
+                .kind(IncludeKind.PACKAGING).build();
+
+        IncludeResponse response = includeService.add(merchant.getId(), product.getId(), request);
+
+        assertThat(response.getKind()).isEqualTo(IncludeKind.PACKAGING);
+        Include persisted = includeRepository.findById(response.getId()).orElseThrow();
+        assertThat(persisted.getKind()).isEqualTo(IncludeKind.PACKAGING);
+    }
+
+    @Test
+    @DisplayName("add deve usar INGREDIENT como kind padrão quando não enviado")
+    void add_shouldDefaultToIngredient_whenKindIsNull() {
+        IncludeRequest request = IncludeRequest.builder()
+                .name("açaí base").cost(new BigDecimal("2.50")).quantity(BigDecimal.ONE).build();
+
+        IncludeResponse response = includeService.add(merchant.getId(), product.getId(), request);
+
+        assertThat(response.getKind()).isEqualTo(IncludeKind.INGREDIENT);
+    }
+
+    @Test
     @DisplayName("add deve rejeitar produto de outro merchant")
     void add_shouldRejectProductFromAnotherMerchant() {
         Merchant other = createMerchant("outro");

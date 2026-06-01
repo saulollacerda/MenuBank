@@ -50,6 +50,7 @@ describe('ProductsView', () => {
       remove: vi.fn(),
       fetchIncludes: vi.fn(),
       addInclude: vi.fn().mockResolvedValue({}),
+      updateInclude: vi.fn().mockResolvedValue({}),
       removeInclude: vi.fn(),
       clearRecipe: vi.fn(),
     }
@@ -109,12 +110,13 @@ describe('ProductsView', () => {
     expect(select.value).toBe('cat1')
   })
 
-  it('should add include with name/cost/quantity to the ficha tecnica', async () => {
+  it('should always add items as PACKAGING kind (no kind selector)', async () => {
     const wrapper = mount(ProductsView)
 
-    // Abre o modal de ficha tecnica do primeiro produto
     await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
     await flushPromises()
+
+    expect(wrapper.find('[data-testid="recipe-kind-select"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="recipe-name-input"]').setValue('Copo')
     await wrapper.get('[data-testid="recipe-cost-input"]').setValue('0.5')
@@ -127,6 +129,109 @@ describe('ProductsView', () => {
       name: 'Copo',
       cost: 0.5,
       quantity: 1,
+      kind: 'PACKAGING',
     })
+  })
+
+  it('should render grouped sections when there are PACKAGING items', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Açaí Base', cost: 2.5, quantity: 1, totalCost: 2.5, kind: 'INGREDIENT' },
+      { id: 'i2', productId: 'p1', name: 'Granola', cost: 0.4, quantity: 1, totalCost: 0.4, kind: 'INGREDIENT' },
+      { id: 'i3', productId: 'p1', name: 'Copo', cost: 0.35, quantity: 1, totalCost: 0.35, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ingredientes')
+    expect(wrapper.text()).toContain('Embalagens')
+    expect(wrapper.text()).toContain('Açaí Base')
+    expect(wrapper.text()).toContain('Granola')
+    expect(wrapper.text()).toContain('Copo')
+  })
+
+  it('should render grouped sections even when there are only PACKAGING items', async () => {
+    productStoreMock.includes = [
+      { id: 'i3', productId: 'p1', name: 'Copo', cost: 0.35, quantity: 1, totalCost: 0.35, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Embalagens')
+    expect(wrapper.text()).toContain('Copo')
+  })
+
+  it('should render flat list without section headers when all includes have no PACKAGING', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Açaí Base', cost: 2.5, quantity: 1, totalCost: 2.5, kind: 'INGREDIENT' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Embalagens')
+    expect(wrapper.text()).not.toContain('Ingredientes')
+  })
+
+  it('should show edit inputs when edit button is clicked on an include', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="include-i1-edit-button"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="include-i1-name-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="include-i1-cost-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="include-i1-quantity-input"]').exists()).toBe(true)
+  })
+
+  it('should call updateInclude with new values when edit is confirmed', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="include-i1-edit-button"]').trigger('click')
+
+    await wrapper.get('[data-testid="include-i1-name-input"]').setValue('Copo 500ml')
+    await wrapper.get('[data-testid="include-i1-cost-input"]').setValue('0.8')
+    await wrapper.get('[data-testid="include-i1-quantity-input"]').setValue('2')
+
+    await wrapper.get('[data-testid="include-i1-confirm-button"]').trigger('click')
+    await flushPromises()
+
+    expect(productStoreMock.updateInclude).toHaveBeenCalledWith('p1', 'i1', {
+      name: 'Copo 500ml',
+      cost: 0.8,
+      quantity: 2,
+      kind: 'PACKAGING',
+    })
+  })
+
+  it('should cancel edit and restore view mode when cancel is clicked', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="include-i1-edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="include-i1-cancel-button"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="include-i1-name-input"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Copo')
   })
 })

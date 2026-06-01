@@ -137,6 +137,30 @@ describe('productStore', () => {
     expect(store.includes).toContainEqual(newInclude)
   })
 
+  it('updateInclude should replace the updated item in includes', async () => {
+    const updated = {
+      id: 'inc1',
+      productId: 'p1',
+      name: 'Copo Grande',
+      cost: 0.8,
+      quantity: 1,
+      totalCost: 0.8,
+      kind: 'PACKAGING' as const,
+    }
+    mockedIncludeService.update.mockResolvedValue(updated)
+
+    const store = useProductStore()
+    store.includes = [
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' as const },
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1, kind: 'PACKAGING' as const },
+    ]
+
+    await store.updateInclude('p1', 'inc1', { name: 'Copo Grande', cost: 0.8, quantity: 1, kind: 'PACKAGING' })
+
+    expect(store.includes[0]).toEqual(updated)
+    expect(store.includes[1]?.name).toBe('Colher')
+  })
+
   it('removeInclude should remove from includes', async () => {
     const store = useProductStore()
     store.includes = [

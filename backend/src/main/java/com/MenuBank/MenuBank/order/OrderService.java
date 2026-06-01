@@ -13,6 +13,7 @@ import com.MenuBank.MenuBank.product.OrderCostCalculatorService;
 import com.MenuBank.MenuBank.product.ProductCostCalculator;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import com.MenuBank.MenuBank.product.IncludeResponse;
 import org.springframework.data.domain.Page;
@@ -259,9 +260,10 @@ public class OrderService {
                 ? order.getTotalCost()
                 : OrderCalculations.calculateTotalCost(items);
         // Lucro: recalcula sempre a partir dos valores do pedido para refletir a fórmula atual,
-        // usando o totalCost resolvido acima (snapshot ou fallback).
+        // usando o totalCost resolvido acima (snapshot ou fallback) e a taxa de meio de pagamento.
         BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                order.getTotalValue(), order.getDeliveryFee(), totalCost);
+                order.getTotalValue(), order.getDeliveryFee(), totalCost,
+                fee != null ? fee.getFeeRate() : null);
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -316,10 +318,14 @@ public class OrderService {
                 : List.of();
 
         // Insumos = Includes da ficha técnica do produto (snapshot atual).
+        // Apenas itens PACKAGING (copo, embalagem...) contam como insumo fixo do pedido.
+        // Includes do tipo INGREDIENT (ou legados sem kind) são opções de personalização
+        // e não devem aparecer em todo pedido — só entram via extraIngredients quando escolhidos.
         List<Include> productIncludes = includesByProduct != null
                 ? includesByProduct.getOrDefault(item.getProduct().getId(), List.of())
                 : includeRepository.findByProductIdAndProductMerchantId(item.getProduct().getId(), merchantId);
         List<IncludeResponse> insumos = productIncludes.stream()
+                .filter(inc -> inc.getKind() == IncludeKind.PACKAGING)
                 .map(this::toIncludeResponse)
                 .toList();
 

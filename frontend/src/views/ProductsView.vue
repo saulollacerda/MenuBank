@@ -31,9 +31,11 @@ const showRecipeModal = ref(false)
 const editing = ref<ProductResponse | null>(null)
 const selectedProduct = ref<ProductResponse | null>(null)
 const form = ref<ProductRequest>({ name: '', price: 0, categoryId: '' })
-const recipeForm = ref<IncludeRequest>({ name: '', cost: 0, quantity: 1 })
+const recipeForm = ref<IncludeRequest>({ name: '', cost: 0, quantity: 1, kind: 'PACKAGING' })
 const confirmDeleteId = ref<string | null>(null)
 const confirmClearRecipe = ref(false)
+const editingIncludeId = ref<string | null>(null)
+const editForm = ref<{ name: string; cost: number; quantity: number }>({ name: '', cost: 0, quantity: 1 })
 
 const categoryFilter = ref<string>('')
 const statusFilter = ref<'' | 'ACTIVE' | 'INACTIVE'>('')
@@ -107,7 +109,7 @@ async function handleSubmit() {
 
 async function openRecipe(p: ProductResponse) {
   selectedProduct.value = p
-  recipeForm.value = { name: '', cost: 0, quantity: 1 }
+  recipeForm.value = { name: '', cost: 0, quantity: 1, kind: 'PACKAGING' }
   showRecipeModal.value = true
   await productStore.fetchIncludes(p.id)
 }
@@ -119,7 +121,28 @@ async function handleAddRecipeItem() {
   if (!selectedProduct.value) return
   try {
     await productStore.addInclude(selectedProduct.value.id, recipeForm.value)
-    recipeForm.value = { name: '', cost: 0, quantity: 1 }
+    recipeForm.value = { name: '', cost: 0, quantity: 1, kind: 'PACKAGING' }
+  } catch {
+    /* error in store */
+  }
+}
+function handleStartEdit(it: { id: string; name: string; cost: number; quantity: number }) {
+  editingIncludeId.value = it.id
+  editForm.value = { name: it.name, cost: Number(it.cost), quantity: Number(it.quantity) }
+}
+function handleCancelEdit() {
+  editingIncludeId.value = null
+}
+async function handleUpdateRecipeItem(includeId: string, kind: string) {
+  if (!selectedProduct.value) return
+  try {
+    await productStore.updateInclude(selectedProduct.value.id, includeId, {
+      name: editForm.value.name,
+      cost: editForm.value.cost,
+      quantity: editForm.value.quantity,
+      kind: kind as 'INGREDIENT' | 'PACKAGING',
+    })
+    editingIncludeId.value = null
   } catch {
     /* error in store */
   }
@@ -151,6 +174,21 @@ async function handleDelete() {
   }
   confirmDeleteId.value = null
 }
+
+const ingredientIncludes = computed(() =>
+  productStore.includes.filter((i) => !i.kind || i.kind === 'INGREDIENT'),
+)
+const packagingIncludes = computed(() =>
+  productStore.includes.filter((i) => i.kind === 'PACKAGING'),
+)
+const hasMultipleKinds = computed(() => packagingIncludes.value.length > 0)
+
+const ingredientSubtotal = computed(() =>
+  ingredientIncludes.value.reduce((s, i) => s + Number(i.totalCost), 0),
+)
+const packagingSubtotal = computed(() =>
+  packagingIncludes.value.reduce((s, i) => s + Number(i.totalCost), 0),
+)
 
 const recipeTotalCost = computed(() =>
   productStore.includes.reduce((s, i) => s + Number(i.totalCost), 0),
@@ -680,10 +718,10 @@ onMounted(() => {
           }"
           @submit.prevent="handleAddRecipeItem"
         >
-          <UIField label="Item">
+          <UIField label="Embalagem / Insumo">
             <UIInput
               v-model="recipeForm.name"
-              placeholder="Ex.: Copo, Colher, Açaí Base…"
+              placeholder="Ex.: Copo, Colher, Embalagem…"
               data-testid="recipe-name-input"
             />
           </UIField>
@@ -714,10 +752,11 @@ onMounted(() => {
             overflow: 'hidden',
           }"
         >
+          <!-- header -->
           <div
             :style="{
               display: 'grid',
-              gridTemplateColumns: '1fr 90px 110px 50px',
+              gridTemplateColumns: '1fr 90px 110px 80px',
               gap: '10px',
               padding: '10px 14px',
               background: UI.bgSoft,
@@ -734,43 +773,219 @@ onMounted(() => {
             <span style="text-align: right">Custo total</span>
             <span />
           </div>
+
+          <!-- empty -->
           <div
             v-if="!productStore.includes.length"
             :style="{ padding: '24px', textAlign: 'center', color: UI.textMute, fontSize: '13px' }"
           >
             Nenhum item na ficha técnica.
           </div>
-          <div
-            v-for="(it, i) in productStore.includes"
-            v-else
-            :key="it.id"
-            :style="{
-              display: 'grid',
-              gridTemplateColumns: '1fr 90px 110px 50px',
-              gap: '10px',
-              padding: '11px 14px',
-              alignItems: 'center',
-              fontSize: '13px',
-              borderBottom: i === productStore.includes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
-            }"
-          >
-            <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
-            <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
-              {{ it.quantity }}
-            </span>
-            <span
-              :style="{
-                textAlign: 'right',
-                fontVariantNumeric: 'tabular-nums',
-                fontWeight: 600,
-              }"
-            >
-              {{ brl(Number(it.totalCost)) }}
-            </span>
-            <span style="display: flex; justify-content: flex-end">
-              <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
-            </span>
-          </div>
+
+          <template v-else>
+            <!-- seção Ingredientes -->
+            <template v-if="hasMultipleKinds">
+              <div
+                :style="{
+                  padding: '7px 14px',
+                  background: UI.bgSoft,
+                  borderBottom: `1px solid ${UI.border}`,
+                  fontSize: '10px',
+                  color: UI.textMute,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }"
+              >
+                <span>Ingredientes</span>
+                <span :style="{ fontVariantNumeric: 'tabular-nums' }">{{ brl(ingredientSubtotal) }}</span>
+              </div>
+            </template>
+            <template v-for="(it, i) in ingredientIncludes" :key="it.id">
+              <!-- edit mode -->
+              <div
+                v-if="editingIncludeId === it.id"
+                :style="{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 90px 110px 80px',
+                  gap: '8px',
+                  padding: '8px 14px',
+                  alignItems: 'center',
+                  borderBottom:
+                    !hasMultipleKinds && i === ingredientIncludes.length - 1
+                      ? 'none'
+                      : `1px solid ${UI.borderSub}`,
+                  background: UI.blueBg,
+                }"
+              >
+                <UIInput
+                  v-model="editForm.name"
+                  :data-testid="`include-${it.id}-name-input`"
+                  placeholder="Nome"
+                />
+                <UIInput
+                  v-model.number="editForm.quantity"
+                  type="number"
+                  :data-testid="`include-${it.id}-quantity-input`"
+                  placeholder="Qtd"
+                />
+                <UIInput
+                  v-model.number="editForm.cost"
+                  type="number"
+                  :data-testid="`include-${it.id}-cost-input`"
+                  placeholder="Custo"
+                />
+                <span style="display: flex; gap: 4px; justify-content: flex-end">
+                  <UIRowAction
+                    icon="check"
+                    color="blue"
+                    :data-testid="`include-${it.id}-confirm-button`"
+                    @click="handleUpdateRecipeItem(it.id, it.kind)"
+                  />
+                  <UIRowAction
+                    icon="x"
+                    color="gray"
+                    :data-testid="`include-${it.id}-cancel-button`"
+                    @click="handleCancelEdit"
+                  />
+                </span>
+              </div>
+              <!-- view mode -->
+              <div
+                v-else
+                :style="{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 90px 110px 80px',
+                  gap: '10px',
+                  padding: '11px 14px',
+                  alignItems: 'center',
+                  fontSize: '13px',
+                  borderBottom:
+                    !hasMultipleKinds && i === ingredientIncludes.length - 1
+                      ? 'none'
+                      : `1px solid ${UI.borderSub}`,
+                }"
+              >
+                <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
+                <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
+                  {{ it.quantity }}
+                </span>
+                <span :style="{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }">
+                  {{ brl(Number(it.totalCost)) }}
+                </span>
+                <span style="display: flex; gap: 4px; justify-content: flex-end">
+                  <UIRowAction
+                    icon="edit"
+                    color="blue"
+                    :data-testid="`include-${it.id}-edit-button`"
+                    @click="handleStartEdit(it)"
+                  />
+                  <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
+                </span>
+              </div>
+            </template>
+
+            <!-- seção Embalagens & Insumos -->
+            <template v-if="hasMultipleKinds">
+              <div
+                :style="{
+                  padding: '7px 14px',
+                  background: UI.bgSoft,
+                  borderTop: `1px solid ${UI.border}`,
+                  borderBottom: `1px solid ${UI.border}`,
+                  fontSize: '10px',
+                  color: UI.textMute,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }"
+              >
+                <span>Embalagens & Insumos</span>
+                <span :style="{ fontVariantNumeric: 'tabular-nums' }">{{ brl(packagingSubtotal) }}</span>
+              </div>
+              <template v-for="(it, i) in packagingIncludes" :key="it.id">
+                <!-- edit mode -->
+                <div
+                  v-if="editingIncludeId === it.id"
+                  :style="{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 90px 110px 80px',
+                    gap: '8px',
+                    padding: '8px 14px',
+                    alignItems: 'center',
+                    borderBottom: i === packagingIncludes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+                    background: UI.blueBg,
+                  }"
+                >
+                  <UIInput
+                    v-model="editForm.name"
+                    :data-testid="`include-${it.id}-name-input`"
+                    placeholder="Nome"
+                  />
+                  <UIInput
+                    v-model.number="editForm.quantity"
+                    type="number"
+                    :data-testid="`include-${it.id}-quantity-input`"
+                    placeholder="Qtd"
+                  />
+                  <UIInput
+                    v-model.number="editForm.cost"
+                    type="number"
+                    :data-testid="`include-${it.id}-cost-input`"
+                    placeholder="Custo"
+                  />
+                  <span style="display: flex; gap: 4px; justify-content: flex-end">
+                    <UIRowAction
+                      icon="check"
+                      color="blue"
+                      :data-testid="`include-${it.id}-confirm-button`"
+                      @click="handleUpdateRecipeItem(it.id, it.kind)"
+                    />
+                    <UIRowAction
+                      icon="x"
+                      color="gray"
+                      :data-testid="`include-${it.id}-cancel-button`"
+                      @click="handleCancelEdit"
+                    />
+                  </span>
+                </div>
+                <!-- view mode -->
+                <div
+                  v-else
+                  :style="{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 90px 110px 80px',
+                    gap: '10px',
+                    padding: '11px 14px',
+                    alignItems: 'center',
+                    fontSize: '13px',
+                    borderBottom: i === packagingIncludes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+                  }"
+                >
+                  <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
+                  <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
+                    {{ it.quantity }}
+                  </span>
+                  <span :style="{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }">
+                    {{ brl(Number(it.totalCost)) }}
+                  </span>
+                  <span style="display: flex; gap: 4px; justify-content: flex-end">
+                    <UIRowAction
+                      icon="edit"
+                      color="blue"
+                      :data-testid="`include-${it.id}-edit-button`"
+                      @click="handleStartEdit(it)"
+                    />
+                    <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
+                  </span>
+                </div>
+              </template>
+            </template>
+          </template>
         </div>
       </div>
 

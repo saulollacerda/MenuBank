@@ -32,11 +32,12 @@ export const UI = {
 // Brazilian formatters.
 export function brl(n: number, opts: { decimals?: number; prefix?: string } = {}): string {
   const { decimals = 2, prefix = 'R$ ' } = opts
+  const maxDecimals = n !== 0 && Math.abs(n) < 0.01 ? 4 : decimals
   return (
     prefix +
     n.toLocaleString('pt-BR', {
       minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
+      maximumFractionDigits: maxDecimals,
     })
   )
 }

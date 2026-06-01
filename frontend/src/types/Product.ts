@@ -1,4 +1,5 @@
 export type ProductStatus = 'ACTIVE' | 'INACTIVE'
+export type IncludeKind = 'INGREDIENT' | 'PACKAGING'
 
 export interface ProductRequest {
   name: string
@@ -24,6 +25,7 @@ export interface IncludeRequest {
   cost: number
   /** Opcional. Backend assume 1 quando ausente. */
   quantity?: number
+  kind?: IncludeKind
 }
 
 export interface IncludeResponse {
@@ -33,4 +35,5 @@ export interface IncludeResponse {
   cost: number
   quantity: number
   totalCost: number
+  kind: IncludeKind
 }
