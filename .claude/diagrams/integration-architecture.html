@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>MenuBank — Arquitetura de Integração</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px; }
+    h1 { text-align: center; font-size: 1.4rem; font-weight: 600; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px; }
+    .subtitle { text-align: center; font-size: 0.85rem; color: #475569; margin-bottom: 40px; }
+    .tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 32px; flex-wrap: wrap; }
+    .tab { padding: 8px 20px; border-radius: 20px; border: 1px solid #2d3748; background: #1e2330; color: #64748b; cursor: pointer; font-size: 0.82rem; font-weight: 500; transition: all 0.2s; }
+    .tab.active { background: #3b1f5e; border-color: #7c3aed; color: #e2e8f0; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .diagram-section { background: #1e2330; border: 1px solid #2d3748; border-radius: 12px; padding: 32px; margin-bottom: 24px; }
+    .diagram-section h2 { font-size: 0.75rem; font-weight: 600; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+    .diagram-section > p { font-size: 0.82rem; color: #475569; margin-bottom: 24px; line-height: 1.6; }
+    .mermaid { display: flex; justify-content: center; overflow-x: auto; }
+    .callout { background: #1a1f2e; border-left: 3px solid #7c3aed; border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 16px 0; font-size: 0.82rem; color: #94a3b8; line-height: 1.6; }
+    .callout strong { color: #c4b5fd; }
+    .callout.green { border-color: #10b981; } .callout.green strong { color: #6ee7b7; }
+    .callout.yellow { border-color: #f59e0b; } .callout.yellow strong { color: #fcd34d; }
+    .callout.red { border-color: #ef4444; } .callout.red strong { color: #fca5a5; }
+    .callout.blue { border-color: #3b82f6; } .callout.blue strong { color: #93c5fd; }
+    pre { background: #0d1117; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; font-size: 0.78rem; line-height: 1.7; overflow-x: auto; color: #e2e8f0; margin: 12px 0; }
+    .kw { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .cm { color: #8b949e; }
+    .tag { color: #7ee787; }
+    .attr { color: #79c0ff; }
+    .val { color: #ffa657; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+    .option-card { border-radius: 10px; padding: 20px; border: 1px solid; }
+    .option-card h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; }
+    .option-card ul { font-size: 0.78rem; line-height: 2; padding-left: 18px; color: #94a3b8; }
+    .option-card ul li strong { color: #e2e8f0; }
+    .rec-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 3px; background: #10b981; color: #064e3b; margin-left: 8px; }
+    .step-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+    .step { background: #161b27; border: 1px solid #2d3748; border-radius: 8px; padding: 16px; }
+    .step-num { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; color: #7c3aed; margin-bottom: 6px; }
+    .step h3 { font-size: 0.85rem; color: #e2e8f0; margin-bottom: 4px; }
+    .step p { font-size: 0.78rem; color: #64748b; margin: 0; line-height: 1.5; }
+    .legend { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: #94a3b8; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 16px; }
+    th { background: #161b27; color: #64748b; font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid #2d3748; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1a1f2e; color: #94a3b8; vertical-align: top; }
+    td:first-child { color: #e2e8f0; font-weight: 500; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+    .badge.exists { background: #064e3b; color: #6ee7b7; }
+    .badge.new { background: #1e3a5f; color: #93c5fd; }
+    .badge.move { background: #451a03; color: #fcd34d; }
+    .file-tree { font-family: monospace; font-size: 0.78rem; line-height: 1.9; background: #0d1117; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; }
+    .ft-dir { color: #79c0ff; }
+    .ft-file { color: #e2e8f0; }
+    .ft-new { color: #7ee787; }
+    .ft-move { color: #ffa657; }
+    .ft-cm { color: #8b949e; }
+  </style>
+</head>
+<body>
+
+<h1>MenuBank — Criando o anota-ai-adapter</h1>
+<p class="subtitle">Spring Boot 4 · Java 21 · Maven multi-module · RabbitMQ</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="show('estrutura')">Estrutura do projeto</div>
+  <div class="tab" onclick="show('pom')">pom.xml</div>
+  <div class="tab" onclick="show('dirs')">Diretórios do adapter</div>
+  <div class="tab" onclick="show('config')">application.yml</div>
+  <div class="tab" onclick="show('docker')">docker-compose</div>
+  <div class="tab" onclick="show('roteiro')">Roteiro de implementação</div>
+</div>
+
+<!-- ═══════════════════ ESTRUTURA ═══════════════════ -->
+<div id="estrutura" class="panel active">
+  <div class="diagram-section">
+    <h2>Opção de repositório — monorepo (recomendado para agora)</h2>
+    <div class="two-col">
+      <div class="option-card" style="background:#0d2818;border-color:#10b981">
+        <h3 style="color:#6ee7b7">Monorepo Maven multi-module <span class="rec-badge">Recomendado</span></h3>
+        <ul>
+          <li><strong>Um único repositório</strong> com múltiplos módulos</li>
+          <li><strong>shared-contracts</strong> é só um módulo local — sem publicar JAR</li>
+          <li><strong>CI/CD único</strong> — um pipeline constrói tudo</li>
+          <li><strong>Refactor cross-service</strong> em um único commit</li>
+          <li><strong>Quando extrair</strong>: mover a pasta para repo próprio depois</li>
+        </ul>
+      </div>
+      <div class="option-card" style="background:#1a1a1a;border-color:#374151">
+        <h3 style="color:#6b7280">Repositórios separados</h3>
+        <ul>
+          <li>Cada serviço em seu próprio repo</li>
+          <li>shared-contracts publicado no GitHub Packages</li>
+          <li>CI/CD independente por serviço</li>
+          <li>Mudança de contrato exige bump de versão</li>
+          <li>Complexidade operacional maior agora</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout green" style="margin-top:16px">
+      <strong>Estratégia:</strong> começar como monorepo Maven multi-module. Quando o time crescer ou os serviços precisarem de ciclos de deploy independentes, mover cada módulo para seu próprio repo é trivial — a estrutura interna já estará certa.
+    </div>
+  </div>
+
+  <div class="diagram-section">
+    <h2>Estrutura do monorepo após a criação</h2>
+    <div class="file-tree">
+<span class="ft-dir">MenuBank/</span>
+├── <span class="ft-new">pom.xml</span>                        <span class="ft-cm">← parent POM (novo)</span>
+│
+├── <span class="ft-new">shared-contracts/</span>             <span class="ft-cm">← JAR com eventos canônicos (novo)</span>
+│   ├── <span class="ft-new">pom.xml</span>
+│   └── src/main/java/com/menubank/contracts/
+│       ├── <span class="ft-new">OrderReceivedEvent.java</span>
+│       ├── <span class="ft-new">CatalogSnapshotEvent.java</span>
+│       ├── <span class="ft-new">CatalogSyncRequestedEvent.java</span>
+│       └── order/  catalog/                <span class="ft-cm">← sub-records</span>
+│
+├── <span class="ft-move">backend/</span>                       <span class="ft-cm">← menubank-core (vira módulo Maven)</span>
+│   ├── <span class="ft-move">pom.xml</span>                    <span class="ft-cm">← adiciona parent + dep shared-contracts</span>
+│   └── src/...
+│
+├── <span class="ft-new">anota-ai-adapter/</span>             <span class="ft-cm">← novo serviço Spring Boot</span>
+│   ├── <span class="ft-new">pom.xml</span>
+│   ├── <span class="ft-new">Dockerfile</span>
+│   └── src/...
+│
+├── <span class="ft-dir">frontend/</span>                      <span class="ft-cm">← sem mudança</span>
+├── <span class="ft-move">docker-compose.yaml</span>           <span class="ft-cm">← adiciona RabbitMQ</span>
+└── <span class="ft-dir">infra/</span>
+    </div>
+
+    <div class="mermaid" style="margin-top:24px">
+graph LR
+    subgraph MONO["Monorepo Maven"]
+      PAR["parent pom.xml\ngerencia versões"]
+      SC["shared-contracts\nJAR — sem Spring, sem JPA"]
+      CORE["backend\nmenubank-core\nSpring Boot + JPA"]
+      MS["anota-ai-adapter\nSpring Boot (leve)"]
+    end
+
+    PAR --> SC
+    PAR --> CORE
+    PAR --> MS
+    SC -->|compile dep| CORE
+    SC -->|compile dep| MS
+
+    style SC fill:#3b1f5e,stroke:#7c3aed
+    style CORE fill:#0d0d1a,stroke:#6366f1
+    style MS fill:#0d2818,stroke:#10b981
+    style PAR fill:#1a1a1a,stroke:#374151
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ POM ═══════════════════ -->
+<div id="pom" class="panel">
+
+  <div class="diagram-section">
+    <h2>Parent pom.xml — raiz do monorepo</h2>
+    <pre><span class="tag">&lt;project&gt;</span>
+  <span class="tag">&lt;groupId&gt;</span><span class="val">com.menubank</span><span class="tag">&lt;/groupId&gt;</span>
+  <span class="tag">&lt;artifactId&gt;</span><span class="val">menubank-parent</span><span class="tag">&lt;/artifactId&gt;</span>
+  <span class="tag">&lt;version&gt;</span><span class="val">1.0.0-SNAPSHOT</span><span class="tag">&lt;/version&gt;</span>
+  <span class="tag">&lt;packaging&gt;</span><span class="val">pom</span><span class="tag">&lt;/packaging&gt;</span>  <span class="cm">&lt;!-- importante: pom, não jar --&gt;</span>
+
+  <span class="tag">&lt;parent&gt;</span>
+    <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+    <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-parent</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;version&gt;</span><span class="val">4.0.3</span><span class="tag">&lt;/version&gt;</span>
+  <span class="tag">&lt;/parent&gt;</span>
+
+  <span class="tag">&lt;modules&gt;</span>
+    <span class="tag">&lt;module&gt;</span><span class="val">shared-contracts</span><span class="tag">&lt;/module&gt;</span>
+    <span class="tag">&lt;module&gt;</span><span class="val">backend</span><span class="tag">&lt;/module&gt;</span>
+    <span class="tag">&lt;module&gt;</span><span class="val">anota-ai-adapter</span><span class="tag">&lt;/module&gt;</span>
+  <span class="tag">&lt;/modules&gt;</span>
+
+  <span class="tag">&lt;properties&gt;</span>
+    <span class="tag">&lt;java.version&gt;</span><span class="val">21</span><span class="tag">&lt;/java.version&gt;</span>
+    <span class="tag">&lt;contracts.version&gt;</span><span class="val">1.0.0-SNAPSHOT</span><span class="tag">&lt;/contracts.version&gt;</span>
+  <span class="tag">&lt;/properties&gt;</span>
+<span class="tag">&lt;/project&gt;</span></pre>
+  </div>
+
+  <div class="diagram-section">
+    <h2>shared-contracts/pom.xml — JAR puro, sem Spring</h2>
+    <pre><span class="tag">&lt;project&gt;</span>
+  <span class="tag">&lt;parent&gt;</span>
+    <span class="tag">&lt;groupId&gt;</span><span class="val">com.menubank</span><span class="tag">&lt;/groupId&gt;</span>
+    <span class="tag">&lt;artifactId&gt;</span><span class="val">menubank-parent</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;version&gt;</span><span class="val">1.0.0-SNAPSHOT</span><span class="tag">&lt;/version&gt;</span>
+  <span class="tag">&lt;/parent&gt;</span>
+
+  <span class="tag">&lt;artifactId&gt;</span><span class="val">shared-contracts</span><span class="tag">&lt;/artifactId&gt;</span>
+  <span class="tag">&lt;packaging&gt;</span><span class="val">jar</span><span class="tag">&lt;/packaging&gt;</span>
+
+  <span class="cm">&lt;!-- sem dependências de Spring ou JPA — só Jackson para serialização --&gt;</span>
+  <span class="tag">&lt;dependencies&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">com.fasterxml.jackson.core</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">jackson-databind</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+  <span class="tag">&lt;/dependencies&gt;</span>
+<span class="tag">&lt;/project&gt;</span></pre>
+  </div>
+
+  <div class="diagram-section">
+    <h2>anota-ai-adapter/pom.xml — novo serviço</h2>
+    <pre><span class="tag">&lt;project&gt;</span>
+  <span class="tag">&lt;parent&gt;</span>
+    <span class="tag">&lt;groupId&gt;</span><span class="val">com.menubank</span><span class="tag">&lt;/groupId&gt;</span>
+    <span class="tag">&lt;artifactId&gt;</span><span class="val">menubank-parent</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;version&gt;</span><span class="val">1.0.0-SNAPSHOT</span><span class="tag">&lt;/version&gt;</span>
+  <span class="tag">&lt;/parent&gt;</span>
+
+  <span class="tag">&lt;artifactId&gt;</span><span class="val">anota-ai-adapter</span><span class="tag">&lt;/artifactId&gt;</span>
+
+  <span class="tag">&lt;dependencies&gt;</span>
+    <span class="cm">&lt;!-- contrato compartilhado com o core --&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">com.menubank</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">shared-contracts</span><span class="tag">&lt;/artifactId&gt;</span>
+      <span class="tag">&lt;version&gt;</span><span class="val">${contracts.version}</span><span class="tag">&lt;/version&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+
+    <span class="cm">&lt;!-- web (webhook + sync endpoints) --&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-webmvc</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+
+    <span class="cm">&lt;!-- RabbitMQ --&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-amqp</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+
+    <span class="cm">&lt;!-- validação e actuator --&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-validation</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-actuator</span><span class="tag">&lt;/artifactId&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+
+    <span class="cm">&lt;!-- sem JPA, sem banco próprio --&gt;</span>
+
+    <span class="tag">&lt;dependency&gt;</span>
+      <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+      <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-starter-test</span><span class="tag">&lt;/artifactId&gt;</span>
+      <span class="tag">&lt;scope&gt;</span><span class="val">test</span><span class="tag">&lt;/scope&gt;</span>
+    <span class="tag">&lt;/dependency&gt;</span>
+  <span class="tag">&lt;/dependencies&gt;</span>
+
+  <span class="tag">&lt;build&gt;</span>
+    <span class="tag">&lt;plugins&gt;</span>
+      <span class="tag">&lt;plugin&gt;</span>
+        <span class="tag">&lt;groupId&gt;</span><span class="val">org.springframework.boot</span><span class="tag">&lt;/groupId&gt;</span>
+        <span class="tag">&lt;artifactId&gt;</span><span class="val">spring-boot-maven-plugin</span><span class="tag">&lt;/artifactId&gt;</span>
+      <span class="tag">&lt;/plugin&gt;</span>
+    <span class="tag">&lt;/plugins&gt;</span>
+  <span class="tag">&lt;/build&gt;</span>
+<span class="tag">&lt;/project&gt;</span></pre>
+
+    <div class="callout yellow">
+      <strong>Sem JPA, sem banco:</strong> o adapter é stateless. Não tem <code>spring-boot-starter-data-jpa</code>, não tem <code>DataSource</code>. Só web + AMQP + shared-contracts.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ DIRS ═══════════════════ -->
+<div id="dirs" class="panel">
+  <div class="diagram-section">
+    <h2>Estrutura de diretórios — anota-ai-adapter</h2>
+    <div class="file-tree">
+<span class="ft-dir">anota-ai-adapter/</span>
+├── pom.xml
+├── Dockerfile
+└── src/
+    ├── main/
+    │   ├── java/com/menubank/anotaai/
+    │   │   ├── <span class="ft-new">AnotaAIAdapterApplication.java</span>     <span class="ft-cm">← @SpringBootApplication</span>
+    │   │   │
+    │   │   ├── <span class="ft-dir">config/</span>
+    │   │   │   ├── <span class="ft-new">RabbitMQConfig.java</span>               <span class="ft-cm">← declara exchanges, queues, DLQ</span>
+    │   │   │   └── <span class="ft-new">SecurityConfig.java</span>               <span class="ft-cm">← libera /webhooks/**, protege /sync/**</span>
+    │   │   │
+    │   │   ├── <span class="ft-dir">client/</span>                            <span class="ft-cm">← Camada 1 (vem do core)</span>
+    │   │   │   ├── <span class="ft-move">AnotaAIClient.java</span>                <span class="ft-cm">← MOVER do core</span>
+    │   │   │   ├── <span class="ft-move">AnotaAIOrderDetailResponse.java</span>   <span class="ft-cm">← MOVER do core</span>
+    │   │   │   ├── <span class="ft-move">AnotaAIOrderListResponse.java</span>     <span class="ft-cm">← MOVER do core</span>
+    │   │   │   └── <span class="ft-move">AnotaAICatalogResponse.java</span>       <span class="ft-cm">← MOVER do core</span>
+    │   │   │
+    │   │   ├── <span class="ft-dir">mapper/</span>                            <span class="ft-cm">← Camada 2 (novo)</span>
+    │   │   │   ├── <span class="ft-new">AnotaAIOrderMapper.java</span>           <span class="ft-cm">← raw → OrderReceivedEvent</span>
+    │   │   │   └── <span class="ft-new">AnotaAICatalogMapper.java</span>         <span class="ft-cm">← raw → CatalogSnapshotEvent</span>
+    │   │   │
+    │   │   ├── <span class="ft-dir">webhook/</span>
+    │   │   │   ├── <span class="ft-new">AnotaAIWebhookController.java</span>     <span class="ft-cm">← POST /webhooks/orders/{merchantId}</span>
+    │   │   │   └── <span class="ft-new">WebhookTokenValidator.java</span>        <span class="ft-cm">← valida Bearer token por merchant</span>
+    │   │   │
+    │   │   ├── <span class="ft-dir">sync/</span>
+    │   │   │   ├── <span class="ft-new">AnotaAISyncController.java</span>        <span class="ft-cm">← POST /sync/catalog/{merchantId}</span>
+    │   │   │   ├── <span class="ft-new">AnotaAIPollingWorker.java</span>         <span class="ft-cm">← @Scheduled — fallback pedidos</span>
+    │   │   │   └── <span class="ft-new">AnotaAICatalogScheduler.java</span>      <span class="ft-cm">← @Scheduled — sync periódico catálogo</span>
+    │   │   │
+    │   │   └── <span class="ft-dir">listener/</span>
+    │   │       └── <span class="ft-new">CatalogSyncRequestListener.java</span>  <span class="ft-cm">← @RabbitListener catalog.sync.requested</span>
+    │   │
+    │   └── resources/
+    │       └── <span class="ft-new">application.yml</span>
+    │
+    └── test/
+        └── java/com/menubank/anotaai/
+            ├── <span class="ft-new">mapper/AnotaAIOrderMapperTest.java</span>
+            ├── <span class="ft-new">mapper/AnotaAICatalogMapperTest.java</span>
+            └── <span class="ft-new">webhook/AnotaAIWebhookControllerTest.java</span>
+    </div>
+
+    <div class="callout">
+      <strong>shared-contracts</strong> fica em <code>shared-contracts/src/main/java/com/menubank/contracts/</code>. Tanto o adapter quanto o core importam esse módulo. Os records do evento vivem lá.
+    </div>
+  </div>
+
+  <div class="diagram-section">
+    <h2>O que vai para shared-contracts</h2>
+    <div class="file-tree">
+<span class="ft-dir">shared-contracts/src/main/java/com/menubank/contracts/</span>
+├── <span class="ft-new">OrderReceivedEvent.java</span>          <span class="ft-cm">← evento canônico de pedido</span>
+├── <span class="ft-new">CatalogSnapshotEvent.java</span>        <span class="ft-cm">← snapshot completo do catálogo</span>
+├── <span class="ft-new">CatalogSyncRequestedEvent.java</span>   <span class="ft-cm">← core pede sync ao adapter</span>
+├── order/
+│   ├── <span class="ft-new">OrderItemEvent.java</span>
+│   ├── <span class="ft-new">OrderExtraItemEvent.java</span>
+│   ├── <span class="ft-new">OrderCustomerEvent.java</span>
+│   ├── <span class="ft-new">OrderAddressEvent.java</span>
+│   └── <span class="ft-new">OrderPaymentEvent.java</span>
+└── catalog/
+    ├── <span class="ft-new">CatalogCategoryEvent.java</span>
+    └── <span class="ft-new">CatalogItemEvent.java</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CONFIG ═══════════════════ -->
+<div id="config" class="panel">
+  <div class="diagram-section">
+    <h2>application.yml — anota-ai-adapter</h2>
+    <pre><span class="attr">server</span>:
+  <span class="attr">port</span>: <span class="val">8081</span>   <span class="cm"># core roda em 8080</span>
+
+<span class="attr">spring</span>:
+  <span class="attr">application</span>:
+    <span class="attr">name</span>: <span class="val">anota-ai-adapter</span>
+
+  <span class="attr">rabbitmq</span>:
+    <span class="attr">host</span>: <span class="val">${RABBITMQ_HOST:localhost}</span>
+    <span class="attr">port</span>: <span class="val">${RABBITMQ_PORT:5672}</span>
+    <span class="attr">username</span>: <span class="val">${RABBITMQ_USER:menubank}</span>
+    <span class="attr">password</span>: <span class="val">${RABBITMQ_PASS:menubank}</span>
+
+<span class="attr">anota-ai</span>:
+  <span class="attr">base-url-orders</span>: <span class="val">https://api-parceiros.anota.ai/partnerauth</span>
+  <span class="attr">base-url-catalog</span>: <span class="val">https://api-menu.anota.ai/partnerauth</span>
+
+  <span class="cm"># configuração por merchant</span>
+  <span class="attr">merchants</span>:
+    - <span class="attr">id</span>: <span class="val">${MERCHANT_1_ID}</span>             <span class="cm"># UUID do merchant no MenuBank</span>
+      <span class="attr">api-key</span>: <span class="val">${MERCHANT_1_API_KEY}</span>     <span class="cm"># token Bearer para Anota.AI API</span>
+      <span class="attr">webhook-token</span>: <span class="val">${MERCHANT_1_WHK}</span>  <span class="cm"># token externo configurado no portal</span>
+    - <span class="attr">id</span>: <span class="val">${MERCHANT_2_ID}</span>
+      <span class="attr">api-key</span>: <span class="val">${MERCHANT_2_API_KEY}</span>
+      <span class="attr">webhook-token</span>: <span class="val">${MERCHANT_2_WHK}</span>
+
+  <span class="attr">polling</span>:
+    <span class="attr">enabled</span>: <span class="val">true</span>
+    <span class="attr">cron</span>: <span class="val">"0 */5 * * * *"</span>   <span class="cm"># a cada 5 minutos</span>
+
+  <span class="attr">catalog-sync</span>:
+    <span class="attr">cron</span>: <span class="val">"0 0 3 * * *"</span>     <span class="cm"># toda madrugada às 3h</span>
+
+<span class="attr">rabbitmq-config</span>:
+  <span class="attr">exchanges</span>:
+    <span class="attr">orders</span>: <span class="val">menubank.orders</span>
+    <span class="attr">catalog</span>: <span class="val">menubank.catalog</span>
+    <span class="attr">requests</span>: <span class="val">menubank.requests</span>
+  <span class="attr">queues</span>:
+    <span class="attr">orders-anotaai</span>: <span class="val">orders.anotaai</span>
+    <span class="attr">catalog-anotaai</span>: <span class="val">catalog.anotaai</span>
+    <span class="attr">sync-requested</span>: <span class="val">catalog.sync.requested</span></pre>
+
+    <div class="callout yellow">
+      <strong>Configuração de merchants por variável de ambiente:</strong> cada merchant tem seu próprio conjunto de variáveis. Em produção (Railway), cada variável é injetada no deploy. Em desenvolvimento, usa um <code>.env</code> local. Sem banco próprio no adapter.
+    </div>
+  </div>
+
+  <div class="diagram-section">
+    <h2>application.yml — adições no backend (core)</h2>
+    <pre><span class="cm"># adicionar ao application.yml existente do backend</span>
+
+<span class="attr">spring</span>:
+  <span class="attr">rabbitmq</span>:
+    <span class="attr">host</span>: <span class="val">${RABBITMQ_HOST:localhost}</span>
+    <span class="attr">port</span>: <span class="val">${RABBITMQ_PORT:5672}</span>
+    <span class="attr">username</span>: <span class="val">${RABBITMQ_USER:menubank}</span>
+    <span class="attr">password</span>: <span class="val">${RABBITMQ_PASS:menubank}</span>
+
+<span class="attr">rabbitmq-config</span>:
+  <span class="attr">queues</span>:
+    <span class="attr">orders-anotaai</span>: <span class="val">orders.anotaai</span>
+    <span class="attr">catalog-anotaai</span>: <span class="val">catalog.anotaai</span>
+    <span class="attr">sync-requested</span>: <span class="val">catalog.sync.requested</span></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════ DOCKER ═══════════════════ -->
+<div id="docker" class="panel">
+  <div class="diagram-section">
+    <h2>docker-compose.yaml — adicionar RabbitMQ</h2>
+    <pre><span class="attr">services</span>:
+  <span class="attr">db</span>:                         <span class="cm"># existente</span>
+    <span class="attr">image</span>: <span class="val">postgres:16</span>
+    <span class="cm"># ... sem mudança</span>
+
+  <span class="attr">rabbitmq</span>:                    <span class="cm"># novo</span>
+    <span class="attr">image</span>: <span class="val">rabbitmq:3.13-management</span>
+    <span class="attr">container_name</span>: <span class="val">menubank_rabbit</span>
+    <span class="attr">restart</span>: <span class="val">unless-stopped</span>
+    <span class="attr">environment</span>:
+      <span class="attr">RABBITMQ_DEFAULT_USER</span>: <span class="val">menubank</span>
+      <span class="attr">RABBITMQ_DEFAULT_PASS</span>: <span class="val">menubank</span>
+    <span class="attr">ports</span>:
+      - <span class="val">"5672:5672"</span>     <span class="cm"># AMQP</span>
+      - <span class="val">"15672:15672"</span>  <span class="cm"># Management UI → http://localhost:15672</span>
+    <span class="attr">volumes</span>:
+      - <span class="val">rabbitmq_data:/var/lib/rabbitmq</span>
+
+  <span class="attr">anota-ai-adapter</span>:            <span class="cm"># novo</span>
+    <span class="attr">build</span>: <span class="val">./anota-ai-adapter</span>
+    <span class="attr">container_name</span>: <span class="val">menubank_anotaai</span>
+    <span class="attr">restart</span>: <span class="val">unless-stopped</span>
+    <span class="attr">ports</span>:
+      - <span class="val">"8081:8081"</span>
+    <span class="attr">environment</span>:
+      <span class="attr">RABBITMQ_HOST</span>: <span class="val">rabbitmq</span>
+      <span class="attr">MERCHANT_1_ID</span>: <span class="val">${MERCHANT_1_ID}</span>
+      <span class="attr">MERCHANT_1_API_KEY</span>: <span class="val">${MERCHANT_1_API_KEY}</span>
+      <span class="attr">MERCHANT_1_WHK</span>: <span class="val">${MERCHANT_1_WHK}</span>
+    <span class="attr">depends_on</span>:
+      - <span class="val">rabbitmq</span>
+
+  <span class="attr">backend</span>:                     <span class="cm"># existente — adicionar dependência do rabbit</span>
+    <span class="attr">build</span>: <span class="val">./backend</span>
+    <span class="attr">environment</span>:
+      <span class="attr">RABBITMQ_HOST</span>: <span class="val">rabbitmq</span>
+      <span class="cm"># ... demais vars existentes</span>
+    <span class="attr">depends_on</span>:
+      - <span class="val">db</span>
+      - <span class="val">rabbitmq</span>     <span class="cm"># adicionar</span>
+
+<span class="attr">volumes</span>:
+  <span class="attr">postgres_data</span>:
+  <span class="attr">rabbitmq_data</span>:              <span class="cm"># novo</span></pre>
+
+    <div class="callout green">
+      <strong>Management UI:</strong> <code>http://localhost:15672</code> — interface visual do RabbitMQ para inspecionar filas, mensagens, DLQ e replay de mensagens com erro. Essencial para debug durante o desenvolvimento.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ ROTEIRO ═══════════════════ -->
+<div id="roteiro" class="panel">
+  <div class="diagram-section">
+    <h2>Roteiro de implementação — ordem recomendada</h2>
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">PASSO 1</div>
+        <h3>Parent POM + shared-contracts</h3>
+        <p>Criar o <code>pom.xml</code> raiz. Criar o módulo <code>shared-contracts</code> com os records dos eventos. Fazer o <code>backend/pom.xml</code> apontar para o parent.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 2</div>
+        <h3>RabbitMQ local</h3>
+        <p>Adicionar o RabbitMQ no <code>docker-compose.yaml</code>. Verificar que sobe e que o Management UI está acessível em <code>:15672</code>.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 3</div>
+        <h3>Esqueleto do adapter</h3>
+        <p>Criar a pasta <code>anota-ai-adapter/</code> com o <code>pom.xml</code>, <code>Application.java</code> e <code>application.yml</code>. Confirmar que sobe na porta 8081.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 4</div>
+        <h3>Mover client + DTOs</h3>
+        <p>Mover <code>AnotaAIClient</code>, <code>AnotaAIOrderDetailResponse</code>, <code>AnotaAIOrderListResponse</code>, <code>AnotaAICatalogResponse</code> do core para o adapter.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 5</div>
+        <h3>Criar mappers (TDD)</h3>
+        <p>Escrever testes do <code>AnotaAIOrderMapper</code> e <code>AnotaAICatalogMapper</code>. Implementar. Lógica de formato saída do <code>AnotaAIOrderImportService</code>.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 6</div>
+        <h3>Webhook + publisher</h3>
+        <p>Criar <code>AnotaAIWebhookController</code> e <code>RabbitMQConfig</code> no adapter. Publicar <code>OrderReceivedEvent</code> na fila. Testar com Postman.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 7</div>
+        <h3>Consumer no core</h3>
+        <p>Criar <code>OrderConsumer @RabbitListener</code> e <code>CatalogConsumer</code> no core. Adaptar assinatura do <code>AnotaAIOrderImportService</code>.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">PASSO 8</div>
+        <h3>Polling + catalog sync</h3>
+        <p>Mover o <code>PollingWorker</code> e o <code>CatalogSyncController</code> para o adapter. Criar o <code>CatalogSyncRequestListener</code>.</p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:24px">
+      <strong>TDD em todos os passos:</strong> cada mapper, controller e consumer tem teste antes da implementação. Os mappers são os mais críticos — são lógica pura, sem dependências externas, ideais para TDD.
+    </div>
+
+    <div class="diagram-section" style="margin:24px 0 0 0">
+      <h2>Ordem das dependências entre passos</h2>
+      <div class="mermaid">
+flowchart LR
+    P1["1\nParent POM\n+ shared-contracts"] --> P2["2\nRabbitMQ\nlocal"]
+    P1 --> P3["3\nEsqueleto\ndo adapter"]
+    P2 --> P4["4\nMover client\n+ DTOs"]
+    P3 --> P4
+    P4 --> P5["5\nMappers\n(TDD)"]
+    P5 --> P6["6\nWebhook\n+ publisher"]
+    P6 --> P7["7\nConsumer\nno core"]
+    P7 --> P8["8\nPolling\n+ catalog"]
+
+    style P1 fill:#3b1f5e,stroke:#7c3aed
+    style P5 fill:#064e3b,stroke:#10b981
+    style P7 fill:#1e3a5f,stroke:#3b82f6
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> anota-ai-adapter (novo)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> menubank-core</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> shared-contracts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffa657"></div> mover do core</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> RabbitMQ</div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true, theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2330', primaryTextColor: '#e2e8f0', primaryBorderColor: '#4a5568',
+      lineColor: '#64748b', secondaryColor: '#2d3748', tertiaryColor: '#1a202c',
+      background: '#0f1117', mainBkg: '#1e2330', nodeBorder: '#4a5568',
+      clusterBkg: '#1a202c', titleColor: '#94a3b8', edgeLabelBackground: '#1e2330',
+      fontFamily: 'Segoe UI, system-ui, sans-serif',
+    }
+  });
+  function show(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

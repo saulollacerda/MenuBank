@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landing-page",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3030", "landing-page"],
+      "port": 3030
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/saulo/Projetos/MenuBank/frontend",
+      "port": 5173
+    }
+  ]
+}
