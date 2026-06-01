@@ -7,6 +7,7 @@ import type { IngredientRequest, IngredientResponse } from '@/types/Ingredient'
 import type { PageParams } from '@/types/Page'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 import { ingredientService } from '@/services/ingredientService'
+import { useNotificationStore } from '@/stores/notificationStore'
 
 export const useIngredientStore = defineStore('ingredient', () => {
   const items = ref<IngredientResponse[]>([])
@@ -72,6 +73,11 @@ export const useIngredientStore = defineStore('ingredient', () => {
       const created = await ingredientService.create(request)
       cache.invalidate()
       await fetchPage({})
+      // Refresh notifications so any resolved MISSING_INGREDIENT
+      // notifications disappear from the bell badge and panel immediately.
+      const notifStore = useNotificationStore()
+      notifStore.refreshCount()
+      if (notifStore.items.length > 0) notifStore.fetchAll()
       return created
     } catch (e: unknown) {
       error.value = 'Erro ao criar ingrediente'

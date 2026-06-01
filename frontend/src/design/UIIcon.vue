@@ -382,5 +382,15 @@ defineProps<{ name: string; size?: number }>()
       />
       <path d="M12 3v3h3" fill="none" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'logout'">
+      <path
+        d="M7 3H4a1 1 0 00-1 1v12a1 1 0 001 1h3M13 14l4-4-4-4M17 10H8"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </template>
   </svg>
 </template>

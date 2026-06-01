@@ -15,7 +15,7 @@ const remember = ref(true)
 async function handleSubmit() {
   try {
     await authStore.login(form.value)
-    router.push('/')
+    router.push('/dashboard')
   } catch {
     // error is handled in the store
   }

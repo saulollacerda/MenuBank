@@ -163,7 +163,8 @@ class NotificationServiceTest {
                     .referenceData("pistache").referenceDisplay("Pistache")
                     .status(NotificationStatus.UNREAD)
                     .title("t").message("m").createdAt(Instant.now()).build();
-            given(notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable))
+            given(notificationRepository.findAllByMerchantIdAndStatusNotOrderByCreatedAtDesc(
+                    merchantId, NotificationStatus.RESOLVED, pageable))
                     .willReturn(new PageImpl<>(List.of(n), pageable, 1));
 
             var page = notificationService.findAll(merchantId, pageable);

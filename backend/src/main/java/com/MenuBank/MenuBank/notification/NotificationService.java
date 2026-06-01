@@ -74,7 +74,8 @@ public class NotificationService {
     }
 
     public Page<NotificationResponse> findAll(UUID merchantId, Pageable pageable) {
-        return notificationRepository.findAllByMerchantIdOrderByCreatedAtDesc(merchantId, pageable)
+        return notificationRepository
+                .findAllByMerchantIdAndStatusNotOrderByCreatedAtDesc(merchantId, NotificationStatus.RESOLVED, pageable)
                 .map(this::toResponse);
     }
 

@@ -10,7 +10,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const NAV = [
-  { id: 'dashboard', to: '/', ic: 'home', label: 'Dashboard' },
+  { id: 'dashboard', to: '/dashboard', ic: 'home', label: 'Dashboard' },
   { id: 'orders', to: '/orders', ic: 'cart', label: 'Pedidos' },
   { id: 'products', to: '/products', ic: 'burger', label: 'Produtos' },
   { id: 'categories', to: '/categories', ic: 'folder', label: 'Categorias' },
@@ -22,8 +22,8 @@ const NAV = [
 
 const activeId = computed(() => {
   const path = route.path
-  if (path === '/' || path.startsWith('/dashboard')) return 'dashboard'
-  const match = NAV.find((n) => n.to !== '/' && path.startsWith(n.to))
+  if (path === '/dashboard') return 'dashboard'
+  const match = NAV.find((n) => path.startsWith(n.to))
   return match?.id ?? 'dashboard'
 })
 
@@ -49,7 +49,10 @@ function logout() {
       flexDirection: 'column',
       flexShrink: 0,
       borderRight: `1px solid ${UI.navBg2}`,
-      minHeight: '100vh',
+      position: 'sticky',
+      top: 0,
+      height: '100vh',
+      overflow: 'hidden',
     }"
   >
     <div
@@ -115,7 +118,7 @@ function logout() {
       </div>
     </nav>
 
-    <div :style="{ padding: '12px', borderTop: '1px solid #1a2638' }">
+    <div :style="{ padding: '12px', borderTop: '1px solid #1a2638', flexShrink: 0 }">
       <div
         :style="{
           background: '#0a1322',
@@ -124,10 +127,7 @@ function logout() {
           display: 'flex',
           alignItems: 'center',
           gap: '11px',
-          cursor: 'pointer',
         }"
-        @click="logout"
-        title="Sair"
       >
         <div
           :style="{
@@ -170,6 +170,13 @@ function logout() {
             Loja aberta
           </div>
         </div>
+        <button
+          class="ui-logout-btn"
+          title="Sair"
+          @click="logout"
+        >
+          <UIIcon name="logout" :size="15" />
+        </button>
       </div>
     </div>
   </aside>
@@ -185,5 +192,22 @@ function logout() {
 }
 .ui-nav.is-active:hover {
   background: #2563eb !important;
+}
+.ui-logout-btn {
+  background: transparent;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.ui-logout-btn:hover {
+  background: rgba(225, 29, 72, 0.15);
+  color: #f87171;
 }
 </style>
