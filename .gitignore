@@ -24,3 +24,6 @@ infra/terraform.tfstate.backup
 # Claude Code
 .claude/worktrees/
 .claude/**/.DS_Store
+
+# Local docs (not versioned)
+/docs/
