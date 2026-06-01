@@ -223,6 +223,29 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
         assertThat(persisted.getFee().getId()).isEqualTo(fee.getId());
     }
 
+    @Test
+    @DisplayName("create deve aceitar taxa >= 10% (ex.: iFood 12%) e deduzi-la do lucro")
+    void create_shouldAcceptFeeRateOfTenPercentOrMore() {
+        // 12% não cabe em numeric(5,4); precisa de precisão maior para persistir.
+        Fee fee = feeRepository.save(Fee.builder()
+                .merchant(merchant).name("iFood").feeRate(new BigDecimal("12.00")).build());
+
+        OrderRequest request = OrderRequest.builder()
+                .customerId(customer.getId())
+                .feeId(fee.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(1).build()))
+                .build();
+
+        OrderResponse response = orderService.create(merchant.getId(), request);
+
+        Order persisted = orderRepository.findById(response.getId()).orElseThrow();
+        assertThat(persisted.getFee().getFeeRate()).isEqualByComparingTo("12.00");
+        // totalValue 20.00, sem custo; taxa = 20 × 12% = 2.40 → lucro = 17.60
+        assertThat(persisted.getTotalValue()).isEqualByComparingTo("20.00");
+        assertThat(persisted.getEstimatedProfit()).isEqualByComparingTo("17.60");
+    }
+
     private OrderRequest simpleRequest() {
         return OrderRequest.builder()
                 .customerId(customer.getId())
