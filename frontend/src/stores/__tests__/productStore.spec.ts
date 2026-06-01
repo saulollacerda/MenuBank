@@ -99,6 +99,7 @@ describe('productStore', () => {
         cost: 0.5,
         quantity: 1,
         totalCost: 0.5,
+        kind: 'PACKAGING' as const,
       },
     ]
     mockedIncludeService.findByProductId.mockResolvedValue(mockIncludes)
@@ -117,6 +118,7 @@ describe('productStore', () => {
       cost: 0.5,
       quantity: 1,
       totalCost: 0.5,
+      kind: 'PACKAGING' as const,
     }
     mockedIncludeService.add.mockResolvedValue(newInclude)
 
@@ -164,8 +166,8 @@ describe('productStore', () => {
   it('removeInclude should remove from includes', async () => {
     const store = useProductStore()
     store.includes = [
-      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
-      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' as const },
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1, kind: 'PACKAGING' as const },
     ]
     mockedIncludeService.remove.mockResolvedValue()
 
@@ -179,7 +181,7 @@ describe('productStore', () => {
   it('clearRecipe should empty includes', async () => {
     const store = useProductStore()
     store.includes = [
-      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5 },
+      { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' as const },
     ]
     mockedIncludeService.clear.mockResolvedValue(1)
 
