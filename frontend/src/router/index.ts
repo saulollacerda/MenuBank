@@ -84,6 +84,17 @@ router.beforeEach((to) => {
   if (auth.isAuthenticated && isPublic && to.meta.allowAuthenticated !== true) {
     return { name: 'dashboard' }
   }
+
+  // /email-verificado is only reachable from a Supabase confirmation link (which
+  // carries #access_token in the hash) or when the user is already authenticated
+  // (e.g. page refresh after confirming). Direct navigation without a token is
+  // meaningless, so redirect to register.
+  if (to.name === 'email-verified') {
+    const hasToken = window.location.hash.includes('access_token')
+    if (!hasToken && !auth.isAuthenticated) {
+      return { name: 'register' }
+    }
+  }
 })
 
 export default router

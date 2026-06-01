@@ -28,6 +28,16 @@ const router = createRouter({
       component: { template: '<div>Register</div>' },
       meta: { public: true },
     },
+    {
+      path: '/email-verificado',
+      component: { template: '<div>Email verificado</div>' },
+      meta: { public: true, allowAuthenticated: true },
+    },
+    {
+      path: '/landing',
+      component: { template: '<div>Landing</div>' },
+      meta: { public: true, allowAuthenticated: true },
+    },
     { path: '/orders', component: { template: '<div>Orders</div>' } },
     { path: '/products', component: { template: '<div>Products</div>' } },
     { path: '/categories', component: { template: '<div>Categories</div>' } },
@@ -79,6 +89,36 @@ describe('App', () => {
   it('does not render sidebar when not authenticated', async () => {
     authState.authenticated = false
     router.push('/login')
+    await router.isReady()
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia(), router],
+      },
+    })
+
+    expect(wrapper.find('.app-layout').exists()).toBe(false)
+    expect(wrapper.find('aside').exists()).toBe(false)
+  })
+
+  it('does not render sidebar on /email-verificado even when authenticated', async () => {
+    authState.authenticated = true
+    router.push('/email-verificado')
+    await router.isReady()
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia(), router],
+      },
+    })
+
+    expect(wrapper.find('.app-layout').exists()).toBe(false)
+    expect(wrapper.find('aside').exists()).toBe(false)
+  })
+
+  it('does not render sidebar on landing even when authenticated', async () => {
+    authState.authenticated = true
+    router.push('/landing')
     await router.isReady()
 
     const wrapper = mount(App, {
