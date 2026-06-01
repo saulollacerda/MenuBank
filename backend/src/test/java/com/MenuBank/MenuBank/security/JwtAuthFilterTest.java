@@ -88,6 +88,24 @@ class JwtAuthFilterTest {
         verify(filterChain, never()).doFilter(request, response);
     }
 
+    @Test
+    @DisplayName("token inválido deve usar setStatus (não sendError) para preservar headers de CORS")
+    void invalidToken_shouldNotUseSendError_soCorsHeadersSurvive() throws Exception {
+        given(jwtDecoder.decode("bad-token")).willThrow(new JwtException("invalid"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer bad-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter().doFilter(request, response, filterChain);
+
+        // sendError triggers the container ERROR dispatch, which drops the CORS headers
+        // added earlier by the CorsFilter; the browser then blocks the 401 as a CORS error
+        // and the SPA never sees the status. setStatus keeps the response untouched.
+        assertThat(response.getErrorMessage()).isNull();
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
     private Jwt jwtWithSubject(String sub) {
         return Jwt.withTokenValue("valid-token")
                 .header("alg", "RS256")

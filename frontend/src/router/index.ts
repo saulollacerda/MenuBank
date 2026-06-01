@@ -17,10 +17,18 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/email-verificado',
+      name: 'email-verified',
+      component: () => import('@/views/EmailVerifiedView.vue'),
+      // Confirming the email logs the user in (detectSessionInUrl), so this page must
+      // stay visible even when authenticated instead of bouncing to the dashboard.
+      meta: { public: true, allowAuthenticated: true },
+    },
+    {
       path: '/',
       name: 'landing',
       component: () => import('@/views/LandingView.vue'),
-      meta: { public: true },
+      meta: { public: true, allowAuthenticated: true },
     },
     {
       path: '/dashboard',
@@ -73,7 +81,7 @@ router.beforeEach((to) => {
     return { name: 'login' }
   }
 
-  if (auth.isAuthenticated && isPublic && to.name !== 'landing') {
+  if (auth.isAuthenticated && isPublic && to.meta.allowAuthenticated !== true) {
     return { name: 'dashboard' }
   }
 })

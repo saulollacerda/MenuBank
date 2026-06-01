@@ -22,9 +22,20 @@ export const useAuthStore = defineStore('auth', () => {
     if (initialized) return
     initialized = true
     session.value = await authProvider.init()
-    authProvider.onAuthChange((newSession) => {
+    authProvider.onAuthChange(async (newSession) => {
+      const wasAuthenticated = !!session.value
       session.value = newSession
-      if (!newSession) currentUser.value = null
+      if (!newSession) {
+        currentUser.value = null
+      } else if (!wasAuthenticated) {
+        // New sign-in via external event (e.g. email confirmation redirect): provision
+        // and load the merchant just like a manual login would.
+        try {
+          await ensureProvisionedAndLoad()
+        } catch {
+          // best-effort — views can retry via fetchCurrentUser
+        }
+      }
     })
     // Page refresh with an existing session: load the merchant so restaurantName etc.
     // are available. Best-effort — never block app mount on a network error.

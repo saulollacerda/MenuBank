@@ -51,7 +51,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     jwt.getSubject(), null, Collections.emptyList());
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (JwtException ex) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
+            // setStatus (not sendError): sendError triggers the servlet container's ERROR
+            // dispatch, which drops the CORS headers added earlier by the CorsFilter. The
+            // browser would then block the 401 as a CORS error and the SPA would never see
+            // the status (so it couldn't redirect to login). Writing the response directly
+            // keeps the CORS headers intact.
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"invalid_token\"}");
             return;
         }
 

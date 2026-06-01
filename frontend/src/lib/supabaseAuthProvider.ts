@@ -47,7 +47,7 @@ export const supabaseAuthProvider: AuthProvider = {
           cnpj: form.cnpj,
           phone: form.phone ?? null,
         },
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${window.location.origin}/email-verificado`,
       },
     })
     if (error) {
