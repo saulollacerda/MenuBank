@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { usePolling } from '@/composables/usePolling'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '@/stores/dashboardStore'
@@ -36,6 +36,8 @@ const kpis = computed(() => {
 
 const sales = computed(() => dash.data?.salesByDay ?? [])
 const maxSale = computed(() => Math.max(1, ...sales.value.map((s) => Number(s.total))))
+
+const hoveredBarIndex = ref<number | null>(null)
 
 const topProducts = computed(() => dash.data?.topProducts ?? [])
 
@@ -302,8 +304,34 @@ function navIngredientsWithName(name: string | null) {
                 flex-direction: column;
                 align-items: center;
                 gap: 6px;
+                position: relative;
               "
+              @mouseenter="hoveredBarIndex = i"
+              @mouseleave="hoveredBarIndex = null"
             >
+              <!-- tooltip -->
+              <div
+                :style="{
+                  position: 'absolute',
+                  bottom: 'calc(100% - 208px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: UI.text,
+                  color: '#fff',
+                  borderRadius: '7px',
+                  padding: '5px 10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                  opacity: hoveredBarIndex === i ? 1 : 0,
+                  transition: 'opacity 0.15s ease',
+                }"
+              >
+                {{ brl(Number(d.total)) }}
+              </div>
+
               <div style="width: 100%; height: 220px; display: flex; align-items: flex-end">
                 <div
                   :style="{
@@ -311,6 +339,9 @@ function navIngredientsWithName(name: string | null) {
                     height: ((Number(d.total) / maxSale) * 100) + '%',
                     background: Number(d.total) === maxSale ? UI.emerald : '#a7f3d0',
                     borderRadius: '6px 6px 0 0',
+                    transition: 'opacity 0.15s ease',
+                    opacity: hoveredBarIndex === null || hoveredBarIndex === i ? 1 : 0.5,
+                    cursor: 'default',
                   }"
                 />
               </div>

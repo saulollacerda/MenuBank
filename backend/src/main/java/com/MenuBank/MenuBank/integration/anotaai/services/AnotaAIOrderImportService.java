@@ -102,7 +102,7 @@ public class AnotaAIOrderImportService {
                 Product product = productOpt.get();
                 List<Include> productIncludes =
                         includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchantId);
-                BigDecimal unitCost = ProductCostCalculator.computeUnitCost(productIncludes);
+                BigDecimal unitCost = ProductCostCalculator.computeOrderBaseCost(productIncludes);
                 OrderItem item = OrderItem.builder()
                         .product(product)
                         .quantity(remoteItem.getQuantity())
@@ -118,10 +118,9 @@ public class AnotaAIOrderImportService {
         }
 
         BigDecimal deliveryFee = BigDecimal.valueOf(detail.getDeliveryFee());
-        // Anota.AI puro retorna detail.total já com os subItems, mas SEM a taxa de
-        // entrega — somamos aqui para que totalValue reflita o que o cliente pagou.
-        // O lucro descontará a taxa via OrderCalculations.calculateEstimatedProfit.
-        BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal()).add(deliveryFee);
+        // detail.total da Anota.AI já inclui a taxa de entrega (item.total + deliveryFee = detail.total).
+        // Usar diretamente — somar deliveryFee inflaria o totalValue em duplicidade.
+        BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal());
 
         Order order = Order.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))

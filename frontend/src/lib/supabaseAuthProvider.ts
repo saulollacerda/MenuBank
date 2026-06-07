@@ -14,15 +14,24 @@ function toSession(session: Session | null): AuthSession | null {
   }
 }
 
+// Cached in-memory token updated by onAuthStateChange and init().
+// Avoids calling supabase.auth.getSession() on every API request, which would
+// trigger concurrent calls and hit Supabase rate limits (HTTP 429).
+let cachedToken: string | null = null
+
 /** Production auth backend: delegates to Supabase. */
 export const supabaseAuthProvider: AuthProvider = {
   async init() {
     const { data } = await supabase.auth.getSession()
+    cachedToken = data.session?.access_token ?? null
     return toSession(data.session)
   },
 
   onAuthChange(callback) {
-    supabase.auth.onAuthStateChange((_event, session) => callback(toSession(session)))
+    supabase.auth.onAuthStateChange((_event, session) => {
+      cachedToken = session?.access_token ?? null
+      callback(toSession(session))
+    })
   },
 
   async signIn(email, password) {
@@ -34,6 +43,7 @@ export const supabaseAuthProvider: AuthProvider = {
         error.message,
       )
     }
+    cachedToken = data.session?.access_token ?? null
     return toSession(data.session)!
   },
 
@@ -54,16 +64,17 @@ export const supabaseAuthProvider: AuthProvider = {
       const msg = error.message.toLowerCase()
       throw new AuthError(msg.includes('already') ? 'email_exists' : 'unknown', error.message)
     }
-    // Email confirmation ON → no session yet.
+    // Email confirmation ON → session is null; confirmation OFF → session is set.
+    cachedToken = data.session?.access_token ?? null
     return { session: toSession(data.session) }
   },
 
   async signOut() {
+    cachedToken = null
     await supabase.auth.signOut()
   },
 
   async getAccessToken() {
-    const { data } = await supabase.auth.getSession()
-    return data.session?.access_token ?? null
+    return cachedToken
   },
 }

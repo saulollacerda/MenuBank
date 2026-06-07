@@ -195,7 +195,7 @@ public class OrderService {
                     .orElseThrow(() -> new OrderNotFoundException(
                             "Produto com ID " + itemRequest.getProductId() + " não encontrado"));
 
-            BigDecimal unitCost = ProductCostCalculator.computeUnitCost(
+            BigDecimal unitCost = ProductCostCalculator.computeOrderBaseCost(
                     includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchantId));
 
             OrderItem item = OrderItem.builder()

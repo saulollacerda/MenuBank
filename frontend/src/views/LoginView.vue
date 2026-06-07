@@ -10,7 +10,7 @@ const authStore = useAuthStore()
 
 const form = ref<LoginRequest>({ email: '', password: '' })
 const showPassword = ref(false)
-const remember = ref(true)
+const remember = ref(false)
 
 async function handleSubmit() {
   try {

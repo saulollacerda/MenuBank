@@ -15,6 +15,7 @@ import com.MenuBank.MenuBank.order.OrderStatus;
 import com.MenuBank.MenuBank.fee.FeeRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import com.MenuBank.MenuBank.product.ProductRepository;
 import com.MenuBank.MenuBank.product.ProductStatus;
@@ -358,8 +359,10 @@ class AnotaAISyncServiceTest {
     }
 
     @Test
-    @DisplayName("importOrder deve persistir deliveryFee e descontá-la do lucro estimado")
+    @DisplayName("importOrder deve usar detail.total como totalValue — deliveryFee já está inclusa no total da Anota.AI")
     void importOrder_shouldPersistDeliveryFeeAndUseItInProfit() {
+        // detail.total para Anota.AI já inclui a taxa de entrega (confirmado: item.total + deliveryFee = detail.total).
+        // Não somar deliveryFee novamente — evita inflação do totalValue.
         Product mappedProduct = Product.builder()
                 .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Açaí 500ml")
                 .status(ProductStatus.ACTIVE).externalId("65d4a428f784bb001956f919").build();
@@ -386,10 +389,10 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         Order saved = orderCaptor.getValue();
         assertThat(saved.getDeliveryFee()).isEqualByComparingTo("6.00");
-        // totalValue = detail.total (25.80) + deliveryFee (6.00) = 31.80
-        assertThat(saved.getTotalValue()).isEqualByComparingTo("31.80");
-        // estimatedProfit = totalValue (31.80) − deliveryFee (6.00) − totalCost (0) = 25.80
-        assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("25.80");
+        // totalValue = detail.total (25.80) — deliveryFee já está inclusa, não somar novamente
+        assertThat(saved.getTotalValue()).isEqualByComparingTo("25.80");
+        // estimatedProfit = (totalValue − deliveryFee) − totalCost = (25.80 − 6.00) − 0 = 19.80
+        assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("19.80");
         assertThat(saved.getTotalCost()).isEqualByComparingTo("0");
     }
 
@@ -671,12 +674,10 @@ class AnotaAISyncServiceTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("syncOrders deve agregar subItems com mesmo nome canônico em um único OrderItemExtraIngredient, somando as quantities")
-    void syncOrders_shouldAggregateSubItemsWithSameCanonicalNameIntoOneExtra() {
-        // Cenário: leite ninho aparece 2x (grupo básico qty=1 + grupo extra qty=1)
-        //          chocoball aparece 2x (idem)
-        //          morango aparece 1x (apenas básico)
-        // Esperado: 3 extras, NÃO 5. leite ninho e chocoball com qty somada.
+    @DisplayName("syncOrders deve criar um extra separado para cada subItem, mesmo que tenham o mesmo nome")
+    void syncOrders_shouldCreateSeparateExtraForEachSubItem() {
+        // Cenário: leite ninho aparece 2x, chocoball aparece 2x, morango aparece 1x.
+        // Esperado: 5 extras distintos — um por subItem, sem deduplicação.
         Ingredient leiteNinho = Ingredient.builder()
                 .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
                 .name("leite ninho").unit("un")
@@ -727,28 +728,29 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         var extras = orderCaptor.getValue().getItems().get(0).getExtraIngredients();
 
-        // 3 ingredientes distintos, NÃO 5 registros
-        assertThat(extras).hasSize(3);
+        // 5 extras — um por subItem (leite ninho ×2, chocoball ×2, morango ×1)
+        assertThat(extras).hasSize(5);
 
-        var leiteNinhoExtra = extras.stream()
-                .filter(e -> e.getIngredientName().equals("leite ninho")).findFirst().orElseThrow();
-        var chocoballExtra = extras.stream()
-                .filter(e -> e.getIngredientName().equals("chocoball")).findFirst().orElseThrow();
-        var morangoExtra = extras.stream()
-                .filter(e -> e.getIngredientName().equals("morango")).findFirst().orElseThrow();
+        var leiteNinhoExtras = extras.stream()
+                .filter(e -> e.getIngredientName().equals("leite ninho")).toList();
+        var chocoballExtras = extras.stream()
+                .filter(e -> e.getIngredientName().equals("chocoball")).toList();
+        var morangoExtras = extras.stream()
+                .filter(e -> e.getIngredientName().equals("morango")).toList();
 
-        // leite ninho: (qty 1 + qty 1) × defaultQuantity 20 = 40
-        assertThat(leiteNinhoExtra.getQuantity()).isEqualByComparingTo("40");
-        // chocoball: (qty 1 + qty 1) × defaultQuantity 20 = 40
-        assertThat(chocoballExtra.getQuantity()).isEqualByComparingTo("40");
-        // morango: qty 1 × defaultQuantity 1 = 1
-        assertThat(morangoExtra.getQuantity()).isEqualByComparingTo("1");
+        assertThat(leiteNinhoExtras).hasSize(2);
+        leiteNinhoExtras.forEach(e -> assertThat(e.getQuantity()).isEqualByComparingTo("20"));
+        assertThat(chocoballExtras).hasSize(2);
+        chocoballExtras.forEach(e -> assertThat(e.getQuantity()).isEqualByComparingTo("20"));
+        assertThat(morangoExtras).hasSize(1);
+        assertThat(morangoExtras.get(0).getQuantity()).isEqualByComparingTo("1");
     }
 
     @Test
-    @DisplayName("syncOrders deve agregar subItems com mesmo nome em case diferente como um único extra")
-    void syncOrders_shouldAggregateCaseInsensitiveDuplicateSubItems() {
-        // Cenário: "Leite Ninho" e "leite ninho" são o mesmo ingrediente
+    @DisplayName("syncOrders deve criar extras separados para subItems com mesmo nome em case diferente")
+    void syncOrders_shouldCreateSeparateExtrasForCaseInsensitiveSameNameSubItems() {
+        // Cenário: "Leite Ninho" e "leite ninho" → mesmo ingrediente, mas subItems diferentes
+        // Esperado: 2 extras distintos, cada um com defaultQuantity (20g)
         Ingredient leiteNinho = Ingredient.builder()
                 .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
                 .name("leite ninho").unit("un")
@@ -761,7 +763,6 @@ class AnotaAISyncServiceTest {
 
         AnotaAIOrderDetailResponse response = AnotaAIFixtures.load("order_detail_duplicate_subitems.json",
                 AnotaAIOrderDetailResponse.class);
-        // Simula "Leite Ninho" (maiúscula) no segundo subItem
         response.getInfo().getItems().get(0).getSubItems().get(2).setName("Leite Ninho");
         response.getInfo().setId("order-dedup-2");
 
@@ -791,11 +792,11 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         var extras = orderCaptor.getValue().getItems().get(0).getExtraIngredients();
 
-        // "leite ninho" e "Leite Ninho" → 1 único extra com qty somada
         var leiteNinhoExtras = extras.stream()
                 .filter(e -> e.getIngredientName().equals("leite ninho")).toList();
-        assertThat(leiteNinhoExtras).hasSize(1);
-        assertThat(leiteNinhoExtras.get(0).getQuantity()).isEqualByComparingTo("40");
+        // 2 subItems distintos → 2 extras, cada um com 20g
+        assertThat(leiteNinhoExtras).hasSize(2);
+        leiteNinhoExtras.forEach(e -> assertThat(e.getQuantity()).isEqualByComparingTo("20"));
     }
 
     // -------------------------------------------------------------------------
@@ -848,6 +849,56 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         // Include é autoritativo: nenhum extra criado
         assertThat(orderCaptor.getValue().getItems().get(0).getExtraIngredients()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("syncOrders deve usar a quantidade do Include do produto quando houver Include INGREDIENT correspondente ao subItem")
+    void syncOrders_shouldUseProductIncludeQuantityWhenIngredientIncludeMatchesSubItem() {
+        // Cenário: produto "Açaí 500ml" tem Include INGREDIENT "Açaí Premium" com qty=250g.
+        // Ingrediente "Açaí Premium" tem defaultQuantity=100g (qty global).
+        // Pedido tem subItem "Açaí Premium" qty=1.
+        // Esperado: extra criado com qty=250g (Include específico), não 100g (default global).
+        Ingredient acaiPremium = Ingredient.builder()
+                .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
+                .name("Açaí Premium").unit("g")
+                .costPerUnit(new BigDecimal("0.05"))
+                .defaultQuantity(new BigDecimal("100"))
+                .status(IngredientStatus.ACTIVE).build();
+        Product acai500 = Product.builder()
+                .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Açaí 500ml")
+                .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
+        Include acaiPremiumInclude = Include.builder()
+                .id(UUID.randomUUID()).product(acai500)
+                .name("Açaí Premium")
+                .cost(new BigDecimal("0.05"))
+                .quantity(new BigDecimal("250"))
+                .kind(IncludeKind.INGREDIENT)
+                .build();
+
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-piq-1"));
+        given(orderRepository.existsByExternalOrderIdAndMerchantId("order-piq-1", merchantId)).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-piq-1"))
+                .willReturn(buildOrderDetailWithSubItems("order-piq-1"));
+        given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
+                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
+        given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
+                .willReturn(Optional.empty());
+        given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
+                .willReturn(Optional.of(acai500));
+        given(includeRepository.findByProductIdAndProductMerchantId(acai500.getId(), merchantId))
+                .willReturn(List.of(acaiPremiumInclude));
+        given(ingredientRepository.findByCanonicalNameAndMerchantId("acai premium", merchantId))
+                .willReturn(Optional.of(acaiPremium));
+
+        syncService.syncOrders(merchantId);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        var extra = orderCaptor.getValue().getItems().get(0).getExtraIngredients().get(0);
+        // qty = Include.quantity (250g), NÃO ingredient.defaultQuantity (100g)
+        assertThat(extra.getQuantity()).isEqualByComparingTo("250");
+        assertThat(extra.getCostPerUnit()).isEqualByComparingTo("0.05");
     }
 
     @Test
@@ -992,30 +1043,31 @@ class AnotaAISyncServiceTest {
     }
 
     // -------------------------------------------------------------------------
-    // syncOrders — Include autoritativo (não cria extra quando subItem casa com Include)
+    // syncOrders — PACKAGING autoritativo (não cria extra quando subItem casa com embalagem)
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("syncOrders NÃO deve criar OrderItemExtraIngredient quando subItem casa com Include da ficha técnica")
+    @DisplayName("syncOrders NÃO deve criar OrderItemExtraIngredient quando subItem casa com Include PACKAGING")
     void syncOrders_shouldSkipExtraWhenSubItemMatchesInclude() {
-        // Cenário: Açaí 500ml tem Include "Açaí Goat" 240g (base da receita).
-        // Pedido chega com subItem "Açaí Goat" qty=1 (a escolha base do cliente em "Escolha seu açaí").
-        // Esperado: NENHUM OrderItemExtraIngredient criado — o Açaí Goat já é contabilizado
-        // como insumo da ficha técnica (Include). Evita duplicação no detalhe do pedido.
-        Ingredient acaiGoat = Ingredient.builder()
+        // Cenário: Açaí 500ml tem Include PACKAGING "Copo 500ml" (embalagem, sempre presente).
+        // Pedido chega com subItem "Copo 500ml" qty=1.
+        // Esperado: NENHUM OrderItemExtraIngredient criado — embalagem (PACKAGING) já está na
+        // base do pedido. Apenas PACKAGING é autoritativo: um match com INGREDIENT viraria extra.
+        Ingredient copo = Ingredient.builder()
                 .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build())
-                .name("Açaí Goat").unit("g")
+                .name("Copo 500ml").unit("g")
                 .costPerUnit(new BigDecimal("0.0217"))
                 .defaultQuantity(new BigDecimal("100"))
                 .status(IngredientStatus.ACTIVE).build();
         Product acai500 = Product.builder()
                 .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Açaí 500ml")
                 .status(ProductStatus.ACTIVE).externalId("product-internal-id").build();
-        Include acaiGoatInclude = Include.builder()
+        Include copoInclude = Include.builder()
                 .id(UUID.randomUUID()).product(acai500)
-                .name("Açaí Goat")
+                .name("Copo 500ml")
                 .cost(new BigDecimal("0.0217"))
                 .quantity(new BigDecimal("240"))
+                .kind(IncludeKind.PACKAGING)
                 .build();
 
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
@@ -1023,8 +1075,8 @@ class AnotaAISyncServiceTest {
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-skip-1", merchantId)).willReturn(false);
         AnotaAIOrderDetailResponse detail = AnotaAIFixtures.load(
                 "order_detail_with_subitem_quantity_two.json", AnotaAIOrderDetailResponse.class);
-        // Reescreve o subItem para casar com o Include "Açaí Goat"
-        detail.getInfo().getItems().get(0).getSubItems().get(0).setName("Açaí Goat");
+        // Reescreve o subItem para casar com o Include PACKAGING "Copo 500ml"
+        detail.getInfo().getItems().get(0).getSubItems().get(0).setName("Copo 500ml");
         detail.getInfo().getItems().get(0).getSubItems().get(0).setQuantity(1);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-skip-1")).willReturn(detail);
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
@@ -1034,13 +1086,12 @@ class AnotaAISyncServiceTest {
         given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
                 .willReturn(Optional.of(acai500));
         given(includeRepository.findByProductIdAndProductMerchantId(acai500.getId(), merchantId))
-                .willReturn(List.of(acaiGoatInclude));
-        // Ingredient existe (não deve gerar notificação de missing), mas o extra não deve ser criado
+                .willReturn(List.of(copoInclude));
         // Stub lenient: o Ingredient existe no merchant, mas a busca não será feita
-        // porque o subItem casa com Include e é pulado antes.
+        // porque o subItem casa com Include PACKAGING e é pulado antes.
         org.mockito.Mockito.lenient()
-                .when(ingredientRepository.findByCanonicalNameAndMerchantId("acai goat", merchantId))
-                .thenReturn(Optional.of(acaiGoat));
+                .when(ingredientRepository.findByCanonicalNameAndMerchantId("copo 500ml", merchantId))
+                .thenReturn(Optional.of(copo));
 
         syncService.syncOrders(merchantId);
 
@@ -1048,7 +1099,7 @@ class AnotaAISyncServiceTest {
         verify(orderRepository).save(orderCaptor.capture());
         var item = orderCaptor.getValue().getItems().get(0);
         assertThat(item.getExtraIngredients())
-                .as("subItem que casa com Include não deve criar OrderItemExtraIngredient")
+                .as("subItem que casa com Include PACKAGING não deve criar OrderItemExtraIngredient")
                 .isEmpty();
         // Nenhuma notificação de ingrediente ausente: o ingrediente existe, só não vira extra
         verify(notificationService, org.mockito.Mockito.never())

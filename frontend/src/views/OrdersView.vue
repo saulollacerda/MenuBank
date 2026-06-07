@@ -61,7 +61,9 @@ function formatDateTime(s: string): string {
 }
 function timeOf(iso: string): string {
   const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${date} ${time}`
 }
 function pctFmt(v: number): string {
   return (v * 100).toFixed(1).replace('.', ',') + '%'
