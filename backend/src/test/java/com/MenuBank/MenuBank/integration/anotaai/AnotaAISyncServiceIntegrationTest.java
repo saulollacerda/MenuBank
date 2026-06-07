@@ -16,6 +16,7 @@ import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
@@ -72,9 +73,12 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("syncOrders deve persistir pedido — Include é autoritativo: subItem que casa não vira extra")
+    @DisplayName("syncOrders — Include INGREDIENT específico sobrescreve defaultQuantity global ao criar extra")
     void syncOrders_shouldPersistFullOrderWithExtrasAndCost() {
-        // Setup catalog: produto Açaí 330ml + Include leite ninho 40g
+        // Setup: produto Açaí 330ml com Include INGREDIENT "leite ninho" qty=40g.
+        // Ingrediente global tem defaultQuantity=20g.
+        // Pedido tem subItem "leite ninho" qty=3.
+        // Regra: Include INGREDIENT específico sobrescreve global → qty = 40×3 = 120g.
         Category category = persistCategory("Açaí");
         Product acai330 = persistProduct("Açaí 330ml", "anota-acai-330", category,
                 new BigDecimal("15.00"));
@@ -83,13 +87,12 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 .name("leite ninho")
                 .cost(new BigDecimal("0.05"))
                 .quantity(new BigDecimal("40"))
+                .kind(IncludeKind.INGREDIENT)
                 .build();
         includeRepository.save(leiteNinhoInclude);
         persistIngredient("leite ninho", "g",
                 new BigDecimal("0.05"), new BigDecimal("20"));
 
-        // Mock API: lista 1 pedido novo + detalhes com leite ninho qty=3
-        // (mesmo nome do Include — deve ser pulado, não cria extra)
         given(anotaAIClient.getOrderList(apiKey)).willReturn(orderListWith("ord-int-1"));
         AnotaAIOrderDetailResponse detail = AnotaAIFixtures.load(
                 "order_detail_acai_330_three_leite_ninho.json", AnotaAIOrderDetailResponse.class);
@@ -116,10 +119,11 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
         var item = order.getItems().get(0);
         assertThat(item.getProduct().getId()).isEqualTo(acai330.getId());
         assertThat(item.getQuantity()).isEqualTo(1);
-        // Include autoritativo: leite ninho está na ficha técnica, subItem é pulado
-        assertThat(item.getExtraIngredients()).isEmpty();
-        // totalCost = somente base (Include 40×0.05=2.00) × 1 unidade = 2.00
-        assertThat(order.getTotalCost()).isEqualByComparingTo("2.00");
+        assertThat(item.getExtraIngredients()).hasSize(1);
+        // qty = Include.quantity (40g) × subItem.quantity (3) = 120g
+        assertThat(item.getExtraIngredients().get(0).getQuantity()).isEqualByComparingTo("120");
+        // totalCost = 120g × 0.05 = 6.00
+        assertThat(order.getTotalCost()).isEqualByComparingTo("6.00");
     }
 
     @Test
@@ -156,9 +160,9 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("syncOrders deve agregar subItems duplicados (mesmo ingrediente em grupos diferentes) em um único extra")
-    void syncOrders_shouldAggregateDuplicateSubItemsEndToEnd() {
-        // Setup
+    @DisplayName("syncOrders deve criar um extra separado por subItem — mesmo nome gera múltiplos extras")
+    void syncOrders_shouldCreateSeparateExtraPerSubItemEndToEnd() {
+        // Fixture: leite ninho ×2, chocoball ×2, morango ×1 → 5 extras distintos
         Category category = persistCategory("Açaí");
         Product acai = persistProduct("Açaí 330ml", "anota-acai-dup", category,
                 new BigDecimal("15.00"));
@@ -176,32 +180,29 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
         detail.getInfo().getItems().get(0).setInternalId("anota-acai-dup");
         given(anotaAIClient.getOrderDetail(apiKey, "ord-int-dup")).willReturn(detail);
 
-        // Act
         syncService.syncOrders(merchant.getId());
 
-        // Assert — 3 extras únicos (NÃO 5)
         Order order = orderRepository.findByExternalOrderIdAndMerchantId(
                 "ord-int-dup", merchant.getId()).orElseThrow();
         var extras = order.getItems().get(0).getExtraIngredients();
-        assertThat(extras).hasSize(3);
 
-        // leite ninho: (1+1) × 20 = 40
-        var leite = extras.stream()
-                .filter(e -> e.getIngredient().getId().equals(leiteNinho.getId()))
-                .findFirst().orElseThrow();
-        assertThat(leite.getQuantity()).isEqualByComparingTo("40");
+        // 5 extras: leite ninho ×2, chocoball ×2, morango ×1
+        assertThat(extras).hasSize(5);
 
-        // chocoball: (1+1) × 20 = 40
-        var choco = extras.stream()
-                .filter(e -> e.getIngredient().getId().equals(chocoball.getId()))
-                .findFirst().orElseThrow();
-        assertThat(choco.getQuantity()).isEqualByComparingTo("40");
+        var leiteExtras = extras.stream()
+                .filter(e -> e.getIngredient().getId().equals(leiteNinho.getId())).toList();
+        assertThat(leiteExtras).hasSize(2);
+        leiteExtras.forEach(e -> assertThat(e.getQuantity()).isEqualByComparingTo("20"));
 
-        // morango: 1 × 1 = 1
-        var mor = extras.stream()
-                .filter(e -> e.getIngredient().getId().equals(morango.getId()))
-                .findFirst().orElseThrow();
-        assertThat(mor.getQuantity()).isEqualByComparingTo("1");
+        var chocoExtras = extras.stream()
+                .filter(e -> e.getIngredient().getId().equals(chocoball.getId())).toList();
+        assertThat(chocoExtras).hasSize(2);
+        chocoExtras.forEach(e -> assertThat(e.getQuantity()).isEqualByComparingTo("20"));
+
+        var morangoExtras = extras.stream()
+                .filter(e -> e.getIngredient().getId().equals(morango.getId())).toList();
+        assertThat(morangoExtras).hasSize(1);
+        assertThat(morangoExtras.get(0).getQuantity()).isEqualByComparingTo("1");
     }
 
     @Test

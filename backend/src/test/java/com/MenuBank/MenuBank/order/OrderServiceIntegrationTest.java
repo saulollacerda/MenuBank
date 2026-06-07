@@ -12,6 +12,7 @@ import com.MenuBank.MenuBank.ingredient.IngredientStatus;
 import com.MenuBank.MenuBank.integration.IntegrationTestBase;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.product.Include;
+import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
@@ -66,10 +67,16 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("create deve persistir pedido com items, extras e calcular custo total")
     void create_shouldPersistOrderWithItemsAndExtras() {
-        // Include "leite ninho" 10g a 0.05 → base = 0.50
+        // PACKAGING "embalagem" 10un a 0.05 → base = 0.50 (sempre conta)
         includeRepository.save(Include.builder()
-                .product(product).name("leite ninho")
-                .cost(new BigDecimal("0.05")).quantity(new BigDecimal("10")).build());
+                .product(product).name("embalagem")
+                .cost(new BigDecimal("0.05")).quantity(new BigDecimal("10"))
+                .kind(IncludeKind.PACKAGING).build());
+        // INGREDIENT na ficha técnica NÃO entra na base (só conta se for pedido)
+        includeRepository.save(Include.builder()
+                .product(product).name("ingrediente opcional caro")
+                .cost(new BigDecimal("99.00")).quantity(new BigDecimal("10"))
+                .kind(IncludeKind.INGREDIENT).build());
 
         OrderRequest request = OrderRequest.builder()
                 .customerId(customer.getId())
@@ -97,7 +104,8 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
         var item = persisted.getItems().get(0);
         assertThat(item.getExtraIngredients()).hasSize(1);
         assertThat(item.getExtraIngredients().get(0).getQuantity()).isEqualByComparingTo("30");
-        // totalCost = (base 0.50 + extra 30×0.05=1.50) × 2 = 4.00
+        // totalCost = (base PACKAGING 0.50 + extra 30×0.05=1.50) × 2 = 4.00
+        // o include INGREDIENT (99×10) NÃO entra na base
         assertThat(persisted.getTotalCost()).isEqualByComparingTo("4.00");
     }
 
