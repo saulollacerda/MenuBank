@@ -21,8 +21,8 @@ function checkIsOpen(hours: OpeningHour[] | null | undefined): boolean {
   const todayKey = DAY_MAP[now.getDay()]
   const hour = hours.find((h) => h.dayOfWeek === todayKey)
   if (!hour || hour.closed || !hour.openTime || !hour.closeTime) return false
-  const [oh, om] = hour.openTime.split(':').map(Number)
-  const [ch, cm] = hour.closeTime.split(':').map(Number)
+  const [oh = 0, om = 0] = hour.openTime.split(':').map(Number)
+  const [ch = 0, cm = 0] = hour.closeTime.split(':').map(Number)
   const nowMin = now.getHours() * 60 + now.getMinutes()
   return nowMin >= oh * 60 + om && nowMin < ch * 60 + cm
 }
