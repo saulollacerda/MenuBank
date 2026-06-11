@@ -37,6 +37,15 @@ vi.mock('@/stores/notificationStore', () => ({
   useNotificationStore: () => notificationStoreMock,
 }))
 
+vi.mock('@/stores/authStore', () => ({
+  useAuthStore: () => ({ currentUser: null }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ query: {} }),
+}))
+
 import OrdersView from '@/views/OrdersView.vue'
 
 describe('OrdersView', () => {
