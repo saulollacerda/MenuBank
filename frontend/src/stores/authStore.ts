@@ -168,6 +168,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateOpeningHours(hours: import('@/types/User').OpeningHour[]) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await userService.updateMe({ openingHours: hours })
+      currentUser.value = response
+      return response
+    } catch (e: unknown) {
+      error.value = 'Erro ao salvar os horários'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     session,
     currentUser,
@@ -182,5 +197,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     fetchCurrentUser,
     updateAnotaAIKey,
+    updateOpeningHours,
   }
 })

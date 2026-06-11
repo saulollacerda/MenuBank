@@ -1,5 +1,5 @@
 import api from './api'
-import type { AnotaAIKeyRequest, UserResponse } from '@/types/User'
+import type { AnotaAIKeyRequest, OpeningHour, UserResponse } from '@/types/User'
 
 export const userService = {
   /** Current authenticated merchant (resolved server-side from the token). */
@@ -10,6 +10,11 @@ export const userService = {
 
   async updateAnotaAIKey(request: AnotaAIKeyRequest): Promise<UserResponse> {
     const { data } = await api.put<UserResponse>('/merchants/me/anota-ai-key', request)
+    return data
+  },
+
+  async updateMe(payload: { openingHours: OpeningHour[] }): Promise<UserResponse> {
+    const { data } = await api.put<UserResponse>('/merchants/me', payload)
     return data
   },
 }

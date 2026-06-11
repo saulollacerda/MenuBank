@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePolling } from '@/composables/usePolling'
+import { useAuthStore } from '@/stores/authStore'
 import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
@@ -30,6 +32,8 @@ import type {
   OrderOrigin,
 } from '@/types/Order'
 
+const router = useRouter()
+const authStore = useAuthStore()
 const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
 const productStore = useProductStore()
@@ -37,6 +41,15 @@ const ingredientStore = useIngredientStore()
 const feeStore = useFeeStore()
 const anotaAIStore = useAnotaAIStore()
 const notificationStore = useNotificationStore()
+
+const showHoursBanner = computed(() => {
+  const u = authStore.currentUser
+  return !!u?.anotaAiApiKey && (!u.openingHours || u.openingHours.length === 0)
+})
+
+function goToHoursSettings() {
+  router.push({ path: '/settings', query: { section: 'horario' } })
+}
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
@@ -275,6 +288,43 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
         overflow: hidden;
       "
     >
+      <!-- Opening hours onboarding banner -->
+      <div
+        v-if="showHoursBanner"
+        :style="{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          background: UI.amberBg,
+          color: UI.amber2,
+          borderRadius: '10px',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }"
+      >
+        <UIIcon name="clock" :size="16" style="flex-shrink: 0" />
+        <span style="flex: 1">
+          Configure os horários de funcionamento para ativar a importação automática de pedidos.
+        </span>
+        <button
+          :style="{
+            background: UI.amber2,
+            color: UI.amberBg,
+            border: 'none',
+            borderRadius: '7px',
+            padding: '5px 12px',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }"
+          @click="goToHoursSettings"
+        >
+          Configurar horários
+        </button>
+      </div>
+
       <!-- Anota.AI sync alerts -->
       <div
         v-if="anotaAIStore.error"

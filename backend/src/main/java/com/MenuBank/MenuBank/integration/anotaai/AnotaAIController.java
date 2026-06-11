@@ -1,6 +1,8 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
 import com.MenuBank.MenuBank.auth.AuthHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +16,8 @@ import java.util.UUID;
 @RequestMapping("/api/integrations/anotaai")
 public class AnotaAIController {
 
+    private static final Logger log = LoggerFactory.getLogger(AnotaAIController.class);
+
     private final AnotaAISyncService syncService;
     private final AuthHelper authHelper;
 
@@ -25,6 +29,7 @@ public class AnotaAIController {
     @PostMapping("/orders")
     public ResponseEntity<AnotaAISyncResult> syncOrders(Authentication auth) {
         UUID merchantId = authHelper.getMerchantId(auth);
+        log.info("[Anota.AI] sync manual solicitado — merchant={}", merchantId);
         return ResponseEntity.ok(syncService.syncOrders(merchantId));
     }
 

@@ -88,6 +88,7 @@ public class AnotaAISyncService {
 
     @Transactional
     public AnotaAISyncResult syncOrders(UUID merchantId) {
+        log.info("[Anota.AI] sync de pedidos iniciado — merchant={}", merchantId);
         String apiKey = resolveApiKey(merchantId);
         AnotaAIOrderListResponse list = anotaAIClient.getOrderList(apiKey);
 
@@ -141,12 +142,17 @@ public class AnotaAISyncService {
             }
         }
 
-        return AnotaAISyncResult.builder()
+        AnotaAISyncResult result = AnotaAISyncResult.builder()
                 .ordersImported(ordersImported)
                 .ordersSkipped(ordersSkipped)
                 .missingIngredientNames(new ArrayList<>(missingIngredientNames))
                 .errors(errors)
                 .build();
+
+        log.info("[Anota.AI] sync de pedidos concluído — merchant={} importados={} ignorados={} erros={}",
+                merchantId, ordersImported, ordersSkipped, errors.size());
+
+        return result;
     }
 
     private String resolveApiKey(UUID merchantId) {
