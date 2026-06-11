@@ -4,10 +4,34 @@ import { useRoute, useRouter } from 'vue-router'
 import { UI } from './tokens'
 import UIIcon from './UIIcon.vue'
 import { useAuthStore } from '@/stores/authStore'
+import type { DayOfWeek, OpeningHour } from '@/types/User'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+const DAY_MAP: Record<number, DayOfWeek> = {
+  0: 'SUNDAY', 1: 'MONDAY', 2: 'TUESDAY', 3: 'WEDNESDAY',
+  4: 'THURSDAY', 5: 'FRIDAY', 6: 'SATURDAY',
+}
+
+function checkIsOpen(hours: OpeningHour[] | null | undefined): boolean {
+  if (!hours || hours.length === 0) return false
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const todayKey = DAY_MAP[now.getDay()]
+  const hour = hours.find((h) => h.dayOfWeek === todayKey)
+  if (!hour || hour.closed || !hour.openTime || !hour.closeTime) return false
+  const [oh, om] = hour.openTime.split(':').map(Number)
+  const [ch, cm] = hour.closeTime.split(':').map(Number)
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  return nowMin >= oh * 60 + om && nowMin < ch * 60 + cm
+}
+
+const storeStatus = computed(() => {
+  const hours = auth.currentUser?.openingHours
+  if (!hours || hours.length === 0) return null
+  return checkIsOpen(hours) ? 'open' : 'closed'
+})
 
 const NAV = [
   { id: 'dashboard', to: '/dashboard', ic: 'home', label: 'Dashboard' },
@@ -151,6 +175,7 @@ async function logout() {
             {{ auth.restaurantName || 'MenuBank' }}
           </div>
           <div
+            v-if="storeStatus !== null"
             :style="{
               fontSize: '11px',
               color: '#64748b',
@@ -164,10 +189,10 @@ async function logout() {
                 width: '6px',
                 height: '6px',
                 borderRadius: '3px',
-                background: UI.emerald,
+                background: storeStatus === 'open' ? UI.emerald : UI.rose,
               }"
             />
-            Loja aberta
+            {{ storeStatus === 'open' ? 'Loja aberta' : 'Loja fechada' }}
           </div>
         </div>
         <button

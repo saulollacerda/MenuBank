@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
+import type { DayOfWeek, OpeningHour } from '@/types/User'
 
 const authStore = useAuthStore()
+const route = useRoute()
 
 const apiKey = ref('')
 const showKey = ref(false)
@@ -20,11 +23,63 @@ const initials = computed(() => {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || 'MB'
 })
 
+// ── Opening hours ────────────────────────────────────────────────────────────
+
+const DAY_ORDER: DayOfWeek[] = [
+  'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY',
+]
+const DAY_LABELS: Record<DayOfWeek, string> = {
+  MONDAY: 'Segunda', TUESDAY: 'Terça', WEDNESDAY: 'Quarta', THURSDAY: 'Quinta',
+  FRIDAY: 'Sexta', SATURDAY: 'Sábado', SUNDAY: 'Domingo',
+}
+
+function defaultHours(): OpeningHour[] {
+  return DAY_ORDER.map((d) => ({
+    dayOfWeek: d,
+    openTime: '11:00',
+    closeTime: '22:00',
+    closed: true,
+  }))
+}
+
+const localHours = ref<OpeningHour[]>(defaultHours())
+const hoursSaving = ref(false)
+const hoursSuccess = ref<string | null>(null)
+
+function initHours(saved: OpeningHour[] | null | undefined) {
+  if (!saved || saved.length === 0) {
+    localHours.value = defaultHours()
+    return
+  }
+  // Fill missing days with defaults so the grid always shows all 7 days
+  const byDay = Object.fromEntries(saved.map((h) => [h.dayOfWeek, h]))
+  localHours.value = DAY_ORDER.map((d) => byDay[d] ?? {
+    dayOfWeek: d, openTime: '11:00', closeTime: '22:00', closed: false,
+  })
+}
+
+async function saveHours() {
+  hoursSaving.value = true
+  hoursSuccess.value = null
+  try {
+    await authStore.updateOpeningHours(localHours.value)
+    hoursSuccess.value = 'Horários salvos com sucesso.'
+    setTimeout(() => (hoursSuccess.value = null), 4000)
+  } catch {
+    /* error in store */
+  } finally {
+    hoursSaving.value = false
+  }
+}
+
+// ── Profile load ─────────────────────────────────────────────────────────────
+
 async function loadProfile() {
   loadError.value = null
   try {
     const u = await authStore.fetchCurrentUser()
     apiKey.value = u?.anotaAiApiKey ?? ''
+    initHours(u?.openingHours)
   } catch {
     loadError.value = 'Não foi possível carregar suas configurações.'
   }
@@ -57,7 +112,13 @@ const SUBNAV: Array<{
   { id: 'danger', ic: 'alert', l: 'Zona perigosa', danger: true },
 ]
 
-onMounted(loadProfile)
+onMounted(async () => {
+  await loadProfile()
+  const q = route.query.section
+  if (q && typeof q === 'string' && SUBNAV.some((s) => s.id === q)) {
+    section.value = q as typeof section.value
+  }
+})
 </script>
 
 <template>
@@ -372,9 +433,121 @@ onMounted(loadProfile)
           </div>
         </UICard>
 
+        <!-- Horários de funcionamento -->
+        <UICard v-if="section === 'horario'" :padding="22">
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              margin-bottom: 20px;
+            "
+          >
+            <div>
+              <div
+                :style="{ fontSize: '16px', fontWeight: 700, color: UI.text, letterSpacing: '-0.3px' }"
+              >
+                Horários de funcionamento
+              </div>
+              <div :style="{ fontSize: '12px', color: UI.textSub, marginTop: '4px' }">
+                Durante esses horários os pedidos do Anota.AI são importados automaticamente.
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div
+              v-for="hour in localHours"
+              :key="hour.dayOfWeek"
+              :style="{
+                display: 'grid',
+                gridTemplateColumns: '96px 1fr 1fr auto',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 14px',
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '10px',
+                opacity: hour.closed ? '0.55' : '1',
+              }"
+            >
+              <div :style="{ fontSize: '13px', fontWeight: 600, color: UI.text }">
+                {{ DAY_LABELS[hour.dayOfWeek] }}
+              </div>
+
+              <UIField label="Abertura" style="margin: 0">
+                <UIInput
+                  type="time"
+                  :model-value="hour.openTime ?? ''"
+                  :disabled="hour.closed"
+                  @update:model-value="hour.openTime = $event || null"
+                />
+              </UIField>
+
+              <UIField label="Fechamento" style="margin: 0">
+                <UIInput
+                  type="time"
+                  :model-value="hour.closeTime ?? ''"
+                  :disabled="hour.closed"
+                  @update:model-value="hour.closeTime = $event || null"
+                />
+              </UIField>
+
+              <label
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12.5px',
+                  color: UI.textSub,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="hour.closed"
+                  style="accent-color: var(--color-rose, #ef4444); width: 14px; height: 14px"
+                  @change="hour.closed = ($event.target as HTMLInputElement).checked"
+                />
+                Fechado
+              </label>
+            </div>
+          </div>
+
+          <div
+            v-if="hoursSuccess"
+            :style="{
+              marginTop: '14px',
+              padding: '10px 14px',
+              background: UI.emeraldBg,
+              color: UI.emerald2,
+              borderRadius: '9px',
+              fontSize: '13px',
+            }"
+          >
+            {{ hoursSuccess }}
+          </div>
+          <div v-if="authStore.error" :style="{
+            marginTop: '14px',
+            padding: '10px 14px',
+            background: UI.roseBg,
+            color: UI.rose2,
+            borderRadius: '9px',
+            fontSize: '13px',
+          }">
+            {{ authStore.error }}
+          </div>
+
+          <div style="margin-top: 18px; display: flex; justify-content: flex-end">
+            <UIBtn :loading="hoursSaving" @click="saveHours">Salvar horários</UIBtn>
+          </div>
+        </UICard>
+
         <!-- Placeholder sections -->
         <UICard
-          v-if="['horario', 'alerta', 'time', 'billing'].includes(section)"
+          v-if="['alerta', 'time', 'billing'].includes(section)"
           :padding="22"
         >
           <div

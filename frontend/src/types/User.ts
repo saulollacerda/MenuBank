@@ -1,5 +1,21 @@
 export type UserStatus = 'ACTIVE' | 'INACTIVE'
 
+export type DayOfWeek =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY'
+
+export interface OpeningHour {
+  dayOfWeek: DayOfWeek
+  openTime: string | null
+  closeTime: string | null
+  closed: boolean
+}
+
 export interface UserRequest {
   merchantName: string
   cnpj: string
@@ -18,6 +34,7 @@ export interface UserResponse {
   status: UserStatus
   createdAt: string
   anotaAiApiKey?: string | null
+  openingHours?: OpeningHour[] | null
 }
 
 export interface AnotaAIKeyRequest {

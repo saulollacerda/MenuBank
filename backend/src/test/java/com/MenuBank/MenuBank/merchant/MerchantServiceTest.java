@@ -350,8 +350,8 @@ class MerchantServiceTest {
             java.util.List<OpeningHour> hours = java.util.List.of(
                     OpeningHour.builder()
                             .dayOfWeek(java.time.DayOfWeek.MONDAY)
-                            .openTime(java.time.LocalTime.of(11, 0))
-                            .closeTime(java.time.LocalTime.of(23, 0))
+                            .openTime("11:00")
+                            .closeTime("23:00")
                             .closed(false)
                             .build());
             MerchantUpdateRequest req = MerchantUpdateRequest.builder()
