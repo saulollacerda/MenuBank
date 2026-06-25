@@ -180,4 +180,44 @@ describe('IngredientsView', () => {
     // The form input is inside the modal — should not exist when modal is closed
     expect(wrapper.find('[data-testid="ingredient-name-input"]').exists()).toBe(false)
   })
+
+  it('should open create modal pre-filled with copied fields when duplicating', async () => {
+    ingredientStoreMock.items = [
+      {
+        id: 'ing-1',
+        name: 'Queijo Mussarela',
+        unit: 'kg',
+        costPerUnit: 32.5,
+        defaultQuantity: 5,
+        status: 'ACTIVE',
+      },
+    ]
+
+    const wrapper = mount(IngredientsView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="duplicate-ingredient-button"]').trigger('click')
+    await flushPromises()
+
+    // Name is suffixed with "(cópia)" to avoid unique-name conflict
+    const nameInput = wrapper.get('[data-testid="ingredient-name-input"]')
+    expect((nameInput.element as HTMLInputElement).value).toBe('Queijo Mussarela (cópia)')
+
+    // Unit and cost are copied from the source ingredient
+    expect((wrapper.get('input[placeholder="Ex: kg, L, un"]').element as HTMLInputElement).value).toBe('kg')
+    expect(
+      (wrapper.get('[data-testid="ingredient-cost-per-unit-input"]').element as HTMLInputElement).value,
+    ).toBe('32.5')
+
+    // Submitting creates a new ingredient (not an update)
+    await wrapper.get('form').trigger('submit')
+
+    expect(ingredientStoreMock.create).toHaveBeenCalledWith({
+      name: 'Queijo Mussarela (cópia)',
+      unit: 'kg',
+      costPerUnit: 32.5,
+      defaultQuantity: 5,
+    })
+    expect(ingredientStoreMock.update).not.toHaveBeenCalled()
+  })
 })
