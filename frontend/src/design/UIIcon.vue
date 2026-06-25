@@ -382,6 +382,25 @@ defineProps<{ name: string; size?: number }>()
       />
       <path d="M12 3v3h3" fill="none" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'copy'">
+      <rect
+        x="7"
+        y="7"
+        width="10"
+        height="10"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      />
+      <path
+        d="M13 7V4.5A1.5 1.5 0 0011.5 3h-7A1.5 1.5 0 003 4.5v7A1.5 1.5 0 004.5 13H7"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+      />
+    </template>
     <template v-else-if="name === 'logout'">
       <path
         d="M7 3H4a1 1 0 00-1 1v12a1 1 0 001 1h3M13 14l4-4-4-4M17 10H8"

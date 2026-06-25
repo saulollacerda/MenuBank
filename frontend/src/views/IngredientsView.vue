@@ -159,6 +159,12 @@ async function openEdit(ing: IngredientResponse) {
   }
   showModal.value = true
 }
+async function openDuplicate(ing: IngredientResponse) {
+  await openCreate(`${ing.name} (cópia)`)
+  form.value.unit = ing.unit
+  form.value.costPerUnit = ing.costPerUnit
+  form.value.defaultQuantity = ing.defaultQuantity ?? 0
+}
 function closeModal() {
   showModal.value = false
   editing.value = null
@@ -477,6 +483,13 @@ const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
             </span>
             <span style="display: flex; gap: 5px; justify-content: flex-end">
               <UIRowAction icon="edit" color="blue" label="Editar" @click="openEdit(it)" />
+              <UIRowAction
+                icon="copy"
+                color="emerald"
+                label="Duplicar"
+                data-testid="duplicate-ingredient-button"
+                @click="openDuplicate(it)"
+              />
               <UIRowAction icon="trash" color="rose" label="Excluir" @click="confirmDeleteId = it.id" />
             </span>
           </div>
