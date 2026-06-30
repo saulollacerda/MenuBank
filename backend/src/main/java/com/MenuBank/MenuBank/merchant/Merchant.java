@@ -45,6 +45,12 @@ public class Merchant {
     @Column(name = "anota_ai_api_key", columnDefinition = "TEXT")
     private String anotaAiApiKey;
 
+    @Column(name = "ifood_merchant_id")
+    private String ifoodMerchantId;
+
+    @Column(name = "ifood_authorized_at")
+    private LocalDateTime ifoodAuthorizedAt;
+
     @Column(length = 500)
     private String address;
 

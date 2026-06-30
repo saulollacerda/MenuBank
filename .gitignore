@@ -8,7 +8,8 @@
 Thumbs.db
 
 # Docker
-*.env
+.env*
+!.env.example
 docker-compose.override.yml
 
 # Maven
