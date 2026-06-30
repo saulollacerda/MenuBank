@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
 import type { DayOfWeek, OpeningHour } from '@/types/User'
+import { ifoodAuthService } from '@/services/ifoodAuthService'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -84,6 +85,101 @@ async function loadProfile() {
     loadError.value = 'Não foi possível carregar suas configurações.'
   }
 }
+
+// ── iFood ─────────────────────────────────────────────────────────────────────
+
+const ifoodConnected = ref(false)
+const ifoodModal = ref(false)
+const ifoodStep = ref<'code' | 'loading' | 'done'>('code')
+const ifoodUserCode = ref('')
+const ifoodVerificationUrl = ref('')
+const ifoodExpiresIn = ref(0)
+const ifoodCountdown = ref(0)
+const ifoodAuthCode = ref('')
+const ifoodError = ref<string | null>(null)
+const ifoodConnecting = ref(false)
+
+let ifoodTimer: ReturnType<typeof setInterval> | null = null
+
+function clearIfoodTimer() {
+  if (ifoodTimer) { clearInterval(ifoodTimer); ifoodTimer = null }
+}
+
+function formatCountdown(s: number): string {
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+async function startIfoodAuth() {
+  ifoodError.value = null
+  ifoodAuthCode.value = ''
+  ifoodStep.value = 'loading'
+  ifoodModal.value = true
+  clearIfoodTimer()
+  try {
+    const res = await ifoodAuthService.start()
+    ifoodUserCode.value = res.userCode
+    ifoodVerificationUrl.value = res.verificationUrl
+    ifoodExpiresIn.value = res.expiresIn
+    ifoodCountdown.value = res.expiresIn
+    ifoodStep.value = 'code'
+    ifoodTimer = setInterval(async () => {
+      ifoodCountdown.value -= 1
+      if (ifoodCountdown.value <= 0) {
+        clearIfoodTimer()
+        // Auto-renew: request new userCode
+        try {
+          const renewed = await ifoodAuthService.start()
+          ifoodUserCode.value = renewed.userCode
+          ifoodVerificationUrl.value = renewed.verificationUrl
+          ifoodCountdown.value = renewed.expiresIn
+          ifoodTimer = setInterval(() => {
+            ifoodCountdown.value -= 1
+            if (ifoodCountdown.value <= 0) clearIfoodTimer()
+          }, 1000)
+        } catch {
+          ifoodError.value = 'Não foi possível renovar o código. Tente novamente.'
+        }
+      }
+    }, 1000)
+  } catch {
+    ifoodError.value = 'Não foi possível obter o código de vínculo. Tente novamente.'
+    ifoodStep.value = 'code'
+  }
+}
+
+async function confirmIfoodConnect() {
+  if (!ifoodAuthCode.value.trim()) return
+  ifoodConnecting.value = true
+  ifoodError.value = null
+  try {
+    await ifoodAuthService.connect(ifoodAuthCode.value.trim())
+    ifoodConnected.value = true
+    ifoodModal.value = false
+    clearIfoodTimer()
+  } catch {
+    ifoodError.value = 'Código inválido ou expirado. Verifique e tente novamente.'
+  } finally {
+    ifoodConnecting.value = false
+  }
+}
+
+function closeIfoodModal() {
+  ifoodModal.value = false
+  clearIfoodTimer()
+}
+
+async function revokeIfood() {
+  try {
+    await ifoodAuthService.revoke()
+    ifoodConnected.value = false
+  } catch {
+    /* ignore */
+  }
+}
+
+onUnmounted(clearIfoodTimer)
 
 async function handleSaveKey() {
   successMessage.value = null
@@ -390,9 +486,57 @@ onMounted(async () => {
               </form>
             </div>
 
+            <!-- iFood -->
+            <div
+              :style="{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '12px 14px',
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '11px',
+              }"
+            >
+              <div style="display: flex; align-items: center; gap: 14px">
+                <div
+                  :style="{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '9px',
+                    background: ifoodConnected ? UI.emeraldBg : UI.bg,
+                    color: ifoodConnected ? UI.emerald2 : UI.textMute,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }"
+                >
+                  <UIIcon name="sync" :size="16" />
+                </div>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '13.5px', fontWeight: 600 }">iFood</div>
+                  <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
+                    Importação direta de pedidos via API oficial do iFood.
+                  </div>
+                </div>
+                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" dot>
+                  {{ ifoodConnected ? 'Conectado' : 'Desconectado' }}
+                </UIPill>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 8px">
+                <UIBtn v-if="ifoodConnected" variant="ghost" size="sm" @click="revokeIfood">
+                  Desconectar
+                </UIBtn>
+                <UIBtn v-else variant="primary" size="sm" icon="link" @click="startIfoodAuth">
+                  Conectar iFood
+                </UIBtn>
+              </div>
+            </div>
+
+            <!-- Em breve -->
             <div
               v-for="g in [
-                { name: 'iFood', desc: 'Em breve · backend ainda não suporta esta integração.' },
                 { name: 'WhatsApp Business', desc: 'Em breve · notificações de status para o cliente.' },
                 { name: 'Mercado Pago', desc: 'Em breve · conciliação de recebíveis.' },
               ]"
@@ -430,6 +574,121 @@ onMounted(async () => {
               </div>
               <UIPill color="gray" dot>Em breve</UIPill>
             </div>
+
+            <!-- iFood Modal -->
+            <Teleport to="body">
+              <div
+                v-if="ifoodModal"
+                style="
+                  position: fixed; inset: 0; z-index: 1000;
+                  background: rgba(0,0,0,0.45);
+                  display: flex; align-items: center; justify-content: center;
+                  padding: 16px;
+                "
+                @click.self="closeIfoodModal"
+              >
+                <div
+                  :style="{
+                    background: UI.bg,
+                    border: `1px solid ${UI.border}`,
+                    borderRadius: '16px',
+                    padding: '24px',
+                    width: '100%',
+                    maxWidth: '460px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '20px',
+                  }"
+                >
+                  <div style="display: flex; align-items: center; justify-content: space-between">
+                    <div :style="{ fontSize: '16px', fontWeight: 700, color: UI.text }">
+                      Conectar iFood
+                    </div>
+                    <span
+                      :style="{ color: UI.textMute, cursor: 'pointer', fontSize: '20px', lineHeight: 1 }"
+                      @click="closeIfoodModal"
+                    >×</span>
+                  </div>
+
+                  <div v-if="ifoodStep === 'loading'" :style="{ color: UI.textSub, fontSize: '13.5px', textAlign: 'center' }">
+                    Gerando código de vínculo…
+                  </div>
+
+                  <template v-else>
+                    <!-- userCode display -->
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+                      <div :style="{ fontSize: '12px', color: UI.textMute, textTransform: 'uppercase', letterSpacing: '0.05em' }">
+                        Seu código de vínculo
+                      </div>
+                      <div
+                        :style="{
+                          fontSize: '28px',
+                          fontWeight: 700,
+                          letterSpacing: '0.15em',
+                          color: UI.text,
+                          fontFamily: 'monospace',
+                          background: UI.bgSoft,
+                          border: `1px solid ${UI.border}`,
+                          borderRadius: '10px',
+                          padding: '10px 24px',
+                        }"
+                      >
+                        {{ ifoodUserCode }}
+                      </div>
+                      <div :style="{ fontSize: '12px', color: ifoodCountdown <= 60 ? '#ef4444' : UI.textSub }">
+                        ⏱ Expira em: {{ formatCountdown(ifoodCountdown) }}
+                      </div>
+                    </div>
+
+                    <!-- Steps -->
+                    <div style="display: flex; flex-direction: column; gap: 6px">
+                      <div :style="{ fontSize: '12.5px', fontWeight: 600, color: UI.textSub, marginBottom: '2px' }">
+                        Siga os passos no Portal do Parceiro:
+                      </div>
+                      <ol :style="{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }">
+                        <li :style="{ fontSize: '13px', color: UI.text }">
+                          Acesse o
+                          <a
+                            :href="ifoodVerificationUrl || 'https://portal.ifood.com.br/setup/onboarding'"
+                            target="_blank"
+                            :style="{ color: UI.blue, fontWeight: 600 }"
+                          >Portal do Parceiro iFood</a>
+                        </li>
+                        <li :style="{ fontSize: '13px', color: UI.text }">Faça login na sua conta iFood</li>
+                        <li :style="{ fontSize: '13px', color: UI.text }">Clique em <strong>Integrações</strong> na barra lateral</li>
+                        <li :style="{ fontSize: '13px', color: UI.text }">Clique em <strong>Ativar aplicativo por código</strong></li>
+                        <li :style="{ fontSize: '13px', color: UI.text }">Insira o código acima e confirme</li>
+                        <li :style="{ fontSize: '13px', color: UI.text }">O portal fornecerá um <strong>código de autorização</strong></li>
+                      </ol>
+                    </div>
+
+                    <!-- authorizationCode input -->
+                    <UIField label="Código de autorização" hint="Cole aqui o código que o portal do iFood forneceu.">
+                      <UIInput
+                        v-model="ifoodAuthCode"
+                        placeholder="Cole o código de autorização"
+                        @keyup.enter="confirmIfoodConnect"
+                      />
+                    </UIField>
+
+                    <div v-if="ifoodError" :style="{ fontSize: '12.5px', color: '#ef4444' }">
+                      {{ ifoodError }}
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 8px">
+                      <UIBtn variant="ghost" @click="closeIfoodModal">Cancelar</UIBtn>
+                      <UIBtn
+                        variant="primary"
+                        :disabled="!ifoodAuthCode.trim() || ifoodConnecting"
+                        @click="confirmIfoodConnect"
+                      >
+                        {{ ifoodConnecting ? 'Conectando…' : 'Confirmar' }}
+                      </UIBtn>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </Teleport>
           </div>
         </UICard>
 
