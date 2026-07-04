@@ -60,6 +60,9 @@ public class Order {
     @Column(name = "external_order_id")
     private String externalOrderId;
 
+    @Column(name = "extra_info", length = 1024)
+    private String extraInfo;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "origin")
     private OrderOrigin origin;

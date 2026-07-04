@@ -84,6 +84,8 @@ function pctFmt(v: number): string {
 
 const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue'; label: string }> = {
   PENDING: { color: 'amber', label: 'Pendente' },
+  READY: { color: 'blue', label: 'Pronto' },
+  DELIVERED: { color: 'emerald', label: 'Entregue' },
   PAID: { color: 'emerald', label: 'Pago' },
   CANCELLED: { color: 'rose', label: 'Cancelado' },
 }

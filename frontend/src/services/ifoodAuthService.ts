@@ -6,7 +6,16 @@ export interface IfoodUserCodeResponse {
   expiresIn: number
 }
 
+export interface IfoodStatusResponse {
+  connected: boolean
+}
+
 export const ifoodAuthService = {
+  async status(): Promise<IfoodStatusResponse> {
+    const { data } = await api.get<IfoodStatusResponse>('/integrations/ifood/auth/status')
+    return data
+  },
+
   async start(): Promise<IfoodUserCodeResponse> {
     const { data } = await api.post<IfoodUserCodeResponse>('/integrations/ifood/auth/start')
     return data

@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.integration.ifood;
 
 import com.MenuBank.MenuBank.auth.AuthHelper;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodConnectRequest;
+import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStatusResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodUserCodeResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,12 @@ public class IfoodAuthController {
     public IfoodAuthController(IfoodTokenService tokenService, AuthHelper authHelper) {
         this.tokenService = tokenService;
         this.authHelper = authHelper;
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<IfoodStatusResponse> status(Authentication auth) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(new IfoodStatusResponse(tokenService.isConnected(merchantId)));
     }
 
     @PostMapping("/start")

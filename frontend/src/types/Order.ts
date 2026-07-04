@@ -1,4 +1,4 @@
-export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED'
+export type OrderStatus = 'PENDING' | 'READY' | 'DELIVERED' | 'PAID' | 'CANCELLED'
 export type OrderOrigin = 'MENUBANK' | 'ANOTA_AI' | 'IFOOD'
 
 export interface OrderItemExtraIngredientRequest {

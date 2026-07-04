@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,6 +86,26 @@ class IfoodAuthControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(tokenService).revoke(any());
+    }
+
+    @Test
+    @DisplayName("GET /api/integrations/ifood/auth/status retorna connected true quando integrado")
+    void status_shouldReturnConnectedTrueWhenIntegrated() throws Exception {
+        given(tokenService.isConnected(merchantId)).willReturn(true);
+
+        mockMvc.perform(get("/api/integrations/ifood/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.connected").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/integrations/ifood/auth/status retorna connected false quando não integrado")
+    void status_shouldReturnConnectedFalseWhenNotIntegrated() throws Exception {
+        given(tokenService.isConnected(merchantId)).willReturn(false);
+
+        mockMvc.perform(get("/api/integrations/ifood/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.connected").value(false));
     }
 
     @Test

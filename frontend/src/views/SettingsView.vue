@@ -208,8 +208,17 @@ const SUBNAV: Array<{
   { id: 'danger', ic: 'alert', l: 'Zona perigosa', danger: true },
 ]
 
+async function loadIfoodStatus() {
+  try {
+    const { connected } = await ifoodAuthService.status()
+    ifoodConnected.value = connected
+  } catch {
+    /* best-effort — mantém o estado atual em caso de erro */
+  }
+}
+
 onMounted(async () => {
-  await loadProfile()
+  await Promise.all([loadProfile(), loadIfoodStatus()])
   const q = route.query.section
   if (q && typeof q === 'string' && SUBNAV.some((s) => s.id === q)) {
     section.value = q as typeof section.value
