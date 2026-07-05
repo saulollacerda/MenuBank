@@ -103,6 +103,50 @@ class NotificationServiceTest {
     }
 
     @Nested
+    @DisplayName("createOrderCancelled()")
+    class CreateOrderCancelled {
+
+        @Test
+        @DisplayName("deve criar notificação ORDER_CANCELLED com o motivo quando disponível")
+        void shouldCreateWithCancelReason() {
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            Notification result = notificationService.createOrderCancelled(
+                    "ord-1", "Loja fechada", merchantId);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            then(notificationRepository).should().save(captor.capture());
+            Notification saved = captor.getValue();
+
+            assertThat(saved.getMerchant().getId()).isEqualTo(merchantId);
+            assertThat(saved.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+            assertThat(saved.getReferenceData()).isEqualTo("ord-1");
+            assertThat(saved.getStatus()).isEqualTo(NotificationStatus.UNREAD);
+            assertThat(saved.getCreatedAt()).isNotNull();
+            assertThat(saved.getTitle()).contains("cancelado");
+            assertThat(saved.getMessage()).contains("ord-1").contains("Loja fechada");
+            assertThat(result).isSameAs(saved);
+        }
+
+        @Test
+        @DisplayName("deve criar notificação sem trecho de motivo quando cancelReasonDescription é nulo")
+        void shouldCreateWithoutCancelReason() {
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            notificationService.createOrderCancelled("ord-1", null, merchantId);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            then(notificationRepository).should().save(captor.capture());
+            Notification saved = captor.getValue();
+
+            assertThat(saved.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+            assertThat(saved.getMessage()).contains("ord-1").doesNotContain("Motivo");
+        }
+    }
+
+    @Nested
     @DisplayName("deleteMissingIngredient()")
     class DeleteMissingIngredient {
 

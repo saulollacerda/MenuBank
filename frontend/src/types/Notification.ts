@@ -1,4 +1,9 @@
-export type NotificationType = 'MISSING_INGREDIENT'
+export type NotificationType = 'MISSING_INGREDIENT' | 'ORDER_CANCELLED'
+
+export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  MISSING_INGREDIENT: 'Ingrediente não cadastrado',
+  ORDER_CANCELLED: 'Pedido cancelado',
+}
 
 export type NotificationStatus = 'UNREAD' | 'READ' | 'RESOLVED'
 

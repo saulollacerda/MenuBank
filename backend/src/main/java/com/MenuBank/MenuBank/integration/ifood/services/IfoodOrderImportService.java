@@ -40,10 +40,15 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Importa um pedido CONCLUDED do iFood, persistindo {@link Order}, {@link OrderItem}s
- * e {@link OrderItemExtraIngredient}s. Espelha o fluxo do AnotaAIOrderImportService:
- * produtos resolvidos por externalCode com fallback de nome canônico, complementos
- * (options) resolvidos contra o catálogo de ingredientes por nome canônico.
+ * Importa pedidos do iFood a partir dos eventos do ciclo de vida (CONFIRMED, CONCLUDED,
+ * CANCELLED), persistindo {@link Order}, {@link OrderItem}s e {@link OrderItemExtraIngredient}s,
+ * e aplica as transições de status em pedidos já importados. Espelha o fluxo do
+ * AnotaAIOrderImportService: produtos resolvidos por externalCode com fallback de nome
+ * canônico, complementos (options) resolvidos contra o catálogo de ingredientes por nome
+ * canônico.
+ *
+ * <p>Regras de transição: CANCELLED sempre vence (inclusive sobre PAID) e nunca é revertido;
+ * eventos repetidos são idempotentes.
  */
 @Service
 public class IfoodOrderImportService {
@@ -81,11 +86,13 @@ public class IfoodOrderImportService {
     }
 
     /**
+     * @param status status inicial derivado do evento que originou o import
+     *               (CONFIRMED → PENDING, CONCLUDED → PAID, CANCELLED → CANCELLED)
      * @return {@code true} se o pedido foi importado; {@code false} se foi pulado
      *         (categoria não-FOOD, pedido de teste, merchant desconhecido ou duplicado).
      */
     @Transactional
-    public boolean importOrder(IfoodOrderDetailResponse detail) {
+    public boolean importOrder(IfoodOrderDetailResponse detail, OrderStatus status) {
         if (!FOOD_CATEGORY.equalsIgnoreCase(detail.getCategory())) {
             log.info("[iFood] pedido {} ignorado — category='{}'", detail.getId(), detail.getCategory());
             return false;
@@ -125,7 +132,7 @@ public class IfoodOrderImportService {
                 .dateTime(parseCreatedAt(detail.getCreatedAt()))
                 .customer(customer)
                 .fee(null)
-                .status(OrderStatus.DELIVERED)
+                .status(status)
                 .totalValue(totalValue)
                 .deliveryFee(deliveryFee)
                 .origin(OrderOrigin.IFOOD)
@@ -142,6 +149,68 @@ public class IfoodOrderImportService {
 
         orderRepository.save(order);
         return true;
+    }
+
+    /**
+     * Solidifica um pedido já importado quando o CONCLUDED chega: PENDING → PAID.
+     * Não reverte CANCELLED e é idempotente para pedidos já PAID.
+     *
+     * @return {@code true} se o pedido existe localmente (evento tratado);
+     *         {@code false} para acionar o import completo como fallback.
+     */
+    @Transactional
+    public boolean concludeOrder(String externalOrderId, String ifoodMerchantId) {
+        Optional<Order> orderOpt = findExistingOrder(externalOrderId, ifoodMerchantId);
+        if (orderOpt.isEmpty()) {
+            return false;
+        }
+
+        Order order = orderOpt.get();
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.info("[iFood] CONCLUDED ignorado — pedido {} já está CANCELLED", externalOrderId);
+            return true;
+        }
+        if (order.getStatus() == OrderStatus.PAID) {
+            return true;
+        }
+
+        order.setStatus(OrderStatus.PAID);
+        orderRepository.save(order);
+        log.info("[iFood] pedido {} solidificado — status PAID", externalOrderId);
+        return true;
+    }
+
+    /**
+     * Cancela um pedido já importado e notifica o lojista ({@code ORDER_CANCELLED}).
+     * CANCELLED vence sobre qualquer status (inclusive PAID) e a operação é idempotente:
+     * pedido já cancelado não gera nova notificação.
+     *
+     * @return {@code true} se o pedido existe localmente (evento tratado);
+     *         {@code false} para acionar o import completo como fallback.
+     */
+    @Transactional
+    public boolean cancelOrder(String externalOrderId, String ifoodMerchantId) {
+        Optional<Order> orderOpt = findExistingOrder(externalOrderId, ifoodMerchantId);
+        if (orderOpt.isEmpty()) {
+            return false;
+        }
+
+        Order order = orderOpt.get();
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return true;
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        notificationService.createOrderCancelled(externalOrderId, null, order.getMerchant().getId());
+        log.info("[iFood] pedido {} cancelado — removido dos ganhos", externalOrderId);
+        return true;
+    }
+
+    private Optional<Order> findExistingOrder(String externalOrderId, String ifoodMerchantId) {
+        return merchantRepository.findByIfoodMerchantId(ifoodMerchantId)
+                .flatMap(merchant -> orderRepository.findByExternalOrderIdAndMerchantId(
+                        externalOrderId, merchant.getId()));
     }
 
     private List<OrderItem> buildItems(IfoodOrderDetailResponse detail, UUID merchantId) {
