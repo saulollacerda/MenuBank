@@ -120,7 +120,7 @@ o pedido depois.
 | `category` | string | `FOOD`, `GROCERY`, `ANOTAI`, `FOOD_SELF_SERVICE` — **MenuBank só processa `category == "FOOD"`**; demais categorias são ignoradas na importação |
 | `createdAt` | date | Data/hora de criação (UTC) |
 | `preparationStartDateTime` | date | Horário recomendado para início do preparo |
-| `isTest` | boolean | Pedido de teste — **MenuBank pula a importação quando `true`** |
+| `isTest` | boolean | Pedido de teste — **importado com `status = TEST`** (independente do evento de origem). `TEST` é terminal: `CONCLUDED`/`CANCELLED` não o alteram, então o pedido nunca entra nos ganhos (dashboard/exportação só agregam `PAID`) nem gera notificação de cancelamento |
 | `extraInfo` | string | Informações adicionais livres (ex.: `"Pago Online. NÃO LEVAR MÁQUINA"`) — **persistido em `orders.extra_info` para uso futuro** (ex.: impressão de comanda), sem consumo funcional na v1 |
 
 ### `merchant`
@@ -192,7 +192,7 @@ dados no futuro.
 | `merchant.id` | Roteamento — resolve `Order.merchant` local, não persistido como está |
 | — | `Order.fee = null` (payments é lista, não mapeia 1:1 para `Fee`) |
 | — | `Order.origin = OrderOrigin.IFOOD` |
-| evento que originou o import | `Order.status` — `CONFIRMED → PENDING`, `CONCLUDED → PAID`, `CANCELLED → CANCELLED` |
+| evento que originou o import | `Order.status` — `CONFIRMED → PENDING`, `CONCLUDED → PAID`, `CANCELLED → CANCELLED`; `isTest = true` sobrepõe tudo com `TEST` |
 
 > A entidade `Order` não tem campo de motivo/timestamp de cancelamento — o cancelamento é apenas a
 > troca de `status`; o `cancelReasonDescription` (quando disponível) vai no texto da notificação

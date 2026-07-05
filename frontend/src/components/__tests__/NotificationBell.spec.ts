@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import NotificationBell from '@/components/NotificationBell.vue'
 import { notificationService } from '@/services/notificationService'
 import type { NotificationResponse } from '@/types/Notification'
+import { NOTIFICATION_TYPE_LABELS } from '@/types/Notification'
+import { UIIcon } from '@/design'
 
 vi.mock('@/services/notificationService')
 
@@ -47,10 +49,25 @@ async function mountAndOpen(items: NotificationResponse[]) {
   return wrapper
 }
 
+function typeIconOf(wrapper: VueWrapper, id: string) {
+  return wrapper.find(`[data-testid="notification-${id}-type-icon"]`)
+}
+
+function iconNameInside(wrapper: VueWrapper, container: Element): string | undefined {
+  const icon = wrapper.findAllComponents(UIIcon).find((c) => container.contains(c.element))
+  return icon?.props('name')
+}
+
 describe('NotificationBell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
+  })
+
+  it('exporta label pt-BR para cada tipo de notificação', () => {
+    expect(NOTIFICATION_TYPE_LABELS.MISSING_INGREDIENT).toBe('Ingrediente não cadastrado')
+    expect(NOTIFICATION_TYPE_LABELS.MISSING_PRODUCT).toBe('Produto não cadastrado')
+    expect(NOTIFICATION_TYPE_LABELS.ORDER_CANCELLED).toBe('Pedido cancelado')
   })
 
   it('MISSING_INGREDIENT não resolvida mostra ações "Cadastrar ingrediente" e "Descartar"', async () => {
@@ -74,5 +91,41 @@ describe('NotificationBell', () => {
 
     expect(wrapper.find('[data-testid="notification-n-2-action-button"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="notification-n-2-dismiss-button"]').exists()).toBe(true)
+  })
+
+  it('ORDER_CANCELLED não resolvida mostra "Descartar" mas não ação primária', async () => {
+    const wrapper = await mountAndOpen([
+      buildNotification({
+        id: 'n-3',
+        type: 'ORDER_CANCELLED',
+        title: 'Pedido cancelado',
+        message: 'O pedido ord-1 foi cancelado no iFood e removido dos ganhos.',
+        referenceData: 'ord-1',
+        referenceDisplay: 'ord-1',
+      }),
+    ])
+
+    expect(wrapper.find('[data-testid="notification-n-3-action-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="notification-n-3-dismiss-button"]').exists()).toBe(true)
+  })
+
+  it('exibe ícone "x" com label pt-BR para notificação ORDER_CANCELLED', async () => {
+    const wrapper = await mountAndOpen([
+      buildNotification({ id: 'n-3', type: 'ORDER_CANCELLED', title: 'Pedido cancelado' }),
+    ])
+
+    const iconBox = typeIconOf(wrapper, 'n-3')
+    expect(iconBox.exists()).toBe(true)
+    expect(iconBox.attributes('aria-label')).toBe('Pedido cancelado')
+    expect(iconNameInside(wrapper, iconBox.element)).toBe('x')
+  })
+
+  it('mantém ícone "alert" com label pt-BR para MISSING_INGREDIENT', async () => {
+    const wrapper = await mountAndOpen([buildNotification()])
+
+    const iconBox = typeIconOf(wrapper, 'n-1')
+    expect(iconBox.exists()).toBe(true)
+    expect(iconBox.attributes('aria-label')).toBe('Ingrediente não cadastrado')
+    expect(iconNameInside(wrapper, iconBox.element)).toBe('alert')
   })
 })

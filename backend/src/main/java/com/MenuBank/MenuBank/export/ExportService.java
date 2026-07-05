@@ -290,6 +290,7 @@ public class ExportService {
             case READY -> "Pronto";
             case DELIVERED -> "Entregue";
             case CANCELLED -> "Cancelado";
+            case TEST -> "Teste";
         };
     }
 }

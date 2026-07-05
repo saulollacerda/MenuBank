@@ -5,8 +5,10 @@ import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
 import com.MenuBank.MenuBank.integration.ifood.services.IfoodOrderImportService;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
+import com.MenuBank.MenuBank.order.OrderStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,13 +25,10 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("IfoodOrderSyncService")
@@ -58,7 +57,14 @@ class IfoodOrderSyncServiceTest {
         event.setCode(fullCode.substring(0, Math.min(3, fullCode.length())));
         event.setFullCode(fullCode);
         event.setOrderId(orderId);
+        event.setMerchantId("ifood-m1");
         return event;
+    }
+
+    private IfoodOrderDetailResponse detail(String orderId) {
+        IfoodOrderDetailResponse detail = new IfoodOrderDetailResponse();
+        detail.setId(orderId);
+        return detail;
     }
 
     private static HttpClientErrorException unauthorized() {
@@ -82,64 +88,191 @@ class IfoodOrderSyncServiceTest {
         then(orderClient).should(never()).pollEvents(anyString(), anyList());
     }
 
-    @Test
-    @DisplayName("importa e reconhece evento CONCLUDED")
-    void shouldImportAndAcknowledgeConcludedEvent() {
-        IfoodOrderDetailResponse detail = new IfoodOrderDetailResponse();
-        detail.setId("ord-1");
-        given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
-                .willReturn(List.of(event("evt-1", "CONCLUDED", "ord-1")));
-        given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+    @Nested
+    @DisplayName("evento CONFIRMED")
+    class ConfirmedEvent {
 
-        syncService.syncOrders();
+        @Test
+        @DisplayName("busca o detalhe e importa com status PENDING")
+        void shouldImportConfirmedOrderAsPending() {
+            IfoodOrderDetailResponse detail = detail("ord-1");
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CONFIRMED", "ord-1")));
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
 
-        then(importService).should().importOrder(detail);
-        then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+            syncService.syncOrders();
+
+            then(importService).should().importOrder(detail, OrderStatus.PENDING);
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("aceita a variante ORDER_CONFIRMED (case-insensitive)")
+        void shouldAcceptOrderPrefixedVariant() {
+            IfoodOrderDetailResponse detail = detail("ord-1");
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "order_confirmed", "ord-1")));
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+
+            syncService.syncOrders();
+
+            then(importService).should().importOrder(detail, OrderStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("404 no detalhe é pulado sem importar — o CONCLUDED importa depois (safety net)")
+        void shouldSkipConfirmedWhenDetailNotFound() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CONFIRMED", "ord-1")));
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willThrow(notFound());
+
+            syncService.syncOrders();
+
+            then(importService).should(never()).importOrder(any(), any());
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+    }
+
+    @Nested
+    @DisplayName("evento CONCLUDED")
+    class ConcludedEvent {
+
+        @Test
+        @DisplayName("pedido existente é atualizado para PAID sem buscar o detalhe")
+        void shouldConcludeExistingOrderWithoutFetchingDetail() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CONCLUDED", "ord-1")));
+            given(importService.concludeOrder("ord-1", "ifood-m1")).willReturn(true);
+
+            syncService.syncOrders();
+
+            then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
+            then(importService).should(never()).importOrder(any(), any());
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("pedido inexistente é importado completo com status PAID (fallback)")
+        void shouldImportUnknownConcludedOrderAsPaid() {
+            IfoodOrderDetailResponse detail = detail("ord-1");
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CONCLUDED", "ord-1")));
+            given(importService.concludeOrder("ord-1", "ifood-m1")).willReturn(false);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+
+            syncService.syncOrders();
+
+            then(importService).should().importOrder(detail, OrderStatus.PAID);
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("aceita a variante ORDER_CONCLUDED (case-insensitive)")
+        void shouldAcceptOrderPrefixedVariant() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "ORDER_CONCLUDED", "ord-1")));
+            given(importService.concludeOrder("ord-1", "ifood-m1")).willReturn(true);
+
+            syncService.syncOrders();
+
+            then(importService).should().concludeOrder("ord-1", "ifood-m1");
+        }
+    }
+
+    @Nested
+    @DisplayName("evento CANCELLED")
+    class CancelledEvent {
+
+        @Test
+        @DisplayName("pedido existente é cancelado sem buscar o detalhe")
+        void shouldCancelExistingOrderWithoutFetchingDetail() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CANCELLED", "ord-1")));
+            given(importService.cancelOrder("ord-1", "ifood-m1")).willReturn(true);
+
+            syncService.syncOrders();
+
+            then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
+            then(importService).should(never()).importOrder(any(), any());
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("pedido inexistente é importado com status CANCELLED")
+        void shouldImportUnknownCancelledOrder() {
+            IfoodOrderDetailResponse detail = detail("ord-1");
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CANCELLED", "ord-1")));
+            given(importService.cancelOrder("ord-1", "ifood-m1")).willReturn(false);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+
+            syncService.syncOrders();
+
+            then(importService).should().importOrder(detail, OrderStatus.CANCELLED);
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("404 no detalhe de pedido inexistente é logado e pulado, mas o evento é reconhecido")
+        void shouldSkipUnknownCancelledOrderWhenDetailNotFound() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "CANCELLED", "ord-1")));
+            given(importService.cancelOrder("ord-1", "ifood-m1")).willReturn(false);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willThrow(notFound());
+
+            syncService.syncOrders();
+
+            then(importService).should(never()).importOrder(any(), any());
+            then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
+        }
+
+        @Test
+        @DisplayName("aceita a variante ORDER_CANCELLED (case-insensitive)")
+        void shouldAcceptOrderPrefixedVariant() {
+            given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
+                    .willReturn(List.of(event("evt-1", "Order_Cancelled", "ord-1")));
+            given(importService.cancelOrder("ord-1", "ifood-m1")).willReturn(true);
+
+            syncService.syncOrders();
+
+            then(importService).should().cancelOrder("ord-1", "ifood-m1");
+        }
     }
 
     @Test
-    @DisplayName("evento não-CONCLUDED é apenas reconhecido, sem importação")
-    void shouldOnlyAcknowledgeNonConcludedEvents() {
+    @DisplayName("evento fora de CONFIRMED/CANCELLED/CONCLUDED é apenas reconhecido, sem ação")
+    void shouldOnlyAcknowledgeIgnoredEvents() {
         given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
-                .willReturn(List.of(event("evt-2", "PLACED", "ord-2")));
+                .willReturn(List.of(
+                        event("evt-2", "PLACED", "ord-2"),
+                        event("evt-3", "DISPATCHED", "ord-3")));
 
         syncService.syncOrders();
 
         then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
-        then(importService).should(never()).importOrder(any());
-        then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-2"));
+        then(importService).should(never()).importOrder(any(), any());
+        then(importService).should(never()).concludeOrder(anyString(), anyString());
+        then(importService).should(never()).cancelOrder(anyString(), anyString());
+        then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-2", "evt-3"));
     }
 
     @Test
     @DisplayName("falha em um pedido não impede o processamento dos demais nem o acknowledgment")
     void shouldContinueProcessingWhenOneOrderFails() {
-        IfoodOrderDetailResponse detail3 = new IfoodOrderDetailResponse();
-        detail3.setId("ord-3");
+        IfoodOrderDetailResponse detail3 = detail("ord-3");
         given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
                 .willReturn(List.of(
                         event("evt-1", "CONCLUDED", "ord-1"),
                         event("evt-3", "CONCLUDED", "ord-3")));
+        given(importService.concludeOrder(anyString(), anyString())).willReturn(false);
         given(orderClient.getOrderDetail("token-1", "ord-1"))
                 .willThrow(new RuntimeException("boom"));
         given(orderClient.getOrderDetail("token-1", "ord-3")).willReturn(detail3);
 
         syncService.syncOrders();
 
-        then(importService).should().importOrder(detail3);
+        then(importService).should().importOrder(detail3, OrderStatus.PAID);
         then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1", "evt-3"));
-    }
-
-    @Test
-    @DisplayName("404 no detalhe do pedido é pulado, mas evento ainda é reconhecido")
-    void shouldSkipNotFoundDetailButStillAcknowledge() {
-        given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
-                .willReturn(List.of(event("evt-1", "CONCLUDED", "ord-1")));
-        given(orderClient.getOrderDetail("token-1", "ord-1")).willThrow(notFound());
-
-        syncService.syncOrders();
-
-        then(importService).should(never()).importOrder(any());
-        then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
     }
 
     @Test

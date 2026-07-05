@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getActivePinia } from 'pinia'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { NOTIFICATION_TYPE_LABELS, type NotificationType } from '@/types/Notification'
 import { UI, UIIcon, UIBtn, UIPill } from '@/design'
 
 // Defensive bootstrap so the topbar can render in test mounts that don't
@@ -56,6 +57,18 @@ async function handleDismiss(id: string) {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR')
+}
+
+function typeLabel(type: string): string {
+  return NOTIFICATION_TYPE_LABELS[type as NotificationType] ?? type
+}
+function typeIcon(type: string): string {
+  return type === 'ORDER_CANCELLED' ? 'x' : 'alert'
+}
+function typeIconStyle(type: string): { background: string; color: string } {
+  return type === 'ORDER_CANCELLED'
+    ? { background: UI.roseBg, color: UI.rose }
+    : { background: UI.amberBg, color: UI.amber }
 }
 
 const unread = computed(() => store.items.filter((n) => n.status === 'UNREAD').length)
@@ -225,19 +238,22 @@ onMounted(() => {
             />
             <div style="display: flex; align-items: flex-start; gap: 12px">
               <div
+                role="img"
+                :data-testid="`notification-${n.id}-type-icon`"
+                :aria-label="typeLabel(n.type)"
                 :style="{
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
-                  background: UI.amberBg,
-                  color: UI.amber,
+                  background: typeIconStyle(n.type).background,
+                  color: typeIconStyle(n.type).color,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }"
               >
-                <UIIcon name="alert" :size="15" />
+                <UIIcon :name="typeIcon(n.type)" :size="15" />
               </div>
               <div style="flex: 1; min-width: 0">
                 <div

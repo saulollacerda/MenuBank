@@ -126,19 +126,19 @@ class IfoodOrderImportServiceTest {
     class ImportOrder {
 
         @Test
-        @DisplayName("deve importar pedido FOOD concluído com origin=IFOOD, status=DELIVERED e extraInfo")
+        @DisplayName("deve importar pedido FOOD concluído com origin=IFOOD, o status do evento e extraInfo")
         void shouldImportConcludedFoodOrder() {
             given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
                     .willReturn(Optional.of(product));
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            boolean imported = importService.importOrder(baseDetail());
+            boolean imported = importService.importOrder(baseDetail(), OrderStatus.PAID);
 
             assertThat(imported).isTrue();
             then(orderRepository).should().save(argThat((Order o) ->
                     o.getOrigin() == OrderOrigin.IFOOD
-                            && o.getStatus() == OrderStatus.DELIVERED
+                            && o.getStatus() == OrderStatus.PAID
                             && "ord-1".equals(o.getExternalOrderId())
                             && "Pago Online".equals(o.getExtraInfo())
                             && new BigDecimal("49.97").compareTo(o.getTotalValue()) == 0
@@ -154,22 +154,27 @@ class IfoodOrderImportServiceTest {
             IfoodOrderDetailResponse detail = baseDetail();
             detail.setCategory("GROCERY");
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
             assertThat(imported).isFalse();
             then(orderRepository).should(never()).save(any(Order.class));
         }
 
         @Test
-        @DisplayName("deve pular pedido de teste (isTest=true)")
-        void shouldSkipTestOrder() {
+        @DisplayName("deve importar pedido de teste (isTest=true) com status TEST, ignorando o status do evento")
+        void shouldImportTestOrderWithTestStatus() {
             IfoodOrderDetailResponse detail = baseDetail();
             detail.setTest(true);
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
-            assertThat(imported).isFalse();
-            then(orderRepository).should(never()).save(any(Order.class));
+            assertThat(imported).isTrue();
+            then(orderRepository).should().save(argThat((Order o) ->
+                    o.getStatus() == OrderStatus.TEST));
         }
 
         @Test
@@ -177,7 +182,7 @@ class IfoodOrderImportServiceTest {
         void shouldSkipUnknownMerchant() {
             given(merchantRepository.findByIfoodMerchantId("ifood-m1")).willReturn(Optional.empty());
 
-            boolean imported = importService.importOrder(baseDetail());
+            boolean imported = importService.importOrder(baseDetail(), OrderStatus.PAID);
 
             assertThat(imported).isFalse();
             then(orderRepository).should(never()).save(any(Order.class));
@@ -189,7 +194,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(true);
 
-            boolean imported = importService.importOrder(baseDetail());
+            boolean imported = importService.importOrder(baseDetail(), OrderStatus.PAID);
 
             assertThat(imported).isFalse();
             then(orderRepository).should(never()).save(any(Order.class));
@@ -207,7 +212,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
             assertThat(imported).isTrue();
             then(orderRepository).should().save(argThat((Order o) -> o.getItems().size() == 1));
@@ -233,7 +238,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
             assertThat(imported).isTrue();
             then(orderRepository).should().save(argThat((Order o) -> o.getItems().size() == 1));
@@ -253,7 +258,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            importService.importOrder(detail);
+            importService.importOrder(detail, OrderStatus.PAID);
 
             then(notificationService).should()
                     .createMissingProduct(eq("Produto Fantasma"), eq("produto fantasma"), eq(merchantId));
@@ -285,7 +290,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
             assertThat(imported).isTrue();
             then(orderRepository).should().save(argThat((Order o) ->
@@ -311,7 +316,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            boolean imported = importService.importOrder(detail);
+            boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
             assertThat(imported).isTrue();
             then(notificationService).should()
@@ -328,7 +333,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            importService.importOrder(baseDetail());
+            importService.importOrder(baseDetail(), OrderStatus.PAID);
 
             // 2026-07-01T18:00:00Z == 15:00 em America/Sao_Paulo (UTC-3)
             then(orderRepository).should().save(argThat((Order o) ->
@@ -351,7 +356,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            importService.importOrder(baseDetail());
+            importService.importOrder(baseDetail(), OrderStatus.PAID);
 
             then(customerRepository).should(never()).save(any(Customer.class));
             then(orderRepository).should().save(argThat((Order o) -> o.getCustomer() == existing));
@@ -376,7 +381,7 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            importService.importOrder(detail);
+            importService.importOrder(detail, OrderStatus.PAID);
 
             then(customerRepository).should(never()).findByPhoneAndMerchantId(anyString(), any());
             then(customerRepository).should(never()).save(any(Customer.class));
@@ -397,13 +402,222 @@ class IfoodOrderImportServiceTest {
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
 
-            importService.importOrder(detail);
+            importService.importOrder(detail, OrderStatus.PAID);
 
             then(customerRepository).should(never()).findByPhoneAndMerchantId(anyString(), any());
             then(customerRepository).should().save(argThat((Customer c) ->
                     c.getPhone() == null
                             && "ifood-cust-2".equals(c.getExternalId())
                             && "Maria Santos".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("deve importar com status PENDING quando o evento de origem é CONFIRMED")
+        void shouldImportWithPendingStatus() {
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            boolean imported = importService.importOrder(baseDetail(), OrderStatus.PENDING);
+
+            assertThat(imported).isTrue();
+            then(orderRepository).should().save(argThat((Order o) ->
+                    o.getStatus() == OrderStatus.PENDING));
+        }
+
+        @Test
+        @DisplayName("deve importar com status CANCELLED quando o evento de origem é CANCELLED")
+        void shouldImportWithCancelledStatus() {
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            boolean imported = importService.importOrder(baseDetail(), OrderStatus.CANCELLED);
+
+            assertThat(imported).isTrue();
+            then(orderRepository).should().save(argThat((Order o) ->
+                    o.getStatus() == OrderStatus.CANCELLED));
+        }
+    }
+
+    private Order existingOrder(OrderStatus status) {
+        return Order.builder()
+                .id(UUID.randomUUID())
+                .merchant(merchant)
+                .externalOrderId("ord-1")
+                .status(status)
+                .build();
+    }
+
+    @Nested
+    @DisplayName("concludeOrder()")
+    class ConcludeOrder {
+
+        @Test
+        @DisplayName("deve atualizar pedido PENDING existente para PAID e retornar true")
+        void shouldUpdateExistingPendingOrderToPaid() {
+            Order order = existingOrder(OrderStatus.PENDING);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+            then(orderRepository).should().save(order);
+        }
+
+        @Test
+        @DisplayName("não deve reverter pedido CANCELLED (CANCELLED sempre vence)")
+        void shouldNotRevertCancelledOrder() {
+            Order order = existingOrder(OrderStatus.CANCELLED);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+
+        @Test
+        @DisplayName("não deve promover pedido TEST para PAID (teste fica fora dos ganhos)")
+        void shouldNotPromoteTestOrder() {
+            Order order = existingOrder(OrderStatus.TEST);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.TEST);
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+
+        @Test
+        @DisplayName("deve ser idempotente para pedido já PAID (não salva de novo)")
+        void shouldBeIdempotentForPaidOrder() {
+            Order order = existingOrder(OrderStatus.PAID);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+
+        @Test
+        @DisplayName("deve retornar false quando o pedido não existe (aciona o import completo)")
+        void shouldReturnFalseWhenOrderUnknown() {
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.empty());
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isFalse();
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+
+        @Test
+        @DisplayName("deve retornar false quando o merchant iFood é desconhecido")
+        void shouldReturnFalseWhenMerchantUnknown() {
+            given(merchantRepository.findByIfoodMerchantId("ifood-m1")).willReturn(Optional.empty());
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isFalse();
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("cancelOrder()")
+    class CancelOrder {
+
+        @Test
+        @DisplayName("deve cancelar pedido PENDING existente e notificar ORDER_CANCELLED")
+        void shouldCancelExistingPendingOrderAndNotify() {
+            Order order = existingOrder(OrderStatus.PENDING);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+            then(orderRepository).should().save(order);
+            then(notificationService).should().createOrderCancelled("ord-1", null, merchantId);
+        }
+
+        @Test
+        @DisplayName("deve cancelar pedido já PAID (CANCELLED vence sobre PAID)")
+        void shouldCancelPaidOrder() {
+            Order order = existingOrder(OrderStatus.PAID);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+            then(orderRepository).should().save(order);
+            then(notificationService).should().createOrderCancelled("ord-1", null, merchantId);
+        }
+
+        @Test
+        @DisplayName("não deve cancelar nem notificar pedido TEST (status TEST é terminal)")
+        void shouldNotCancelTestOrder() {
+            Order order = existingOrder(OrderStatus.TEST);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.TEST);
+            then(orderRepository).should(never()).save(any(Order.class));
+            then(notificationService).should(never()).createOrderCancelled(anyString(), any(), any());
+        }
+
+        @Test
+        @DisplayName("deve ser idempotente: pedido já CANCELLED não salva nem notifica de novo")
+        void shouldBeIdempotentForCancelledOrder() {
+            Order order = existingOrder(OrderStatus.CANCELLED);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            then(orderRepository).should(never()).save(any(Order.class));
+            then(notificationService).should(never()).createOrderCancelled(anyString(), any(), any());
+        }
+
+        @Test
+        @DisplayName("deve retornar false sem notificar quando o pedido não existe")
+        void shouldReturnFalseWhenOrderUnknown() {
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.empty());
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isFalse();
+            then(notificationService).should(never()).createOrderCancelled(anyString(), any(), any());
+        }
+
+        @Test
+        @DisplayName("deve retornar false quando o merchant iFood é desconhecido")
+        void shouldReturnFalseWhenMerchantUnknown() {
+            given(merchantRepository.findByIfoodMerchantId("ifood-m1")).willReturn(Optional.empty());
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isFalse();
+            then(orderRepository).should(never()).save(any(Order.class));
         }
     }
 }
