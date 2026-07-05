@@ -161,15 +161,20 @@ class IfoodOrderImportServiceTest {
         }
 
         @Test
-        @DisplayName("deve pular pedido de teste (isTest=true)")
-        void shouldSkipTestOrder() {
+        @DisplayName("deve importar pedido de teste (isTest=true) com status TEST, ignorando o status do evento")
+        void shouldImportTestOrderWithTestStatus() {
             IfoodOrderDetailResponse detail = baseDetail();
             detail.setTest(true);
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
 
             boolean imported = importService.importOrder(detail, OrderStatus.PAID);
 
-            assertThat(imported).isFalse();
-            then(orderRepository).should(never()).save(any(Order.class));
+            assertThat(imported).isTrue();
+            then(orderRepository).should().save(argThat((Order o) ->
+                    o.getStatus() == OrderStatus.TEST));
         }
 
         @Test
@@ -410,6 +415,20 @@ class IfoodOrderImportServiceTest {
         }
 
         @Test
+        @DisplayName("não deve promover pedido TEST para PAID (teste fica fora dos ganhos)")
+        void shouldNotPromoteTestOrder() {
+            Order order = existingOrder(OrderStatus.TEST);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.concludeOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.TEST);
+            then(orderRepository).should(never()).save(any(Order.class));
+        }
+
+        @Test
         @DisplayName("deve ser idempotente para pedido já PAID (não salva de novo)")
         void shouldBeIdempotentForPaidOrder() {
             Order order = existingOrder(OrderStatus.PAID);
@@ -478,6 +497,21 @@ class IfoodOrderImportServiceTest {
             assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
             then(orderRepository).should().save(order);
             then(notificationService).should().createOrderCancelled("ord-1", null, merchantId);
+        }
+
+        @Test
+        @DisplayName("não deve cancelar nem notificar pedido TEST (status TEST é terminal)")
+        void shouldNotCancelTestOrder() {
+            Order order = existingOrder(OrderStatus.TEST);
+            given(orderRepository.findByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(Optional.of(order));
+
+            boolean handled = importService.cancelOrder("ord-1", "ifood-m1");
+
+            assertThat(handled).isTrue();
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.TEST);
+            then(orderRepository).should(never()).save(any(Order.class));
+            then(notificationService).should(never()).createOrderCancelled(anyString(), any(), any());
         }
 
         @Test

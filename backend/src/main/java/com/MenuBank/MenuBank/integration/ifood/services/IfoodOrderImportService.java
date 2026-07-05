@@ -98,8 +98,8 @@ public class IfoodOrderImportService {
             return false;
         }
         if (detail.isTest()) {
-            log.info("[iFood] pedido {} ignorado — pedido de teste", detail.getId());
-            return false;
+            log.info("[iFood] pedido {} é de teste — importando com status TEST", detail.getId());
+            status = OrderStatus.TEST;
         }
         if (detail.getMerchant() == null || detail.getMerchant().getId() == null) {
             log.warn("[iFood] pedido {} ignorado — payload sem merchant.id", detail.getId());
@@ -170,7 +170,7 @@ public class IfoodOrderImportService {
             log.info("[iFood] CONCLUDED ignorado — pedido {} já está CANCELLED", externalOrderId);
             return true;
         }
-        if (order.getStatus() == OrderStatus.PAID) {
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.TEST) {
             return true;
         }
 
@@ -196,7 +196,7 @@ public class IfoodOrderImportService {
         }
 
         Order order = orderOpt.get();
-        if (order.getStatus() == OrderStatus.CANCELLED) {
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.TEST) {
             return true;
         }
 
