@@ -153,6 +153,7 @@ public class IfoodOrderImportService {
             if (productOpt.isEmpty()) {
                 log.warn("[iFood] pulando item — produto não encontrado: externalCode='{}' name='{}'",
                         remoteItem.getExternalCode(), remoteItem.getName());
+                notifyMissingProduct(remoteItem.getName(), merchantId);
                 continue;
             }
 
@@ -190,6 +191,12 @@ public class IfoodOrderImportService {
         String canonical = IngredientNameNormalizer.normalize(remoteItem.getName());
         if (canonical.isEmpty()) return Optional.empty();
         return productRepository.findByCanonicalNameAndMerchantId(canonical, merchantId);
+    }
+
+    private void notifyMissingProduct(String rawName, UUID merchantId) {
+        if (rawName == null || rawName.isBlank()) return;
+        notificationService.createMissingProduct(
+                rawName, IngredientNameNormalizer.normalize(rawName), merchantId);
     }
 
     /**
@@ -262,6 +269,12 @@ public class IfoodOrderImportService {
         return ingredient.getDefaultQuantity() != null ? ingredient.getDefaultQuantity() : BigDecimal.ONE;
     }
 
+    /**
+     * Resolve o cliente primeiro pelo {@code customer.id} do iFood ({@code externalId}) e só
+     * depois pelo telefone. O telefone 0800 é o número fixo da central do iFood, compartilhado
+     * por todos os clientes (o que distingue é o {@code localizer}, não persistido) — usá-lo
+     * como chave fundiria clientes distintos, então ele nunca deduplica nem é persistido.
+     */
     private Customer resolveCustomer(IfoodOrderDetailResponse.CustomerInfo remoteCustomer, UUID merchantId) {
         if (remoteCustomer == null) {
             return customerRepository.save(Customer.builder()
@@ -270,8 +283,16 @@ public class IfoodOrderImportService {
                     .build());
         }
 
+        String externalId = remoteCustomer.getId();
+        if (externalId != null && !externalId.isBlank()) {
+            Optional<Customer> byExternalId =
+                    customerRepository.findByExternalIdAndMerchantId(externalId, merchantId);
+            if (byExternalId.isPresent()) return byExternalId.get();
+        }
+
         String phone = remoteCustomer.getPhone() != null ? remoteCustomer.getPhone().getNumber() : null;
-        if (phone != null && !phone.isBlank()) {
+        boolean proxyPhone = isIfoodProxyPhone(phone);
+        if (phone != null && !phone.isBlank() && !proxyPhone) {
             Optional<Customer> existing = customerRepository.findByPhoneAndMerchantId(phone, merchantId);
             if (existing.isPresent()) return existing.get();
         }
@@ -279,9 +300,14 @@ public class IfoodOrderImportService {
         return customerRepository.save(Customer.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(remoteCustomer.getName() != null ? remoteCustomer.getName() : "Cliente iFood")
-                .phone(phone)
-                .externalId(remoteCustomer.getId())
+                .phone(proxyPhone ? null : phone)
+                .externalId(externalId)
                 .build());
+    }
+
+    private static boolean isIfoodProxyPhone(String phone) {
+        if (phone == null) return false;
+        return phone.replaceAll("\\D", "").startsWith("0800");
     }
 
     LocalDateTime parseCreatedAt(String createdAt) {

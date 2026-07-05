@@ -240,6 +240,26 @@ class IfoodOrderImportServiceTest {
         }
 
         @Test
+        @DisplayName("deve notificar MISSING_PRODUCT quando item não casa com nenhum produto")
+        void shouldNotifyMissingProductWhenItemHasNoMatch() {
+            IfoodOrderDetailResponse detail = baseDetail();
+            detail.getItems().get(0).setExternalCode("NOPE");
+            detail.getItems().get(0).setName("Produto Fantasma");
+
+            given(productRepository.findByExternalIdAndMerchantId("NOPE", merchantId))
+                    .willReturn(Optional.empty());
+            given(productRepository.findByCanonicalNameAndMerchantId("produto fantasma", merchantId))
+                    .willReturn(Optional.empty());
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            importService.importOrder(detail);
+
+            then(notificationService).should()
+                    .createMissingProduct(eq("Produto Fantasma"), eq("produto fantasma"), eq(merchantId));
+        }
+
+        @Test
         @DisplayName("deve resolver complemento (option) por nome canônico e criar extra ingredient")
         void shouldResolveOptionAsExtraIngredient() {
             IfoodOrderDetailResponse detail = baseDetail();
@@ -335,6 +355,55 @@ class IfoodOrderImportServiceTest {
 
             then(customerRepository).should(never()).save(any(Customer.class));
             then(orderRepository).should().save(argThat((Order o) -> o.getCustomer() == existing));
+        }
+
+        @Test
+        @DisplayName("deve reutilizar cliente existente pelo externalId do iFood antes do telefone")
+        void shouldReuseExistingCustomerByExternalIdFirst() {
+            IfoodOrderDetailResponse detail = baseDetail();
+            detail.getCustomer().setId("ifood-cust-1");
+
+            Customer existing = Customer.builder()
+                    .id(UUID.randomUUID())
+                    .merchant(merchant)
+                    .name("Maria Santos")
+                    .externalId("ifood-cust-1")
+                    .build();
+            given(customerRepository.findByExternalIdAndMerchantId("ifood-cust-1", merchantId))
+                    .willReturn(Optional.of(existing));
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            importService.importOrder(detail);
+
+            then(customerRepository).should(never()).findByPhoneAndMerchantId(anyString(), any());
+            then(customerRepository).should(never()).save(any(Customer.class));
+            then(orderRepository).should().save(argThat((Order o) -> o.getCustomer() == existing));
+        }
+
+        @Test
+        @DisplayName("não deve deduplicar nem persistir telefone 0800 (proxy do iFood)")
+        void shouldNotDedupOrPersistIfoodProxyPhone() {
+            IfoodOrderDetailResponse detail = baseDetail();
+            detail.getCustomer().setId("ifood-cust-2");
+            detail.getCustomer().getPhone().setNumber("0800 700 3020");
+
+            given(customerRepository.findByExternalIdAndMerchantId("ifood-cust-2", merchantId))
+                    .willReturn(Optional.empty());
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            importService.importOrder(detail);
+
+            then(customerRepository).should(never()).findByPhoneAndMerchantId(anyString(), any());
+            then(customerRepository).should().save(argThat((Customer c) ->
+                    c.getPhone() == null
+                            && "ifood-cust-2".equals(c.getExternalId())
+                            && "Maria Santos".equals(c.getName())));
         }
     }
 }

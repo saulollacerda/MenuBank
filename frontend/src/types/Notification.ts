@@ -1,4 +1,4 @@
-export type NotificationType = 'MISSING_INGREDIENT'
+export type NotificationType = 'MISSING_INGREDIENT' | 'MISSING_PRODUCT'
 
 export type NotificationStatus = 'UNREAD' | 'READ' | 'RESOLVED'
 

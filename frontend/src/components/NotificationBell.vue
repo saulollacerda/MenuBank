@@ -265,10 +265,11 @@ onMounted(() => {
                   {{ formatDate(n.createdAt) }}
                 </div>
                 <div
-                  v-if="n.type === 'MISSING_INGREDIENT' && n.status !== 'RESOLVED'"
+                  v-if="n.status !== 'RESOLVED'"
                   style="display: flex; gap: 6px; margin-top: 10px"
                 >
                   <UIBtn
+                    v-if="n.type === 'MISSING_INGREDIENT'"
                     size="sm"
                     variant="primary"
                     :data-testid="`notification-${n.id}-action-button`"

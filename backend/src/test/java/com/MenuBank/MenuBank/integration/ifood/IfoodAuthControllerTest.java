@@ -8,12 +8,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.HttpClientErrorException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,6 +26,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -51,19 +56,66 @@ class IfoodAuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/integrations/ifood/auth/start retorna userCode e expiresIn")
+    @DisplayName("POST /api/integrations/ifood/auth/start retorna userCode, URLs e expiresIn")
     void start_shouldReturnUserCode() throws Exception {
         IfoodUserCodeResponse response = new IfoodUserCodeResponse();
         response.setUserCode("HJLX-LPSQ");
         response.setVerificationUrl("https://portal.ifood.com.br/apps/code");
+        response.setVerificationUrlComplete("https://portal.ifood.com.br/apps/code?c=HJLX-LPSQ");
         response.setExpiresIn(600);
+        response.setAuthorizationCodeVerifier("super-secret-verifier");
         given(tokenService.startAuthorization(merchantId)).willReturn(response);
 
         mockMvc.perform(post("/api/integrations/ifood/auth/start").with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userCode").value("HJLX-LPSQ"))
                 .andExpect(jsonPath("$.verificationUrl").value("https://portal.ifood.com.br/apps/code"))
+                .andExpect(jsonPath("$.verificationUrlComplete")
+                        .value("https://portal.ifood.com.br/apps/code?c=HJLX-LPSQ"))
                 .andExpect(jsonPath("$.expiresIn").value(600));
+    }
+
+    @Test
+    @DisplayName("POST /api/integrations/ifood/auth/start NÃO expõe o authorizationCodeVerifier")
+    void start_shouldNotExposeAuthorizationCodeVerifier() throws Exception {
+        IfoodUserCodeResponse response = new IfoodUserCodeResponse();
+        response.setUserCode("HJLX-LPSQ");
+        response.setAuthorizationCodeVerifier("super-secret-verifier");
+        response.setExpiresIn(600);
+        given(tokenService.startAuthorization(merchantId)).willReturn(response);
+
+        mockMvc.perform(post("/api/integrations/ifood/auth/start").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authorizationCodeVerifier").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("POST /connect retorna 409 quando não há autorização pendente (verifier perdido)")
+    void connect_shouldReturn409WhenNoPendingAuthorization() throws Exception {
+        willThrow(new IllegalStateException("No pending authorization for merchant " + merchantId))
+                .given(tokenService).connect(any(), eq("auth-code-123"));
+        String body = objectMapper.writeValueAsString(Map.of("authorizationCode", "auth-code-123"));
+
+        mockMvc.perform(post("/api/integrations/ifood/auth/connect").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").exists());
+    }
+
+    @Test
+    @DisplayName("POST /connect retorna 400 quando o iFood rejeita o authorizationCode")
+    void connect_shouldReturn400WhenIfoodRejectsCode() throws Exception {
+        willThrow(HttpClientErrorException.create(
+                HttpStatus.UNAUTHORIZED, "Unauthorized", new HttpHeaders(), new byte[0], StandardCharsets.UTF_8))
+                .given(tokenService).connect(any(), eq("bad-code"));
+        String body = objectMapper.writeValueAsString(Map.of("authorizationCode", "bad-code"));
+
+        mockMvc.perform(post("/api/integrations/ifood/auth/connect").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").exists());
     }
 
     @Test

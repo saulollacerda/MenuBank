@@ -2,12 +2,15 @@ package com.MenuBank.MenuBank.integration.ifood;
 
 import com.MenuBank.MenuBank.auth.AuthHelper;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodConnectRequest;
+import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStartAuthResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStatusResponse;
-import com.MenuBank.MenuBank.integration.ifood.dto.IfoodUserCodeResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.UUID;
 
@@ -30,9 +33,9 @@ public class IfoodAuthController {
     }
 
     @PostMapping("/start")
-    public ResponseEntity<IfoodUserCodeResponse> start(Authentication auth) {
+    public ResponseEntity<IfoodStartAuthResponse> start(Authentication auth) {
         UUID merchantId = authHelper.getMerchantId(auth);
-        return ResponseEntity.ok(tokenService.startAuthorization(merchantId));
+        return ResponseEntity.ok(IfoodStartAuthResponse.from(tokenService.startAuthorization(merchantId)));
     }
 
     @PostMapping("/connect")
@@ -47,5 +50,21 @@ public class IfoodAuthController {
         UUID merchantId = authHelper.getMerchantId(auth);
         tokenService.revoke(merchantId);
         return ResponseEntity.noContent().build();
+    }
+
+    // Pending verifier is kept in memory only — a backend restart mid-flow loses it and the
+    // merchant must generate a new userCode. Surface that as 409 instead of a generic 500.
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ProblemDetail> handleNoPendingAuthorization(IllegalStateException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Nenhuma autorização pendente encontrada. Gere um novo código de vínculo e tente novamente.");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(HttpClientErrorException.class)
+    public ResponseEntity<ProblemDetail> handleIfoodRejectedCode(HttpClientErrorException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Código de autorização inválido ou expirado. Confira o código copiado do portal do iFood.");
+        return ResponseEntity.badRequest().body(problem);
     }
 }
