@@ -4,6 +4,7 @@ import com.MenuBank.MenuBank.auth.AuthHelper;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodConnectRequest;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStartAuthResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStatusResponse;
+import com.MenuBank.MenuBank.integration.ifood.services.IfoodIntegrationSettingsService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -19,17 +20,21 @@ import java.util.UUID;
 public class IfoodAuthController {
 
     private final IfoodTokenService tokenService;
+    private final IfoodIntegrationSettingsService settingsService;
     private final AuthHelper authHelper;
 
-    public IfoodAuthController(IfoodTokenService tokenService, AuthHelper authHelper) {
+    public IfoodAuthController(IfoodTokenService tokenService,
+                               IfoodIntegrationSettingsService settingsService,
+                               AuthHelper authHelper) {
         this.tokenService = tokenService;
+        this.settingsService = settingsService;
         this.authHelper = authHelper;
     }
 
     @GetMapping("/status")
     public ResponseEntity<IfoodStatusResponse> status(Authentication auth) {
         UUID merchantId = authHelper.getMerchantId(auth);
-        return ResponseEntity.ok(new IfoodStatusResponse(tokenService.isConnected(merchantId)));
+        return ResponseEntity.ok(IfoodStatusResponse.from(settingsService.getStatus(merchantId)));
     }
 
     @PostMapping("/start")

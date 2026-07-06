@@ -2,6 +2,7 @@ package com.MenuBank.MenuBank.integration.ifood;
 
 import com.MenuBank.MenuBank.auth.AuthHelper;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodUserCodeResponse;
+import com.MenuBank.MenuBank.integration.ifood.services.IfoodIntegrationSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,6 +47,7 @@ class IfoodAuthControllerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean private IfoodTokenService tokenService;
+    @MockitoBean private IfoodIntegrationSettingsService settingsService;
     @MockitoBean private AuthHelper authHelper;
 
     private UUID merchantId;
@@ -141,23 +144,28 @@ class IfoodAuthControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/integrations/ifood/auth/status retorna connected true quando integrado")
-    void status_shouldReturnConnectedTrueWhenIntegrated() throws Exception {
-        given(tokenService.isConnected(merchantId)).willReturn(true);
+    @DisplayName("GET /api/integrations/ifood/auth/status retorna o checklist completo quando integrado")
+    void status_shouldReturnFullChecklistWhenIntegrated() throws Exception {
+        given(settingsService.getStatus(merchantId)).willReturn(
+                new IfoodIntegrationStatus(true, LocalDateTime.of(2026, 7, 1, 10, 0), true));
 
         mockMvc.perform(get("/api/integrations/ifood/auth/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.connected").value(true));
+                .andExpect(jsonPath("$.connected").value(true))
+                .andExpect(jsonPath("$.catalogImportedAt").value("2026-07-01T10:00:00"))
+                .andExpect(jsonPath("$.orderSyncEnabled").value(true));
     }
 
     @Test
-    @DisplayName("GET /api/integrations/ifood/auth/status retorna connected false quando não integrado")
-    void status_shouldReturnConnectedFalseWhenNotIntegrated() throws Exception {
-        given(tokenService.isConnected(merchantId)).willReturn(false);
+    @DisplayName("GET /api/integrations/ifood/auth/status retorna tudo desligado quando não integrado")
+    void status_shouldReturnDisconnectedChecklistWhenNotIntegrated() throws Exception {
+        given(settingsService.getStatus(merchantId)).willReturn(IfoodIntegrationStatus.disconnected());
 
         mockMvc.perform(get("/api/integrations/ifood/auth/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.connected").value(false));
+                .andExpect(jsonPath("$.connected").value(false))
+                .andExpect(jsonPath("$.catalogImportedAt").value((Object) null))
+                .andExpect(jsonPath("$.orderSyncEnabled").value(false));
     }
 
     @Test

@@ -171,6 +171,7 @@ public class IfoodTokenService {
                 .orElseThrow(() -> new IllegalArgumentException("Merchant not found: " + merchantId));
         merchant.setIfoodMerchantId(null);
         merchant.setIfoodAuthorizedAt(null);
+        merchant.setIfoodOrderSyncEnabled(false);
         merchantRepository.save(merchant);
         pendingVerifiers.remove(merchantId);
 

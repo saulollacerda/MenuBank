@@ -20,5 +20,7 @@ public interface MerchantRepository extends JpaRepository<Merchant, UUID> {
 
     List<Merchant> findAllByIfoodMerchantIdIsNotNull();
 
+    List<Merchant> findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue();
+
     Optional<Merchant> findByIfoodMerchantId(String ifoodMerchantId);
 }

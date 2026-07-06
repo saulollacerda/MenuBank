@@ -46,8 +46,13 @@ class IfoodOrderSyncServiceTest {
 
     @BeforeEach
     void setUp() {
-        merchant = Merchant.builder().id(UUID.randomUUID()).ifoodMerchantId("ifood-m1").build();
-        lenient().when(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).thenReturn(List.of(merchant));
+        merchant = Merchant.builder()
+                .id(UUID.randomUUID())
+                .ifoodMerchantId("ifood-m1")
+                .ifoodOrderSyncEnabled(true)
+                .build();
+        lenient().when(merchantRepository.findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue())
+                .thenReturn(List.of(merchant));
         lenient().when(tokenService.getAccessToken()).thenReturn("token-1");
     }
 
@@ -78,14 +83,26 @@ class IfoodOrderSyncServiceTest {
     }
 
     @Test
-    @DisplayName("não chama a API quando nenhum merchant tem iFood autorizado")
+    @DisplayName("não chama a API quando nenhum merchant tem iFood autorizado com sincronia ativa")
     void shouldNotCallApiWhenNoAuthorizedMerchants() {
-        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(List.of());
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue())
+                .willReturn(List.of());
 
         syncService.syncOrders();
 
         then(tokenService).should(never()).getAccessToken();
         then(orderClient).should(never()).pollEvents(anyString(), anyList());
+    }
+
+    @Test
+    @DisplayName("consulta apenas merchants com sincronia habilitada — conectado mas desativado fica de fora")
+    void shouldPollOnlySyncEnabledMerchants() {
+        given(orderClient.pollEvents("token-1", List.of("ifood-m1"))).willReturn(List.of());
+
+        syncService.syncOrders();
+
+        then(merchantRepository).should().findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue();
+        then(merchantRepository).should(never()).findAllByIfoodMerchantIdIsNotNull();
     }
 
     @Nested
