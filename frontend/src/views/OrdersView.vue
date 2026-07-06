@@ -82,10 +82,13 @@ function pctFmt(v: number): string {
   return (v * 100).toFixed(1).replace('.', ',') + '%'
 }
 
-const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue'; label: string }> = {
+const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue' | 'gray'; label: string }> = {
   PENDING: { color: 'amber', label: 'Pendente' },
+  READY: { color: 'blue', label: 'Pronto' },
+  DELIVERED: { color: 'emerald', label: 'Entregue' },
   PAID: { color: 'emerald', label: 'Pago' },
   CANCELLED: { color: 'rose', label: 'Cancelado' },
+  TEST: { color: 'gray', label: 'Teste' },
 }
 
 function originLabel(o: OrderOrigin | undefined): string {

@@ -36,6 +36,9 @@ public class Product {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "canonical_name")
+    private String canonicalName;
+
     @Column(nullable = false)
     private BigDecimal price;
 

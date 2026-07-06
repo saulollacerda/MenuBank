@@ -228,6 +228,26 @@ describe('OrdersView', () => {
     expect(detail.get('[data-testid="order-detail-margin"]').text()).toMatch(/43[,.]/)
   })
 
+  it('should render TEST order status with pt-BR label "Teste"', () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-07-01T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'TEST',
+        totalValue: 30,
+        estimatedProfit: 10,
+        items: [],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+
+    expect(wrapper.html()).toContain('Teste')
+    expect(wrapper.html()).not.toContain('>TEST<')
+  })
+
   it('should populate form with existing order and call update on submit when editing', async () => {
     orderStoreMock.update = vi.fn().mockResolvedValue({})
     orderStoreMock.items = [

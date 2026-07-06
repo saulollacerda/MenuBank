@@ -63,7 +63,7 @@ class IfoodAuthClientTest {
               )))
               .andRespond(withSuccess("""
                       {"accessToken":"access.jwt","type":"bearer","expiresIn":10800,
-                       "refreshToken":"refresh.jwt","refreshTokenExpiresIn":604800}
+                       "refreshToken":"refresh.jwt"}
                       """, MediaType.APPLICATION_JSON));
 
         IfoodTokenResponse response = client.exchangeCode("test-client", "secret", "auth-code", "verifier123");
@@ -86,7 +86,7 @@ class IfoodAuthClientTest {
               )))
               .andRespond(withSuccess("""
                       {"accessToken":"new.access.jwt","type":"bearer","expiresIn":10800,
-                       "refreshToken":"new.refresh.jwt","refreshTokenExpiresIn":604800}
+                       "refreshToken":"new.refresh.jwt"}
                       """, MediaType.APPLICATION_JSON));
 
         IfoodTokenResponse response = client.refreshToken("test-client", "secret", "old-refresh");

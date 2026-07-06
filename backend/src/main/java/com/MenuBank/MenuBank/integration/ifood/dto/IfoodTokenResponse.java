@@ -8,5 +8,4 @@ public class IfoodTokenResponse {
     private String type;
     private int expiresIn;
     private String refreshToken;
-    private int refreshTokenExpiresIn;
 }

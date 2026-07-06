@@ -13,14 +13,24 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,7 +49,7 @@ class IfoodTokenServiceTest {
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
-        merchant = Merchant.builder().id(merchantId).merchantName("Test").build();
+        merchant = Merchant.builder().id(merchantId).merchantName("Pizzaria Central").build();
         service.setClientId("client-id");
         service.setClientSecret("client-secret");
     }
@@ -62,12 +72,13 @@ class IfoodTokenServiceTest {
     }
 
     @Test
-    @DisplayName("connect troca código, persiste token e atualiza merchant")
+    @DisplayName("connect troca código, persiste token e atualiza merchant com o ifoodMerchantId extraído do merchant_scope do token")
     void connect_shouldExchangeCodePersistTokenAndUpdateMerchant() {
-        IfoodTokenResponse tokenResponse = tokenResponse();
+        IfoodTokenResponse tokenResponse = tokenResponse("ifood-id-1");
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(authClient.requestUserCode("client-id")).willReturn(userCodeResponse());
         given(authClient.exchangeCode(any(), any(), any(), any())).willReturn(tokenResponse);
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(List.of());
         given(merchantRepository.save(any())).willReturn(merchant);
 
         service.startAuthorization(merchantId);
@@ -76,12 +87,69 @@ class IfoodTokenServiceTest {
         ArgumentCaptor<IfoodAppToken> tokenCaptor = ArgumentCaptor.forClass(IfoodAppToken.class);
         verify(tokenRepository).deleteAll();
         verify(tokenRepository).save(tokenCaptor.capture());
-        assertThat(tokenCaptor.getValue().getAccessToken()).isEqualTo("access.jwt");
-        assertThat(tokenCaptor.getValue().getRefreshToken()).isEqualTo("refresh.jwt");
+        assertThat(tokenCaptor.getValue().getAccessToken()).isEqualTo(tokenResponse.getAccessToken());
+        assertThat(tokenCaptor.getValue().getRefreshToken()).isEqualTo(tokenResponse.getRefreshToken());
 
         ArgumentCaptor<Merchant> merchantCaptor = ArgumentCaptor.forClass(Merchant.class);
         verify(merchantRepository).save(merchantCaptor.capture());
         assertThat(merchantCaptor.getValue().getIfoodAuthorizedAt()).isNotNull();
+        assertThat(merchantCaptor.getValue().getIfoodMerchantId()).isEqualTo("ifood-id-1");
+    }
+
+    @Test
+    @DisplayName("connect deriva refreshExpiresAt do claim exp do JWT do refreshToken, ignorando refreshTokenExpiresIn (que a API do iFood retorna zerado)")
+    void connect_shouldDeriveRefreshExpiresAtFromRefreshTokenJwtExp() {
+        long expEpochSeconds = Instant.now().plusSeconds(604800).getEpochSecond();
+        IfoodTokenResponse tokenResponse = tokenResponse("ifood-id-1");
+        tokenResponse.setRefreshToken(fakeRefreshToken(expEpochSeconds));
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(authClient.requestUserCode("client-id")).willReturn(userCodeResponse());
+        given(authClient.exchangeCode(any(), any(), any(), any())).willReturn(tokenResponse);
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(List.of());
+        given(merchantRepository.save(any())).willReturn(merchant);
+
+        service.startAuthorization(merchantId);
+        service.connect(merchantId, "auth-code");
+
+        ArgumentCaptor<IfoodAppToken> tokenCaptor = ArgumentCaptor.forClass(IfoodAppToken.class);
+        verify(tokenRepository).save(tokenCaptor.capture());
+        LocalDateTime expected = LocalDateTime.ofInstant(Instant.ofEpochSecond(expEpochSeconds), ZoneId.systemDefault());
+        assertThat(tokenCaptor.getValue().getRefreshExpiresAt()).isCloseTo(expected, within(2, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    @DisplayName("connect lança exceção e não persiste nada quando o merchant_scope do token não traz nenhum merchant novo")
+    void connect_shouldThrowAndNotPersistWhenNoNewMerchantInScope() {
+        IfoodTokenResponse tokenResponse = tokenResponse("already-known-id");
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(authClient.requestUserCode("client-id")).willReturn(userCodeResponse());
+        given(authClient.exchangeCode(any(), any(), any(), any())).willReturn(tokenResponse);
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(
+                List.of(Merchant.builder().ifoodMerchantId("already-known-id").build()));
+
+        service.startAuthorization(merchantId);
+
+        assertThatThrownBy(() -> service.connect(merchantId, "auth-code"))
+                .isInstanceOf(IfoodMerchantMatchException.class);
+        verify(merchantRepository, never()).save(any());
+        verify(tokenRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("connect lança exceção e não persiste nada quando o merchant_scope do token traz mais de um merchant novo")
+    void connect_shouldThrowAndNotPersistWhenMultipleNewMerchantsInScope() {
+        IfoodTokenResponse tokenResponse = tokenResponse("new-id-1", "new-id-2");
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(authClient.requestUserCode("client-id")).willReturn(userCodeResponse());
+        given(authClient.exchangeCode(any(), any(), any(), any())).willReturn(tokenResponse);
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(List.of());
+
+        service.startAuthorization(merchantId);
+
+        assertThatThrownBy(() -> service.connect(merchantId, "auth-code"))
+                .isInstanceOf(IfoodMerchantMatchException.class);
+        verify(merchantRepository, never()).save(any());
+        verify(tokenRepository, never()).save(any());
     }
 
     @Test
@@ -111,7 +179,7 @@ class IfoodTokenServiceTest {
                 .refreshExpiresAt(LocalDateTime.now().plusDays(6))
                 .updatedAt(LocalDateTime.now())
                 .build();
-        IfoodTokenResponse refreshed = tokenResponse();
+        IfoodTokenResponse refreshed = tokenResponse("ifood-id-1");
         refreshed.setAccessToken("new.jwt");
         given(tokenRepository.findTopByOrderByUpdatedAtDesc()).willReturn(Optional.of(token));
         given(authClient.refreshToken("client-id", "client-secret", "refresh.jwt")).willReturn(refreshed);
@@ -155,6 +223,32 @@ class IfoodTokenServiceTest {
         verify(tokenRepository).deleteAll();
     }
 
+    @Test
+    @DisplayName("isConnected retorna true quando o merchant possui ifoodMerchantId")
+    void isConnected_shouldReturnTrueWhenMerchantHasIfoodMerchantId() {
+        merchant.setIfoodMerchantId("ifood-merchant-id");
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+
+        assertThat(service.isConnected(merchantId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("isConnected retorna false quando o merchant não possui ifoodMerchantId")
+    void isConnected_shouldReturnFalseWhenMerchantHasNoIfoodMerchantId() {
+        merchant.setIfoodMerchantId(null);
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+
+        assertThat(service.isConnected(merchantId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("isConnected retorna false quando o merchant não existe")
+    void isConnected_shouldReturnFalseWhenMerchantNotFound() {
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.empty());
+
+        assertThat(service.isConnected(merchantId)).isFalse();
+    }
+
     private IfoodUserCodeResponse userCodeResponse() {
         IfoodUserCodeResponse r = new IfoodUserCodeResponse();
         r.setUserCode("HJLX-LPSQ");
@@ -164,12 +258,32 @@ class IfoodTokenServiceTest {
         return r;
     }
 
-    private IfoodTokenResponse tokenResponse() {
+    private IfoodTokenResponse tokenResponse(String... merchantScopeIds) {
         IfoodTokenResponse r = new IfoodTokenResponse();
-        r.setAccessToken("access.jwt");
-        r.setRefreshToken("refresh.jwt");
+        r.setAccessToken(fakeAccessToken(merchantScopeIds));
+        r.setRefreshToken(fakeRefreshToken(Instant.now().plusSeconds(604800).getEpochSecond()));
         r.setExpiresIn(10800);
-        r.setRefreshTokenExpiresIn(604800);
         return r;
+    }
+
+    private String fakeAccessToken(String... merchantIds) {
+        String scopeJson = Arrays.stream(merchantIds)
+                .map(id -> "\"" + id + ":order\"")
+                .collect(Collectors.joining(",", "[", "]"));
+        return fakeJwt("{\"merchant_scope\":" + scopeJson + "}");
+    }
+
+    private String fakeRefreshToken(long expEpochSeconds) {
+        return fakeJwt("{\"exp\":" + expEpochSeconds + "}");
+    }
+
+    private String fakeJwt(String payloadJson) {
+        String header = base64Url("{\"alg\":\"none\"}");
+        return header + "." + base64Url(payloadJson) + ".sig";
+    }
+
+    private String base64Url(String json) {
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 }

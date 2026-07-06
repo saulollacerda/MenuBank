@@ -21,4 +21,6 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 	void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
 	Optional<Customer> findByPhoneAndMerchantId(String phone, UUID merchantId);
+
+	Optional<Customer> findByExternalIdAndMerchantId(String externalId, UUID merchantId);
 }
