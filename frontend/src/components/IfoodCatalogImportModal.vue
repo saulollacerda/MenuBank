@@ -20,8 +20,11 @@ const categoryStore = useCategoryStore()
 const importing = ref(false)
 const result = ref<IfoodCatalogImportResult | null>(null)
 const error = ref<string | null>(null)
+const showProducts = ref(false)
 
 const skippedItems = () => result.value?.items.filter((item) => item.outcome === 'SKIPPED') ?? []
+const importedItems = () =>
+  result.value?.items.filter((item) => item.outcome === 'IMPORTED' || item.outcome === 'LINKED') ?? []
 
 async function doImport() {
   importing.value = true
@@ -73,6 +76,57 @@ async function doImport() {
 
       <div :style="{ fontSize: '13px', color: UI.textSub, marginBottom: '10px' }">
         Categorias: {{ result.importedCategories }} importadas, {{ result.linkedCategories }} vinculadas.
+      </div>
+
+      <div v-if="importedItems().length" :style="{ marginBottom: '10px' }">
+        <UIBtn
+          variant="ghost"
+          size="sm"
+          data-testid="ifood-import-toggle-products"
+          @click="showProducts = !showProducts"
+        >
+          <UIIcon :name="showProducts ? 'x' : 'link'" :size="12" />
+          {{ showProducts ? 'Ocultar produtos' : 'Visualizar produtos importados' }}
+        </UIBtn>
+
+        <div
+          v-if="showProducts"
+          data-testid="ifood-import-products-list"
+          :style="{
+            marginTop: '8px',
+            maxHeight: '220px',
+            overflowY: 'auto',
+            border: `1px solid ${UI.border}`,
+            borderRadius: '9px',
+          }"
+        >
+          <div
+            v-for="(item, i) in importedItems()"
+            :key="item.name + (item.externalCode ?? '')"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              borderTop: i > 0 ? `1px solid ${UI.border}` : 'none',
+            }"
+          >
+            <span :style="{ flex: 1, fontSize: '13px', color: UI.text }">{{ item.name }}</span>
+            <span
+              v-if="item.externalCode"
+              :style="{
+                fontSize: '11px',
+                color: UI.textMute,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              }"
+            >
+              {{ item.externalCode }}
+            </span>
+            <UIPill :color="item.outcome === 'IMPORTED' ? 'emerald' : 'blue'" size="sm">
+              {{ item.outcome === 'IMPORTED' ? 'Importado' : 'Vinculado' }}
+            </UIPill>
+          </div>
+        </div>
       </div>
 
       <div v-if="skippedItems().length" :style="{ marginTop: '8px' }">

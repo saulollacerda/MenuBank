@@ -26,6 +26,8 @@ const RESULT: IfoodCatalogImportResult = {
   linkedCategories: 1,
   items: [
     { name: 'X-Burger', externalCode: 'BURGER_001', outcome: 'IMPORTED', reason: null },
+    { name: 'Coca-Cola Lata', externalCode: 'COKE_001', outcome: 'IMPORTED', reason: null },
+    { name: 'X-Salada', externalCode: 'SALAD_001', outcome: 'LINKED', reason: null },
     { name: 'Pizza Calabresa', externalCode: 'PIZZA_01', outcome: 'SKIPPED', reason: 'Item sem preço no catálogo' },
   ],
 }
@@ -86,6 +88,67 @@ describe('IfoodCatalogImportModal', () => {
 
     resolveImport!(RESULT)
     await flushPromises()
+  })
+
+  it('lista de produtos importados começa recolhida e expande ao clicar em visualizar', async () => {
+    mockedService.importCatalog.mockResolvedValue(RESULT)
+    const wrapper = mountModal()
+    vi.spyOn(useProductStore(), 'fetchAll').mockResolvedValue()
+    vi.spyOn(useCategoryStore(), 'fetchAll').mockResolvedValue()
+
+    await wrapper.find('[data-testid="ifood-import-start"]').trigger('click')
+    await flushPromises()
+
+    const toggle = wrapper.find('[data-testid="ifood-import-toggle-products"]')
+    expect(toggle.text()).toContain('Visualizar produtos importados')
+    expect(wrapper.find('[data-testid="ifood-import-products-list"]').exists()).toBe(false)
+
+    await toggle.trigger('click')
+
+    const list = wrapper.find('[data-testid="ifood-import-products-list"]')
+    expect(list.exists()).toBe(true)
+    expect(list.text()).toContain('X-Burger')
+    expect(list.text()).toContain('Coca-Cola Lata')
+    expect(list.text()).toContain('X-Salada')
+    // ignorados não entram na lista de produtos importados
+    expect(list.text()).not.toContain('Pizza Calabresa')
+  })
+
+  it('botão de visualizar recolhe a lista no segundo clique', async () => {
+    mockedService.importCatalog.mockResolvedValue(RESULT)
+    const wrapper = mountModal()
+    vi.spyOn(useProductStore(), 'fetchAll').mockResolvedValue()
+    vi.spyOn(useCategoryStore(), 'fetchAll').mockResolvedValue()
+
+    await wrapper.find('[data-testid="ifood-import-start"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="ifood-import-toggle-products"]').trigger('click')
+    expect(wrapper.find('[data-testid="ifood-import-products-list"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="ifood-import-toggle-products"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="ifood-import-products-list"]').exists()).toBe(false)
+  })
+
+  it('sem produtos importados ou vinculados o botão de visualizar não aparece', async () => {
+    mockedService.importCatalog.mockResolvedValue({
+      importedProducts: 0,
+      linkedProducts: 0,
+      skippedProducts: 1,
+      importedCategories: 0,
+      linkedCategories: 0,
+      items: [
+        { name: 'Pizza Calabresa', externalCode: 'PIZZA_01', outcome: 'SKIPPED', reason: 'Item sem preço no catálogo' },
+      ],
+    })
+    const wrapper = mountModal()
+    vi.spyOn(useProductStore(), 'fetchAll').mockResolvedValue()
+    vi.spyOn(useCategoryStore(), 'fetchAll').mockResolvedValue()
+
+    await wrapper.find('[data-testid="ifood-import-start"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ifood-import-toggle-products"]').exists()).toBe(false)
   })
 
   it('falha mostra mensagem de erro em pt-BR e não emite imported', async () => {
