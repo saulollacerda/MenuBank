@@ -39,11 +39,19 @@ export function connectErrorMessage(err: unknown): ConnectError {
 
 export interface IfoodStatusResponse {
   connected: boolean
+  /** ISO date-time of the last catalog import, or null when never imported. */
+  catalogImportedAt: string | null
+  orderSyncEnabled: boolean
 }
 
 export const ifoodAuthService = {
   async status(): Promise<IfoodStatusResponse> {
     const { data } = await api.get<IfoodStatusResponse>('/integrations/ifood/auth/status')
+    return data
+  },
+
+  async setOrderSync(enabled: boolean): Promise<IfoodStatusResponse> {
+    const { data } = await api.put<IfoodStatusResponse>('/integrations/ifood/sync', { enabled })
     return data
   },
 

@@ -4,9 +4,11 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
 import type { DayOfWeek, OpeningHour } from '@/types/User'
-import { ifoodAuthService } from '@/services/ifoodAuthService'
+import { ifoodAuthService, type IfoodStatusResponse } from '@/services/ifoodAuthService'
 import { clearPendingIfoodAuth, hasPendingIfoodAuth } from '@/composables/useIfoodConnectFlow'
 import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
+import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
+import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -90,9 +92,18 @@ async function loadProfile() {
 
 // ── iFood ─────────────────────────────────────────────────────────────────────
 
-const ifoodConnected = ref(false)
+const ifoodStatus = ref<IfoodStatusResponse | null>(null)
 const ifoodModal = ref(false)
 const ifoodResume = ref(false)
+const ifoodCatalogModal = ref(false)
+const ifoodSyncModal = ref(false)
+
+const ifoodConnected = computed(() => ifoodStatus.value?.connected ?? false)
+const ifoodCatalogImportedLabel = computed(() => {
+  const importedAt = ifoodStatus.value?.catalogImportedAt
+  if (!importedAt) return null
+  return new Date(importedAt).toLocaleDateString('pt-BR')
+})
 
 function startIfoodAuth() {
   ifoodResume.value = false
@@ -102,11 +113,33 @@ function startIfoodAuth() {
 async function revokeIfood() {
   try {
     await ifoodAuthService.revoke()
-    ifoodConnected.value = false
     clearPendingIfoodAuth()
+    await loadIfoodStatus()
   } catch {
     /* ignore */
   }
+}
+
+function handleIfoodStage1Action() {
+  if (ifoodConnected.value) {
+    revokeIfood()
+  } else {
+    startIfoodAuth()
+  }
+}
+
+async function handleIfoodConnected() {
+  await loadIfoodStatus()
+}
+
+async function handleIfoodCatalogImported() {
+  // o modal continua aberto exibindo o resumo; aqui só atualizamos o checklist
+  await loadIfoodStatus()
+}
+
+function handleIfoodSyncUpdated(status: IfoodStatusResponse) {
+  ifoodStatus.value = status
+  ifoodSyncModal.value = false
 }
 
 async function handleSaveKey() {
@@ -138,8 +171,7 @@ const SUBNAV: Array<{
 
 async function loadIfoodStatus() {
   try {
-    const { connected } = await ifoodAuthService.status()
-    ifoodConnected.value = connected
+    ifoodStatus.value = await ifoodAuthService.status()
   } catch {
     /* best-effort — mantém o estado atual em caso de erro */
   }
@@ -387,19 +419,166 @@ onMounted(async () => {
                 <div style="flex: 1">
                   <div :style="{ fontSize: '13.5px', fontWeight: 600 }">iFood</div>
                   <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
-                    Importação direta de pedidos via API oficial do iFood.
+                    Importação de cardápio e pedidos via API oficial do iFood, em 3 etapas.
                   </div>
                 </div>
-                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" dot>
-                  {{ ifoodConnected ? 'Conectado' : 'Desconectado' }}
-                </UIPill>
               </div>
-              <div style="display: flex; justify-content: flex-end; gap: 8px">
-                <UIBtn v-if="ifoodConnected" variant="ghost" size="sm" @click="revokeIfood">
-                  Desconectar
+
+              <!-- Etapa 1 — Conectar -->
+              <div
+                data-testid="ifood-stage-connect"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodConnected ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodConnected ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodConnected ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodConnected" name="check" :size="12" />
+                  <template v-else>1</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Conectar conta</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Autorize o MenuBank no portal do iFood.
+                  </div>
+                </div>
+                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  :variant="ifoodConnected ? 'ghost' : 'primary'"
+                  size="sm"
+                  data-testid="ifood-stage-connect-action"
+                  @click="handleIfoodStage1Action"
+                >
+                  {{ ifoodConnected ? 'Desconectar' : 'Conectar' }}
                 </UIBtn>
-                <UIBtn v-else variant="primary" size="sm" icon="link" @click="startIfoodAuth">
-                  Conectar iFood
+              </div>
+
+              <!-- Etapa 2 — Importar cardápio -->
+              <div
+                data-testid="ifood-stage-catalog"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: ifoodConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodCatalogImportedLabel ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodCatalogImportedLabel ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodCatalogImportedLabel ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodCatalogImportedLabel" name="check" :size="12" />
+                  <template v-else>2</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Importar cardápio</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    {{
+                      ifoodCatalogImportedLabel
+                        ? `Última importação: ${ifoodCatalogImportedLabel}`
+                        : 'Evita erros de produto não cadastrado nos pedidos.'
+                    }}
+                  </div>
+                </div>
+                <UIPill :color="ifoodCatalogImportedLabel ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodCatalogImportedLabel ? 'Importado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-catalog-action"
+                  :disabled="!ifoodConnected"
+                  @click="ifoodCatalogModal = true"
+                >
+                  {{ ifoodCatalogImportedLabel ? 'Reimportar' : 'Importar' }}
+                </UIBtn>
+              </div>
+
+              <!-- Etapa 3 — Sincronia de pedidos -->
+              <div
+                data-testid="ifood-stage-sync"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: ifoodConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodStatus?.orderSyncEnabled ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodStatus?.orderSyncEnabled ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodStatus?.orderSyncEnabled ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodStatus?.orderSyncEnabled" name="check" :size="12" />
+                  <template v-else>3</template>
+                </span>
+                <div style="flex: 1">
+                  <div
+                    :style="{
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }"
+                  >
+                    Sincronia de pedidos
+                    <UIIcon
+                      v-if="ifoodStatus?.orderSyncEnabled && !ifoodCatalogImportedLabel"
+                      data-testid="ifood-stage-sync-warning"
+                      name="alert"
+                      :size="13"
+                      :style="{ color: UI.rose }"
+                      title="Sincronia ativa sem cardápio importado — itens desconhecidos serão ignorados."
+                    />
+                  </div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Importa seus pedidos do iFood automaticamente.
+                  </div>
+                </div>
+                <UIPill :color="ifoodStatus?.orderSyncEnabled ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodStatus?.orderSyncEnabled ? 'Ativa' : 'Inativa' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-sync-action"
+                  :disabled="!ifoodConnected"
+                  @click="ifoodSyncModal = true"
+                >
+                  {{ ifoodStatus?.orderSyncEnabled ? 'Gerenciar' : 'Ativar' }}
                 </UIBtn>
               </div>
             </div>
@@ -525,8 +704,20 @@ onMounted(async () => {
             <IfoodConnectModal
               v-if="ifoodModal"
               :resume="ifoodResume"
-              @connected="ifoodConnected = true"
+              @connected="handleIfoodConnected"
               @close="ifoodModal = false"
+            />
+            <IfoodCatalogImportModal
+              v-if="ifoodCatalogModal"
+              @imported="handleIfoodCatalogImported"
+              @close="ifoodCatalogModal = false"
+            />
+            <IfoodOrderSyncModal
+              v-if="ifoodSyncModal"
+              :enabled="ifoodStatus?.orderSyncEnabled ?? false"
+              :catalog-imported="!!ifoodStatus?.catalogImportedAt"
+              @updated="handleIfoodSyncUpdated"
+              @close="ifoodSyncModal = false"
             />
           </div>
         </UICard>
