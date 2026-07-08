@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
@@ -93,6 +94,19 @@ class ProductServiceTest {
             assertThat(result.getName()).isEqualTo(productRequest.getName());
             assertThat(result.getPrice()).isEqualByComparingTo(productRequest.getPrice());
             then(productRepository).should().save(argThat(p -> merchantId.equals(p.getMerchant().getId())));
+        }
+
+        @Test
+        @DisplayName("deve criar produto com origin MENUBANK e expor origin na resposta")
+        void shouldCreateProductWithMenubankOrigin() {
+            given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ProductResponse result = productService.create(merchantId, productRequest);
+
+            assertThat(result.getOrigin()).isEqualTo(CatalogOrigin.MENUBANK);
+            then(productRepository).should().save(argThat(p -> p.getOrigin() == CatalogOrigin.MENUBANK));
         }
 
         @Test

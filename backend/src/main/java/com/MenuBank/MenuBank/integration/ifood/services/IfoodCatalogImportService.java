@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood.services;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientNameNormalizer;
@@ -143,6 +144,7 @@ public class IfoodCatalogImportService {
                 .merchant(merchant)
                 .name(name)
                 .externalId(remoteCategory.getId())
+                .origin(CatalogOrigin.IFOOD)
                 .build());
         return new CategoryResolution(created, Outcome.IMPORTED);
     }
@@ -217,6 +219,7 @@ public class IfoodCatalogImportService {
                 .price(price)
                 .status(ProductStatus.ACTIVE)
                 .category(category)
+                .origin(CatalogOrigin.IFOOD)
                 .build());
         return new ItemOutcome(name, externalCode, Outcome.IMPORTED, null);
     }

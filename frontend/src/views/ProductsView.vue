@@ -19,6 +19,7 @@ import {
   brl,
 } from '@/design'
 import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
+import { catalogOriginLabel, catalogOriginPillColor } from '@/types/Category'
 
 const productStore = useProductStore()
 const categoryStore = useCategoryStore()
@@ -412,6 +413,13 @@ onMounted(() => {
               >
                 {{ p.name }}
               </span>
+              <UIPill
+                :color="catalogOriginPillColor(p.origin)"
+                size="sm"
+                data-testid="product-origin-pill"
+              >
+                {{ catalogOriginLabel(p.origin) }}
+              </UIPill>
             </span>
             <span :style="{ color: UI.textSub }">{{ p.categoryName }}</span>
             <span

@@ -82,6 +82,18 @@ class CategoryServiceTest {
         }
 
         @Test
+        @DisplayName("deve criar categoria com origin MENUBANK e expor origin na resposta")
+        void shouldCreateCategoryWithMenubankOrigin() {
+            given(categoryRepository.existsByNameAndMerchantId(categoryRequest.getName(), merchantId)).willReturn(false);
+            given(categoryRepository.save(any(Category.class))).willAnswer(inv -> inv.getArgument(0));
+
+            CategoryResponse result = categoryService.create(merchantId, categoryRequest);
+
+            assertThat(result.getOrigin()).isEqualTo(CatalogOrigin.MENUBANK);
+            then(categoryRepository).should().save(argThat(c -> c.getOrigin() == CatalogOrigin.MENUBANK));
+        }
+
+        @Test
         @DisplayName("deve lançar DuplicateCategoryException quando nome já está cadastrado")
         void shouldThrowWhenNameAlreadyExists() {
             given(categoryRepository.existsByNameAndMerchantId(categoryRequest.getName(), merchantId)).willReturn(true);

@@ -112,6 +112,7 @@ public class CategoryService {
                 .name(category.getName())
                 .productCount(productCount)
                 .colorHex(category.getColorHex())
+                .origin(category.getOrigin())
                 .build();
     }
 }

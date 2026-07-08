@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood.services;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.integration.ifood.IfoodCatalogClient;
@@ -168,6 +169,7 @@ class IfoodCatalogImportServiceTest {
         assertThat(categoryCaptor.getValue().getName()).isEqualTo("Lanches");
         assertThat(categoryCaptor.getValue().getExternalId()).isEqualTo("c1");
         assertThat(categoryCaptor.getValue().getMerchant()).isEqualTo(merchant);
+        assertThat(categoryCaptor.getValue().getOrigin()).isEqualTo(CatalogOrigin.IFOOD);
 
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(productCaptor.capture());
@@ -177,6 +179,7 @@ class IfoodCatalogImportServiceTest {
         assertThat(saved.getExternalId()).isEqualTo("BURGER_001");
         assertThat(saved.getPrice()).isEqualByComparingTo(new BigDecimal("25.00"));
         assertThat(saved.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        assertThat(saved.getOrigin()).isEqualTo(CatalogOrigin.IFOOD);
         assertThat(saved.getCategory().getName()).isEqualTo("Lanches");
         assertThat(saved.getMerchant()).isEqualTo(merchant);
 

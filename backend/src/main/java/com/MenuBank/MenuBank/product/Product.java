@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
@@ -45,6 +46,14 @@ public class Product {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status;
+
+    // columnDefinition default is required for dev (ddl-auto=update on non-empty tables);
+    // prod relies on the matching Flyway migration.
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", nullable = false, length = 20,
+            columnDefinition = "varchar(20) not null default 'MENUBANK'")
+    private CatalogOrigin origin = CatalogOrigin.MENUBANK;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")

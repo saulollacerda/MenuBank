@@ -10,10 +10,12 @@ import {
   UIInput,
   UIModal,
   UIIcon,
+  UIPill,
   UIRowAction,
   UIEmpty,
 } from '@/design'
 import type { CategoryRequest, CategoryResponse } from '@/types/Category'
+import { catalogOriginLabel, catalogOriginPillColor } from '@/types/Category'
 
 const store = useCategoryStore()
 
@@ -219,9 +221,15 @@ onMounted(() => {
                     letterSpacing: '1.2px',
                     textTransform: 'uppercase',
                     marginBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }"
                 >
                   Categoria
+                  <UIPill :color="catalogOriginPillColor(c.origin)" size="sm" data-testid="category-origin-pill">
+                    {{ catalogOriginLabel(c.origin) }}
+                  </UIPill>
                 </div>
                 <div
                   :style="{
@@ -323,6 +331,9 @@ onMounted(() => {
                 }"
               />
               <span :style="{ fontWeight: 600 }">{{ c.name }}</span>
+              <UIPill :color="catalogOriginPillColor(c.origin)" size="sm">
+                {{ catalogOriginLabel(c.origin) }}
+              </UIPill>
             </span>
             <span style="display: flex; gap: 5px; justify-content: flex-end">
               <UIRowAction icon="edit" color="blue" label="Editar" @click="openEdit(c)" />

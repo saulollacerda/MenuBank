@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.customer.Customer;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -107,6 +109,24 @@ class AnotaAISyncServiceTest {
         assertThat(result.getProductsUpdated()).isZero();
         verify(categoryRepository, times(1)).save(any(Category.class));
         verify(productRepository, times(2)).save(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("syncCatalog deve marcar categorias e produtos criados com origin ANOTA_AI")
+    void syncCatalog_shouldStampAnotaAiOrigin() {
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalog());
+        given(categoryRepository.findByExternalIdAndMerchantId(anyString(), eq(merchantId)))
+                .willReturn(Optional.empty());
+        given(productRepository.findByExternalIdAndMerchantId(anyString(), eq(merchantId)))
+                .willReturn(Optional.empty());
+        given(categoryRepository.save(any(Category.class)))
+                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
+
+        syncService.syncCatalog(merchantId);
+
+        verify(categoryRepository).save(argThat(c -> c.getOrigin() == CatalogOrigin.ANOTA_AI));
+        verify(productRepository, times(2)).save(argThat(p -> p.getOrigin() == CatalogOrigin.ANOTA_AI));
     }
 
     @Test
