@@ -100,6 +100,7 @@ public class ProductService {
                 .categoryName(category != null ? category.getName() : null)
                 .unitCost(unitCost)
                 .marginPct(marginPct)
+                .origin(product.getOrigin())
                 .build();
     }
 

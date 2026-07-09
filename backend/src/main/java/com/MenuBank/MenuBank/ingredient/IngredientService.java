@@ -46,6 +46,11 @@ public class IngredientService {
         }
 
         String canonicalName = IngredientNameNormalizer.normalize(request.getName());
+        // O match de pedidos importados (iFood/Anota AI) usa o nome canônico como chave;
+        // duplicatas canônicas ("Morango" vs "MORANGO ") quebrariam esse lookup.
+        if (ingredientRepository.existsByCanonicalNameAndMerchantId(canonicalName, merchantId)) {
+            throw new DuplicateIngredientException("nome");
+        }
         Ingredient ingredient = Ingredient.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
@@ -102,8 +107,13 @@ public class IngredientService {
         Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
+        String canonicalName = IngredientNameNormalizer.normalize(request.getName());
+        if (ingredientRepository.existsByCanonicalNameAndMerchantIdAndIdNot(canonicalName, merchantId, id)) {
+            throw new DuplicateIngredientException("nome");
+        }
+
         ingredient.setName(request.getName());
-        ingredient.setCanonicalName(IngredientNameNormalizer.normalize(request.getName()));
+        ingredient.setCanonicalName(canonicalName);
         ingredient.setUnit(request.getUnit());
         ingredient.setCostPerUnit(request.getCostPerUnit());
         ingredient.setDefaultQuantity(request.getDefaultQuantity());

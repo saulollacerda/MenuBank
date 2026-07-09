@@ -14,5 +14,6 @@ public class CategoryResponse {
     private String name;
     private Long productCount;
     private String colorHex;
+    private CatalogOrigin origin;
 }
 

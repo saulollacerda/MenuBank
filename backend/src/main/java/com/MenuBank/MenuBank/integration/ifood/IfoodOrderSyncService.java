@@ -58,12 +58,13 @@ public class IfoodOrderSyncService {
     }
 
     public void syncOrders() {
-        List<String> ifoodMerchantIds = merchantRepository.findAllByIfoodMerchantIdIsNotNull()
+        List<String> ifoodMerchantIds = merchantRepository
+                .findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue()
                 .stream()
                 .map(Merchant::getIfoodMerchantId)
                 .toList();
         if (ifoodMerchantIds.isEmpty()) {
-            log.info("[iFood] polling ignorado — nenhum merchant autorizado");
+            log.info("[iFood] polling ignorado — nenhum merchant autorizado com sincronia ativa");
             return;
         }
 

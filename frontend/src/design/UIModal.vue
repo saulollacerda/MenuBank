@@ -24,28 +24,13 @@ const attrs = useAttrs()
   <div
     v-bind="attrs"
     class="ui-modal-backdrop"
-    :style="{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(15,23,42,0.45)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 100,
-      padding: '24px',
-    }"
     @click.self="$emit('close')"
   >
     <div
+      class="ui-modal"
       :style="{
         background: UI.panel,
-        borderRadius: '14px',
         width: width + 'px',
-        maxWidth: '100%',
-        maxHeight: '95vh',
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.05)',
       }"
     >
       <div
@@ -114,3 +99,34 @@ const attrs = useAttrs()
     </div>
   </div>
 </template>
+
+<style scoped>
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.ui-modal {
+  border-radius: 14px;
+  max-width: 100%;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 768px) {
+  .ui-modal-backdrop {
+    padding: 10px;
+  }
+  .ui-modal {
+    max-height: calc(100dvh - 20px);
+  }
+}
+</style>

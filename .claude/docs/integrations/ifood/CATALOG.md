@@ -1,8 +1,36 @@
 # iFood — Catalog API v2.0
 
-> **Scope for MenuBank: read-only.** We only fetch the catalog and import it into our system
-> (products, ingredients). We never write/update the iFood catalog — no item creation,
-> price sync, or availability management on the iFood side.
+> **Scope for MenuBank: read-only.** We only fetch the catalog and import it into our system.
+> We never write/update the iFood catalog — no item creation, price sync, or availability
+> management on the iFood side.
+>
+> **Implemented (v1):** items → `Product`, categories → `Category` only. Option groups /
+> complements are NOT imported yet (candidates for ingredient suggestions in a future version).
+> See `IfoodCatalogClient` and `IfoodCatalogImportService`.
+
+## Read endpoints (confirmed)
+
+Base URL: `ifood.catalog-base-url` = `https://merchant-api.ifood.com.br/catalog/v2.0`.
+Auth: `Authorization: Bearer {accessToken}` (app-level token from `IfoodTokenService`).
+
+```
+GET /merchants/{merchantId}/catalogs
+→ [ { "catalogId": "10e0fbbe-...", "context": ["DEFAULT"], "status": "AVAILABLE", "modifiedAt": ... } ]
+
+GET /merchants/{merchantId}/catalogs/{catalogId}/categories?includeItems=true
+→ [ { "id": "...", "name": "Lanches", "status": "AVAILABLE", "template": "DEFAULT", "sequence": 1,
+      "items": [ { "id": "...", "name": "X-Burger", "description": "...", "externalCode": "BURGER_001",
+                   "status": "AVAILABLE", "sequence": 1,
+                   "price": { "value": 25.00, "originalValue": 30.00 },
+                   "contextModifiers": [ { "catalogContext": "WHITELABEL", "price": {...},
+                                           "status": "...", "externalCode": "..." } ] } ] } ]
+```
+
+Import picks the catalog whose `context` contains `DEFAULT` (fallback: first catalog) and applies
+the `DEFAULT` entry of `contextModifiers` for price/externalCode. Merge rules: match by
+`externalCode` → `Product.externalId`, fallback canonical name; existing products are never
+overwritten (only a missing `externalId` is filled); conflicts and priceless items (PIZZA/COMBO
+priced via options) are reported as `SKIPPED` in `IfoodCatalogImportResult`.
 
 ## Hierarchy
 

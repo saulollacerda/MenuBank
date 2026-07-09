@@ -22,5 +22,15 @@ public interface IngredientRepository extends JpaRepository<Ingredient, UUID> {
 
     void deleteByIdAndMerchantId(UUID id, UUID merchantId);
 
-    Optional<Ingredient> findByCanonicalNameAndMerchantId(String canonicalName, UUID merchantId);
+    boolean existsByCanonicalNameAndMerchantId(String canonicalName, UUID merchantId);
+
+    boolean existsByCanonicalNameAndMerchantIdAndIdNot(String canonicalName, UUID merchantId, UUID id);
+
+    /**
+     * Variante resiliente do lookup canônico usada pelos imports de pedidos: se o
+     * merchant tiver ingredientes duplicados no nome canônico (dados legados), retorna
+     * um único registro determinístico em vez de estourar
+     * {@code IncorrectResultSizeDataAccessException} e derrubar o import.
+     */
+    Optional<Ingredient> findFirstByCanonicalNameAndMerchantIdOrderByIdAsc(String canonicalName, UUID merchantId);
 }

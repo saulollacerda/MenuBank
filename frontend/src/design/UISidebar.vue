@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { UI } from './tokens'
 import UIIcon from './UIIcon.vue'
 import { useAuthStore } from '@/stores/authStore'
+import { useSidebar } from '@/composables/useSidebar'
 import type { DayOfWeek, OpeningHour } from '@/types/User'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const sidebar = useSidebar()
 
 const DAY_MAP: Record<number, DayOfWeek> = {
   0: 'SUNDAY', 1: 'MONDAY', 2: 'TUESDAY', 3: 'WEDNESDAY',
@@ -57,6 +59,11 @@ const initials = computed(() => {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || 'MB'
 })
 
+function navigate(to: string) {
+  sidebar.close()
+  router.push(to)
+}
+
 async function logout() {
   await auth.logout()
   router.push('/login')
@@ -64,28 +71,20 @@ async function logout() {
 </script>
 
 <template>
-  <aside
-    :style="{
-      width: '232px',
-      background: UI.navBg,
-      color: UI.navText,
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0,
-      borderRight: `1px solid ${UI.navBg2}`,
-      position: 'sticky',
-      top: 0,
-      height: '100vh',
-      overflow: 'hidden',
-    }"
-  >
+  <div
+    v-if="sidebar.isOpen.value"
+    class="ui-sidebar-backdrop"
+    data-testid="sidebar-backdrop"
+    @click="sidebar.close()"
+  />
+  <aside class="ui-sidebar" :class="{ 'is-open': sidebar.isOpen.value }">
     <div
       :style="{
         padding: '24px 22px 22px',
         borderBottom: '1px solid #1a2638',
         cursor: 'pointer',
       }"
-      @click="router.push('/')"
+      @click="navigate('/')"
     >
       <div
         :style="{
@@ -116,6 +115,7 @@ async function logout() {
         display: flex;
         flex-direction: column;
         gap: 2px;
+        overflow-y: auto;
       "
     >
       <div
@@ -135,7 +135,7 @@ async function logout() {
           color: it.id === activeId ? '#fff' : UI.navText,
           cursor: 'pointer',
         }"
-        @click="router.push(it.to)"
+        @click="navigate(it.to)"
       >
         <UIIcon :name="it.ic" :size="16" />
         <span style="flex: 1">{{ it.label }}</span>
@@ -208,6 +208,48 @@ async function logout() {
 </template>
 
 <style scoped>
+.ui-sidebar {
+  width: 232px;
+  background: #0c1626;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid #0a1322;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.ui-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .ui-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+  }
+  .ui-sidebar.is-open {
+    transform: translateX(0);
+  }
+  .ui-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 250;
+  }
+}
+
 .ui-nav {
   transition: background 0.12s ease, color 0.12s ease;
 }

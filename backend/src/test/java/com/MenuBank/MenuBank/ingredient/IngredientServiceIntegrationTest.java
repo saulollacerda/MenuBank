@@ -91,15 +91,69 @@ class IngredientServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("findByCanonicalNameAndMerchantId deve achar por nome normalizado")
+    @DisplayName("lookup canônico deve achar por nome normalizado")
     void canonicalLookup_shouldFindByNormalizedName() {
         ingredientService.create(merchant.getId(), IngredientRequest.builder()
                 .name("Chocoball").unit("un").costPerUnit(new BigDecimal("0.06"))
                 .defaultQuantity(BigDecimal.ONE).build());
 
-        var found = ingredientRepository.findByCanonicalNameAndMerchantId("chocoball", merchant.getId());
+        var found = ingredientRepository
+                .findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("chocoball", merchant.getId());
 
         assertThat(found).isPresent();
+    }
+
+    @Test
+    @DisplayName("REGRESSÃO: lookup canônico não deve estourar quando há duplicatas legadas no canonical name")
+    void canonicalLookup_shouldNotThrowWhenLegacyDuplicatesExist() {
+        // Duplicatas gravadas direto no repositório, simulando dados legados criados
+        // antes da checagem de duplicidade canônica no serviço.
+        Ingredient first = ingredientRepository.save(Ingredient.builder()
+                .merchant(merchant).name("Morango").canonicalName("morango")
+                .unit("g").costPerUnit(new BigDecimal("0.10"))
+                .status(IngredientStatus.ACTIVE).build());
+        Ingredient second = ingredientRepository.save(Ingredient.builder()
+                .merchant(merchant).name("MORANGO").canonicalName("morango")
+                .unit("g").costPerUnit(new BigDecimal("0.20"))
+                .status(IngredientStatus.ACTIVE).build());
+
+        var found = ingredientRepository
+                .findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("morango", merchant.getId());
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getId()).isIn(first.getId(), second.getId());
+    }
+
+    @Test
+    @DisplayName("create deve rejeitar duplicata canônica (variação de caixa/acentos)")
+    void create_shouldRejectCanonicalDuplicate() {
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
+                .name("Açaí").unit("ml").costPerUnit(new BigDecimal("0.05"))
+                .defaultQuantity(BigDecimal.ONE).build());
+
+        IngredientRequest variant = IngredientRequest.builder()
+                .name("ACAI ").unit("ml").costPerUnit(new BigDecimal("0.05"))
+                .defaultQuantity(BigDecimal.ONE).build();
+
+        assertThatThrownBy(() -> ingredientService.create(merchant.getId(), variant))
+                .isInstanceOf(DuplicateIngredientException.class);
+    }
+
+    @Test
+    @DisplayName("update deve rejeitar renomear para o canonical de outro ingrediente do merchant")
+    void update_shouldRejectRenameToCanonicalOfAnotherIngredient() {
+        ingredientService.create(merchant.getId(), IngredientRequest.builder()
+                .name("Morango").unit("g").costPerUnit(new BigDecimal("0.10"))
+                .defaultQuantity(BigDecimal.ONE).build());
+        IngredientResponse other = ingredientService.create(merchant.getId(), IngredientRequest.builder()
+                .name("Banana").unit("g").costPerUnit(new BigDecimal("0.05"))
+                .defaultQuantity(BigDecimal.ONE).build());
+
+        assertThatThrownBy(() -> ingredientService.update(merchant.getId(), other.getId(),
+                IngredientRequest.builder()
+                        .name("MORANGO").unit("g").costPerUnit(new BigDecimal("0.05"))
+                        .defaultQuantity(BigDecimal.ONE).build()))
+                .isInstanceOf(DuplicateIngredientException.class);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.anotaai;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.customer.Customer;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -107,6 +109,24 @@ class AnotaAISyncServiceTest {
         assertThat(result.getProductsUpdated()).isZero();
         verify(categoryRepository, times(1)).save(any(Category.class));
         verify(productRepository, times(2)).save(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("syncCatalog deve marcar categorias e produtos criados com origin ANOTA_AI")
+    void syncCatalog_shouldStampAnotaAiOrigin() {
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getCatalog("test-api-key")).willReturn(buildCatalog());
+        given(categoryRepository.findByExternalIdAndMerchantId(anyString(), eq(merchantId)))
+                .willReturn(Optional.empty());
+        given(productRepository.findByExternalIdAndMerchantId(anyString(), eq(merchantId)))
+                .willReturn(Optional.empty());
+        given(categoryRepository.save(any(Category.class)))
+                .willAnswer(inv -> { Category c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
+
+        syncService.syncCatalog(merchantId);
+
+        verify(categoryRepository).save(argThat(c -> c.getOrigin() == CatalogOrigin.ANOTA_AI));
+        verify(productRepository, times(2)).save(argThat(p -> p.getOrigin() == CatalogOrigin.ANOTA_AI));
     }
 
     @Test
@@ -476,7 +496,7 @@ class AnotaAISyncServiceTest {
         given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
                 .willReturn(Optional.of(mappedProduct));
         // subItem.name = "Açaí Premium" → canonical "acai premium"
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("acai premium", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("acai premium", merchantId))
                 .willReturn(Optional.of(acaiPremium));
 
         syncService.syncOrders(merchantId);
@@ -522,7 +542,7 @@ class AnotaAISyncServiceTest {
         given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
                 .willReturn(Optional.of(mappedProduct));
         // subItem.name = "leite ninho" → canonical "leite ninho"
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("leite ninho", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("leite ninho", merchantId))
                 .willReturn(Optional.of(leiteNinho));
 
         syncService.syncOrders(merchantId);
@@ -554,7 +574,7 @@ class AnotaAISyncServiceTest {
         given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
                 .willReturn(Optional.of(mappedProduct));
         // Ingrediente "Açaí Premium" não encontrado
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("acai premium", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("acai premium", merchantId))
                 .willReturn(Optional.empty());
 
         AnotaAISyncResult result = syncService.syncOrders(merchantId);
@@ -591,7 +611,7 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.empty());
         given(productRepository.findByExternalIdAndMerchantId("product-internal-id", merchantId))
                 .willReturn(Optional.of(mappedProduct));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("acai premium", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("acai premium", merchantId))
                 .willReturn(Optional.empty());
 
         AnotaAISyncResult result = syncService.syncOrders(merchantId);
@@ -715,11 +735,11 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.of(acai330));
         given(includeRepository.findByProductIdAndProductMerchantId(acai330.getId(), merchantId))
                 .willReturn(List.of());
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("leite ninho", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("leite ninho", merchantId))
                 .willReturn(Optional.of(leiteNinho));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("chocoball", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("chocoball", merchantId))
                 .willReturn(Optional.of(chocoball));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("morango", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("morango", merchantId))
                 .willReturn(Optional.of(morango));
 
         syncService.syncOrders(merchantId);
@@ -779,11 +799,11 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.of(acai330));
         given(includeRepository.findByProductIdAndProductMerchantId(acai330.getId(), merchantId))
                 .willReturn(List.of());
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("leite ninho", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("leite ninho", merchantId))
                 .willReturn(Optional.of(leiteNinho));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("chocoball", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("chocoball", merchantId))
                 .willReturn(Optional.empty());
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("morango", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("morango", merchantId))
                 .willReturn(Optional.empty());
 
         syncService.syncOrders(merchantId);
@@ -888,7 +908,7 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.of(acai500));
         given(includeRepository.findByProductIdAndProductMerchantId(acai500.getId(), merchantId))
                 .willReturn(List.of(acaiPremiumInclude));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("acai premium", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("acai premium", merchantId))
                 .willReturn(Optional.of(acaiPremium));
 
         syncService.syncOrders(merchantId);
@@ -936,7 +956,7 @@ class AnotaAISyncServiceTest {
                 .willReturn(Optional.of(acai330));
         given(includeRepository.findByProductIdAndProductMerchantId(acai330.getId(), merchantId))
                 .willReturn(List.of(outroInclude));
-        given(ingredientRepository.findByCanonicalNameAndMerchantId("leite ninho", merchantId))
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("leite ninho", merchantId))
                 .willReturn(Optional.of(leiteNinhoGlobal));
 
         syncService.syncOrders(merchantId);
@@ -1090,7 +1110,7 @@ class AnotaAISyncServiceTest {
         // Stub lenient: o Ingredient existe no merchant, mas a busca não será feita
         // porque o subItem casa com Include PACKAGING e é pulado antes.
         org.mockito.Mockito.lenient()
-                .when(ingredientRepository.findByCanonicalNameAndMerchantId("copo 500ml", merchantId))
+                .when(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("copo 500ml", merchantId))
                 .thenReturn(Optional.of(copo));
 
         syncService.syncOrders(merchantId);

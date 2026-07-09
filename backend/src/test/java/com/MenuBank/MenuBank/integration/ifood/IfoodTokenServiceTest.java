@@ -207,10 +207,11 @@ class IfoodTokenServiceTest {
     }
 
     @Test
-    @DisplayName("revoke limpa campos do merchant e remove token se for o último")
+    @DisplayName("revoke limpa campos do merchant, desativa a sincronia e remove token se for o último")
     void revoke_shouldClearMerchantAndDeleteTokenWhenLastMerchant() {
         merchant.setIfoodMerchantId("ifood-merchant-id");
         merchant.setIfoodAuthorizedAt(LocalDateTime.now());
+        merchant.setIfoodOrderSyncEnabled(true);
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(merchantRepository.countByIfoodMerchantIdIsNotNull()).willReturn(0L);
 
@@ -220,6 +221,7 @@ class IfoodTokenServiceTest {
         verify(merchantRepository).save(captor.capture());
         assertThat(captor.getValue().getIfoodMerchantId()).isNull();
         assertThat(captor.getValue().getIfoodAuthorizedAt()).isNull();
+        assertThat(captor.getValue().isIfoodOrderSyncEnabled()).isFalse();
         verify(tokenRepository).deleteAll();
     }
 

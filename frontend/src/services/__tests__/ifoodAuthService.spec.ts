@@ -6,6 +6,7 @@ vi.mock('@/services/api', () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn(),
   },
 }))
@@ -15,13 +16,30 @@ describe('ifoodAuthService', () => {
     vi.clearAllMocks()
   })
 
-  it('status should GET /integrations/ifood/auth/status and return connected flag', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { connected: true } })
+  it('status should GET /integrations/ifood/auth/status and return the checklist state', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { connected: true, catalogImportedAt: '2026-07-01T10:00:00', orderSyncEnabled: true },
+    })
 
     const result = await ifoodAuthService.status()
 
     expect(api.get).toHaveBeenCalledWith('/integrations/ifood/auth/status')
-    expect(result).toEqual({ connected: true })
+    expect(result).toEqual({
+      connected: true,
+      catalogImportedAt: '2026-07-01T10:00:00',
+      orderSyncEnabled: true,
+    })
+  })
+
+  it('setOrderSync should PUT /integrations/ifood/sync and return the updated status', async () => {
+    vi.mocked(api.put).mockResolvedValue({
+      data: { connected: true, catalogImportedAt: null, orderSyncEnabled: true },
+    })
+
+    const result = await ifoodAuthService.setOrderSync(true)
+
+    expect(api.put).toHaveBeenCalledWith('/integrations/ifood/sync', { enabled: true })
+    expect(result.orderSyncEnabled).toBe(true)
   })
 
   it('start should POST /integrations/ifood/auth/start and return verificationUrlComplete', async () => {

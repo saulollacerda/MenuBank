@@ -69,7 +69,7 @@ public class AnotaAIExtraIngredientResolver {
             }
 
             Optional<Ingredient> match = ingredientRepository
-                    .findByCanonicalNameAndMerchantId(canonical, merchantId);
+                    .findFirstByCanonicalNameAndMerchantIdOrderByIdAsc(canonical, merchantId);
             if (match.isEmpty()) {
                 missingIngredientNames.add(rawName);
                 if (notifiedMissing.add(canonical)) {

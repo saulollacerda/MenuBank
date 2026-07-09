@@ -292,7 +292,7 @@ public class IfoodOrderImportService {
             }
 
             Optional<Ingredient> match = ingredientRepository
-                    .findByCanonicalNameAndMerchantId(canonical, merchantId);
+                    .findFirstByCanonicalNameAndMerchantIdOrderByIdAsc(canonical, merchantId);
             if (match.isEmpty()) {
                 if (notifiedMissing.add(canonical)) {
                     notificationService.createMissingIngredient(rawName, canonical, merchantId);

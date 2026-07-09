@@ -176,16 +176,8 @@ function navIngredientsWithName(name: string | null) {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        overflow: auto;
-      "
-    >
+    <div class="view-content" style="gap: 18px; overflow: auto">
+
       <div
         v-if="dash.error"
         :style="{
@@ -200,7 +192,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- KPIs -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px">
+      <div class="grid-cols-4" style="gap: 16px">
         <div
           v-for="k in kpis"
           :key="k.label"
@@ -251,7 +243,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- Mid: sales chart + peak hours placeholder -->
-      <div style="display: flex; gap: 16px; min-height: 348px">
+      <div class="stack-row" style="min-height: 348px">
         <div
           :style="{
             background: UI.panel,
@@ -398,7 +390,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- Bottom: top products + alerts + recent orders -->
-      <div style="display: flex; gap: 16px; flex: 1; min-height: 0">
+      <div class="stack-row" style="flex: 1; min-height: 0">
         <!-- Top products -->
         <div
           :style="{

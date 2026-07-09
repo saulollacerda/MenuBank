@@ -1,3 +1,5 @@
+import type { CatalogOrigin } from './Category'
+
 export type ProductStatus = 'ACTIVE' | 'INACTIVE'
 export type IncludeKind = 'INGREDIENT' | 'PACKAGING'
 
@@ -14,6 +16,7 @@ export interface ProductResponse {
   status: ProductStatus
   categoryId: string
   categoryName: string
+  origin?: CatalogOrigin
 }
 
 /**
