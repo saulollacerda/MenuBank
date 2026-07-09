@@ -202,9 +202,9 @@ onMounted(async () => {
       subtitle="Perfil da loja, integrações e preferências"
     />
 
-    <div style="flex: 1; padding: 28px; display: flex; gap: 20px; overflow: hidden; min-height: 0">
+    <div class="settings-layout">
       <!-- Sub-nav -->
-      <div style="width: 220px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0">
+      <div class="settings-subnav">
         <div
           v-for="it in SUBNAV"
           :key="it.id"
@@ -325,7 +325,7 @@ onMounted(async () => {
               <UIBtn variant="secondary" size="sm" icon="upload">Trocar logo</UIBtn>
             </div>
 
-            <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
+            <div class="grid-cols-2" style="flex: 1; gap: 14px">
               <UIField label="Nome da loja">
                 <UIInput :model-value="user?.merchantName ?? ''" disabled />
               </UIField>
@@ -908,10 +908,43 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.settings-layout {
+  flex: 1;
+  padding: 28px;
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.settings-subnav {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .settings-subnav-item {
   transition: opacity 0.12s ease, background 0.12s ease;
+  white-space: nowrap;
 }
 .settings-subnav-item:hover {
   opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .settings-layout {
+    flex-direction: column;
+    padding: 14px;
+    overflow: auto;
+  }
+  .settings-subnav {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
 }
 </style>

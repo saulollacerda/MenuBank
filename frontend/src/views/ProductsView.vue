@@ -201,6 +201,7 @@ const recipeMargin = computed(() => {
 })
 
 const cols = '1.5fr 1fr 100px 100px 100px 100px 90px 130px'
+const tableMinWidth = '900px'
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
@@ -243,15 +244,7 @@ onMounted(() => {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <div
         v-if="anotaAIStore.error"
         :style="{
@@ -338,7 +331,10 @@ onMounted(() => {
           minHeight: 0,
         }"
       >
+        <div class="table-scroll">
+        <div :style="{ minWidth: tableMinWidth }">
         <div
+          class="table-sticky-header"
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
@@ -364,7 +360,7 @@ onMounted(() => {
           <span style="text-align: right">Ações</span>
         </div>
 
-        <div style="flex: 1; overflow: auto">
+        <div>
           <div
             v-if="productStore.loading"
             :style="{ padding: '32px', textAlign: 'center', color: UI.textMute }"
@@ -469,6 +465,8 @@ onMounted(() => {
               />
             </span>
           </div>
+        </div>
+        </div>
         </div>
 
         <div

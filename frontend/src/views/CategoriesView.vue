@@ -95,15 +95,7 @@ onMounted(() => {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <div
         v-if="store.error"
         :style="{
@@ -194,7 +186,8 @@ onMounted(() => {
         </div>
         <div
           v-else
-          style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px"
+          class="grid-cols-4"
+          style="gap: 14px"
         >
           <div
             v-for="c in store.items"

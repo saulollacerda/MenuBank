@@ -70,6 +70,7 @@ function onPageChange(p: number) {
 }
 
 const cols = '1.4fr 1.2fr 130px 120px'
+const tableMinWidth = '620px'
 
 onMounted(() => {
   store.fetchPage({ page: 0, search: '' })
@@ -87,15 +88,7 @@ onMounted(() => {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <div
         v-if="store.error"
         :style="{
@@ -143,7 +136,10 @@ onMounted(() => {
           minHeight: 0,
         }"
       >
+        <div class="table-scroll">
+        <div :style="{ minWidth: tableMinWidth }">
         <div
+          class="table-sticky-header"
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
@@ -165,7 +161,7 @@ onMounted(() => {
           <span style="text-align: right">Ações</span>
         </div>
 
-        <div style="flex: 1; overflow: auto">
+        <div>
           <div
             v-if="store.loading"
             :style="{ padding: '32px', textAlign: 'center', color: UI.textMute }"
@@ -238,6 +234,8 @@ onMounted(() => {
               <UIRowAction icon="trash" color="rose" label="Excluir" @click="confirmDeleteId = t.id" />
             </span>
           </div>
+        </div>
+        </div>
         </div>
 
         <div

@@ -242,6 +242,8 @@ async function handleDelete() {
 }
 
 const cols = '70px 1.5fr 100px 110px 110px 110px 90px 130px'
+// Fixed columns + gaps + room for the fr column; below this the table scrolls horizontally.
+const tableMinWidth = '920px'
 
 const statusPills = computed(() => [
   { id: 'todos', label: 'Todos', count: counts.value.total, dot: undefined },
@@ -282,15 +284,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <!-- Opening hours onboarding banner -->
       <div
         v-if="showHoursBanner"
@@ -466,7 +460,10 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
           minHeight: 0,
         }"
       >
+        <div class="table-scroll">
+        <div :style="{ minWidth: tableMinWidth }">
         <div
+          class="table-sticky-header"
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
@@ -492,7 +489,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
           <span style="text-align: right">Ações</span>
         </div>
 
-        <div style="flex: 1; overflow: auto">
+        <div>
           <div
             v-if="orderStore.loading"
             :style="{
@@ -610,6 +607,8 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
             </span>
           </div>
         </div>
+        </div>
+        </div>
 
         <div
           :style="{
@@ -676,11 +675,8 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       <form id="order-form" @submit.prevent="handleSubmit">
         <div style="display: flex; flex-direction: column; gap: 16px">
           <div
-            :style="{
-              display: 'grid',
-              gridTemplateColumns: editingOrderId ? '1fr 1fr 1fr' : '1fr 1fr',
-              gap: '12px',
-            }"
+            :class="editingOrderId ? 'grid-cols-3' : 'grid-cols-2'"
+            :style="{ gap: '12px' }"
           >
             <UIField label="Cliente">
               <UISelect
@@ -914,7 +910,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
         v-else-if="selectedOrder"
         style="display: flex; flex-direction: column; gap: 18px"
       >
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px">
+        <div class="grid-cols-4" style="gap: 10px">
           <div
             :style="{
               padding: '12px',
