@@ -285,7 +285,7 @@ class IfoodOrderImportServiceTest {
 
             given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
                     .willReturn(Optional.of(product));
-            given(ingredientRepository.findByCanonicalNameAndMerchantId("morango", merchantId))
+            given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("morango", merchantId))
                     .willReturn(Optional.of(morango));
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
@@ -311,7 +311,7 @@ class IfoodOrderImportServiceTest {
 
             given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
                     .willReturn(Optional.of(product));
-            given(ingredientRepository.findByCanonicalNameAndMerchantId("pistache raro", merchantId))
+            given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("pistache raro", merchantId))
                     .willReturn(Optional.empty());
             given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
                     .willReturn(false);
