@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface PlanRepository extends JpaRepository<Plan, UUID> {
 
     List<Plan> findByActiveTrueOrderByMinRevenueAsc();
+
+    boolean existsByName(String name);
 }

@@ -14,10 +14,14 @@ import java.util.UUID;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final AbacatePayBillingService abacatePayBillingService;
     private final AuthHelper authHelper;
 
-    public SubscriptionController(SubscriptionService subscriptionService, AuthHelper authHelper) {
+    public SubscriptionController(SubscriptionService subscriptionService,
+                                  AbacatePayBillingService abacatePayBillingService,
+                                  AuthHelper authHelper) {
         this.subscriptionService = subscriptionService;
+        this.abacatePayBillingService = abacatePayBillingService;
         this.authHelper = authHelper;
     }
 
@@ -25,6 +29,14 @@ public class SubscriptionController {
     public ResponseEntity<SubscriptionResponse> getMySubscription(Authentication auth) {
         UUID merchantId = authHelper.getMerchantId(auth);
         return ResponseEntity.ok(subscriptionService.getMySubscription(merchantId));
+    }
+
+    @PostMapping("/checkout")
+    public ResponseEntity<CheckoutResponse> createCheckout(
+            Authentication auth,
+            @Valid @RequestBody CheckoutRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(abacatePayBillingService.createCheckout(merchantId, request.getPlanId()));
     }
 
     @PostMapping("/revenue-report")

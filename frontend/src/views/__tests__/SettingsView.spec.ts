@@ -5,6 +5,8 @@ import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
 import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
 import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
 import { ifoodAuthService, type IfoodStatusResponse } from '@/services/ifoodAuthService'
+import { billingService } from '@/services/billingService'
+import type { PlanResponse, SubscriptionResponse } from '@/types/Billing'
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: { section: 'ints' } }),
@@ -47,7 +49,16 @@ vi.mock('@/services/ifoodAuthService', async (importOriginal) => {
   }
 })
 
+vi.mock('@/services/billingService', () => ({
+  billingService: {
+    listPlans: vi.fn(),
+    getMySubscription: vi.fn(),
+    createCheckout: vi.fn(),
+  },
+}))
+
 const mockedService = vi.mocked(ifoodAuthService)
+const mockedBilling = vi.mocked(billingService)
 
 const STUBS = {
   IfoodConnectModal: true,
@@ -225,5 +236,106 @@ describe('SettingsView — checklist Anota.AI', () => {
 
     expect(wrapper.text()).toContain('3 pedido(s) importado(s)')
     expect(wrapper.text()).toContain('2 já existente(s)')
+  })
+})
+
+describe('SettingsView — Plano e pagamento', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  const basicPlan: PlanResponse = {
+    id: 'plan-1',
+    name: 'Básico',
+    minRevenue: 0,
+    maxRevenue: null,
+    priceMonthly: 50,
+    features: { allFeatures: true, description: 'Acesso a todas as funcionalidades' },
+    active: true,
+    createdAt: '2026-07-10T10:00:00',
+  }
+
+  function subscriptionOf(overrides: Partial<SubscriptionResponse> = {}): SubscriptionResponse {
+    return {
+      id: 'sub-1',
+      merchantId: 'm-1',
+      planId: null,
+      planName: null,
+      status: 'TRIAL',
+      trialEndsAt: '2026-07-17T10:00:00',
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      createdAt: '2026-07-10T10:00:00',
+      updatedAt: '2026-07-10T10:00:00',
+      ...overrides,
+    }
+  }
+
+  async function openBilling(subscription: SubscriptionResponse, plans: PlanResponse[]) {
+    mockedBilling.getMySubscription.mockResolvedValue(subscription)
+    mockedBilling.listPlans.mockResolvedValue(plans)
+    const wrapper = await mountView(statusOf())
+    const item = wrapper
+      .findAll('.settings-subnav-item')
+      .find((el) => el.text().includes('Plano e pagamento'))
+    await item!.trigger('click')
+    await flushPromises()
+    return wrapper
+  }
+
+  it('exibe o período de teste e o plano Básico com preço mensal', async () => {
+    const wrapper = await openBilling(subscriptionOf(), [basicPlan])
+
+    expect(mockedBilling.getMySubscription).toHaveBeenCalled()
+    expect(mockedBilling.listPlans).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="billing-status"]').text()).toContain('Período de teste')
+
+    const planCard = wrapper.find('[data-testid="billing-plan-card"]')
+    expect(planCard.text()).toContain('Básico')
+    expect(planCard.text()).toContain('50,00')
+    expect(planCard.text()).toContain('todas as funcionalidades')
+  })
+
+  it('assinatura ativa mostra o plano atual e a vigência', async () => {
+    const wrapper = await openBilling(
+      subscriptionOf({
+        status: 'ACTIVE',
+        planId: 'plan-1',
+        planName: 'Básico',
+        trialEndsAt: null,
+        currentPeriodStart: '2026-07-10T10:00:00',
+        currentPeriodEnd: '2026-08-10T10:00:00',
+      }),
+      [basicPlan],
+    )
+
+    const status = wrapper.find('[data-testid="billing-status"]')
+    expect(status.text()).toContain('Ativa')
+    expect(status.text()).toContain('Básico')
+  })
+
+  it('clicar em assinar cria o checkout e abre a URL de pagamento', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    mockedBilling.createCheckout.mockResolvedValue({
+      url: 'https://pay.abacatepay.com/bill_xyz',
+    })
+    const wrapper = await openBilling(subscriptionOf(), [basicPlan])
+
+    await wrapper.find('[data-testid="billing-subscribe-action"]').trigger('click')
+    await flushPromises()
+
+    expect(mockedBilling.createCheckout).toHaveBeenCalledWith('plan-1')
+    expect(openSpy).toHaveBeenCalledWith('https://pay.abacatepay.com/bill_xyz', '_self')
+  })
+
+  it('exibe erro quando a criação do checkout falha', async () => {
+    mockedBilling.createCheckout.mockRejectedValue(new Error('fail'))
+    const wrapper = await openBilling(subscriptionOf(), [basicPlan])
+
+    await wrapper.find('[data-testid="billing-subscribe-action"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="billing-error"]').text()).toContain('pagamento')
   })
 })
