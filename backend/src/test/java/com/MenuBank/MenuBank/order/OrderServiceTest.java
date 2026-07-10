@@ -296,6 +296,203 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("deve computar unitCost só com insumos (PACKAGING e legados sem kind); INGREDIENT fica de fora")
+        void shouldCountOnlyInsumosSkippingIngredientKind() {
+            Include copo = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Copo").cost(new BigDecimal("0.30")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build();
+            Include granola = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Granola").cost(new BigDecimal("0.05")).quantity(new BigDecimal("40"))
+                    .kind(IncludeKind.INGREDIENT).build();
+            Include acaiBase = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Açaí base").cost(new BigDecimal("0.10")).quantity(new BigDecimal("150"))
+                    .kind(null).build();
+            given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
+                    .willReturn(List.of(copo, granola, acaiBase));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.create(merchantId, orderRequest);
+
+            // 0.30 + (0.10×150) = 15.30 — Granola (INGREDIENT) só entraria como extra
+            then(orderRepository).should().save(argThat(saved ->
+                    saved.getItems().get(0).getUnitCost().compareTo(new BigDecimal("15.30")) == 0));
+        }
+
+        @Test
+        @DisplayName("deve remover do unitCost os insumos desmarcados e persistir as exclusões")
+        void shouldExcludeDeselectedInsumosFromUnitCostAndPersistExclusions() {
+            UUID acaiBaseId = UUID.randomUUID();
+            Include copo = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Copo").cost(new BigDecimal("0.30")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build();
+            Include acaiBase = Include.builder().id(acaiBaseId).product(product)
+                    .name("Açaí base").cost(new BigDecimal("0.10")).quantity(new BigDecimal("150"))
+                    .kind(null).build();
+            given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
+                    .willReturn(List.of(copo, acaiBase));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest withExclusion = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .excludedIncludeIds(List.of(acaiBaseId))
+                            .build()))
+                    .build();
+
+            orderService.create(merchantId, withExclusion);
+
+            then(orderRepository).should().save(argThat(saved ->
+                    saved.getItems().get(0).getUnitCost().compareTo(new BigDecimal("0.30")) == 0
+                            && saved.getItems().get(0).getExcludedIncludeIds().contains(acaiBaseId)));
+        }
+
+        @Test
+        @DisplayName("deve listar como insumos só PACKAGING e legados menos exclusões; INGREDIENT fica de fora")
+        void shouldExposeInsumosMinusExclusionsSkippingIngredientInResponse() {
+            UUID copoId = UUID.randomUUID();
+            Include copo = Include.builder().id(copoId).product(product)
+                    .name("Copo").cost(new BigDecimal("0.30")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build();
+            Include granola = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Granola").cost(new BigDecimal("0.05")).quantity(new BigDecimal("40"))
+                    .kind(IncludeKind.INGREDIENT).build();
+            Include acaiBase = Include.builder().id(UUID.randomUUID()).product(product)
+                    .name("Açaí base").cost(new BigDecimal("0.10")).quantity(new BigDecimal("150"))
+                    .kind(null).build();
+            given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
+                    .willReturn(List.of(copo, granola, acaiBase));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+
+            OrderItem itemWithExclusion = OrderItem.builder()
+                    .id(UUID.randomUUID())
+                    .product(product)
+                    .quantity(1)
+                    .unitPrice(new BigDecimal("30.00"))
+                    .unitCost(new BigDecimal("15.00"))
+                    .excludedIncludeIds(new java.util.HashSet<>(java.util.Set.of(copoId)))
+                    .build();
+            Order savedOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PAID)
+                    .origin(OrderOrigin.MENUBANK)
+                    .totalValue(new BigDecimal("30.00"))
+                    .items(new ArrayList<>(List.of(itemWithExclusion)))
+                    .build();
+            given(orderRepository.save(any(Order.class))).willReturn(savedOrder);
+
+            OrderResponse result = orderService.create(merchantId, orderRequest);
+
+            assertThat(result.getItems().get(0).getInsumos())
+                    .extracting(com.MenuBank.MenuBank.product.IncludeResponse::getName)
+                    .containsExactly("Açaí base");
+            assertThat(result.getItems().get(0).getExcludedIncludeIds()).containsExactly(copoId);
+        }
+
+        @Test
+        @DisplayName("deve reutilizar cliente existente quando customerName casa ignorando caixa e acentos")
+        void shouldReuseExistingCustomerWhenNameMatchesIgnoringCaseAndAccents() {
+            Customer joao = Customer.builder()
+                    .id(UUID.randomUUID())
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .name("João")
+                    .build();
+            given(customerRepository.findAllByMerchantId(merchantId)).willReturn(List.of(joao));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest byName = OrderRequest.builder()
+                    .customerName("  JOAO  ")
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.create(merchantId, byName);
+
+            then(orderRepository).should().save(argThat(saved -> saved.getCustomer() == joao));
+            then(customerRepository).should(never()).save(any(Customer.class));
+        }
+
+        @Test
+        @DisplayName("deve criar cliente com o nome informado quando não há match")
+        void shouldCreateCustomerWhenNoNameMatch() {
+            given(customerRepository.findAllByMerchantId(merchantId)).willReturn(List.of(customer));
+            given(customerRepository.save(any(Customer.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest byName = OrderRequest.builder()
+                    .customerName("  Maria Clara ")
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.create(merchantId, byName);
+
+            org.mockito.ArgumentCaptor<Customer> captor =
+                    org.mockito.ArgumentCaptor.forClass(Customer.class);
+            then(customerRepository).should().save(captor.capture());
+            assertThat(captor.getValue().getName()).isEqualTo("Maria Clara");
+            assertThat(captor.getValue().getMerchant()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("deve priorizar customerId quando customerId e customerName são informados")
+        void shouldPreferCustomerIdWhenBothProvided() {
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest both = OrderRequest.builder()
+                    .customerId(customerId)
+                    .customerName("Outro Nome")
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.create(merchantId, both);
+
+            then(customerRepository).should(never()).findAllByMerchantId(any());
+            then(customerRepository).should(never()).save(any(Customer.class));
+            then(orderRepository).should().save(argThat(saved -> saved.getCustomer() == customer));
+        }
+
+        @Test
+        @DisplayName("deve usar o primeiro match quando existem clientes homônimos")
+        void shouldReuseFirstMatchWhenDuplicateNamesExist() {
+            Customer first = Customer.builder()
+                    .id(UUID.randomUUID())
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .name("Ana")
+                    .build();
+            Customer second = Customer.builder()
+                    .id(UUID.randomUUID())
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .name("ANA")
+                    .build();
+            given(customerRepository.findAllByMerchantId(merchantId)).willReturn(List.of(first, second));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest byName = OrderRequest.builder()
+                    .customerName("ana")
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.create(merchantId, byName);
+
+            then(orderRepository).should().save(argThat(saved -> saved.getCustomer() == first));
+            then(customerRepository).should(never()).save(any(Customer.class));
+        }
+
+        @Test
         @DisplayName("deve lançar OrderNotFoundException quando produto não encontrado")
         void shouldThrowWhenProductNotFound() {
             given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
@@ -552,15 +749,48 @@ class OrderServiceTest {
                     .build();
             given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
                     .willReturn(List.of(packaging, specificIngredient, legacyNullKind));
+
+            // Pedido importado: insumos continuam sendo apenas PACKAGING (ingredientes
+            // escolhidos chegam via extras). Pedido manual mostra PACKAGING + legados —
+            // coberto em create() shouldExposeInsumosMinusExclusionsSkippingIngredientInResponse.
+            order.setOrigin(OrderOrigin.ANOTA_AI);
             given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
 
             OrderResponse result = orderService.findById(merchantId, orderId);
 
             OrderItemResponse item = result.getItems().get(0);
             assertThat(item.getInsumos())
-                    .as("apenas Includes PACKAGING entram em insumos")
+                    .as("em pedidos importados, apenas Includes PACKAGING entram em insumos")
                     .hasSize(1);
             assertThat(item.getInsumos().get(0).getName()).isEqualTo("Copo");
+        }
+
+        @Test
+        @DisplayName("pedido manual deve listar PACKAGING e legados em insumos; INGREDIENT fica de fora")
+        void shouldListInsumosSkippingIngredientForManualOrders() {
+            Include packaging = Include.builder()
+                    .id(UUID.randomUUID()).product(product).name("Copo")
+                    .cost(new BigDecimal("0.35")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build();
+            Include legacyNullKind = Include.builder()
+                    .id(UUID.randomUUID()).product(product).name("Açaí Goat")
+                    .cost(new BigDecimal("0.02")).quantity(new BigDecimal("150"))
+                    .build();
+            Include ingredient = Include.builder()
+                    .id(UUID.randomUUID()).product(product).name("Creme de Ovomaltine")
+                    .cost(new BigDecimal("0.80")).quantity(new BigDecimal("150"))
+                    .kind(IncludeKind.INGREDIENT).build();
+            given(includeRepository.findByProductIdAndProductMerchantId(productId, merchantId))
+                    .willReturn(List.of(packaging, legacyNullKind, ingredient));
+
+            order.setOrigin(OrderOrigin.MENUBANK);
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            assertThat(result.getItems().get(0).getInsumos())
+                    .extracting(com.MenuBank.MenuBank.product.IncludeResponse::getName)
+                    .containsExactlyInAnyOrder("Copo", "Açaí Goat");
         }
 
         @Test
@@ -805,6 +1035,30 @@ class OrderServiceTest {
             orderService.update(merchantId, orderId, updateWithStatus);
 
             then(orderRepository).should().save(argThat(savedOrder -> savedOrder.getStatus() == OrderStatus.CANCELLED));
+        }
+
+        @Test
+        @DisplayName("deve resolver cliente por customerName também na atualização")
+        void shouldResolveCustomerByNameOnUpdate() {
+            Customer joao = Customer.builder()
+                    .id(UUID.randomUUID())
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .name("João")
+                    .build();
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findAllByMerchantId(merchantId)).willReturn(List.of(joao));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            OrderRequest byName = OrderRequest.builder()
+                    .customerName("joao")
+                    .items(orderRequest.getItems())
+                    .build();
+
+            orderService.update(merchantId, orderId, byName);
+
+            then(orderRepository).should().save(argThat(saved -> saved.getCustomer() == joao));
+            then(customerRepository).should(never()).save(any(Customer.class));
         }
 
         @Test

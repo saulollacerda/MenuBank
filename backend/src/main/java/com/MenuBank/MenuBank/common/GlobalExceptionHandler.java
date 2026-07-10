@@ -81,6 +81,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleUnreadableBody(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "Corpo da requisição inválido");
+        problem.setTitle("Dados inválidos");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
     @ExceptionHandler(IngredientNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleIngredientNotFound(IngredientNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
