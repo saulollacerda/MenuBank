@@ -23,5 +23,12 @@ public class OrderItemRequest {
     @Valid
     @Builder.Default
     private List<OrderItemExtraIngredientRequest> extraIngredients = List.of();
+
+    /**
+     * Ids dos includes da ficha técnica que o operador desmarcou neste item.
+     * Ausente/vazio = ficha completa entra no custo.
+     */
+    @Builder.Default
+    private List<UUID> excludedIncludeIds = List.of();
 }
 
