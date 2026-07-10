@@ -35,6 +35,9 @@ public class Invoice {
     @Column(name = "stripe_invoice_id", length = 255, unique = true)
     private String stripeInvoiceId;
 
+    @Column(name = "abacatepay_billing_id", length = 255, unique = true)
+    private String abacatepayBillingId;
+
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 

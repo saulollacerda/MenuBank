@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
@@ -19,6 +19,7 @@ import {
   brl,
 } from '@/design'
 import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
+import { catalogOriginLabel, catalogOriginPillColor } from '@/types/Category'
 
 const productStore = useProductStore()
 const categoryStore = useCategoryStore()
@@ -199,7 +200,26 @@ const recipeMargin = computed(() => {
   return ((price - recipeTotalCost.value) / price) * 100
 })
 
-const cols = '1.5fr 1fr 100px 100px 100px 100px 90px 130px'
+// The Ficha column ("Abrir") only exists on phones/tablets, where the row
+// actions sit far right after horizontal scroll; desktop opens the recipe
+// via the row action icon instead.
+const smallScreenQuery =
+  typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1024px)') : null
+const isSmallScreen = ref(smallScreenQuery?.matches ?? false)
+function onScreenChange(e: MediaQueryListEvent) {
+  isSmallScreen.value = e.matches
+}
+onMounted(() => smallScreenQuery?.addEventListener('change', onScreenChange))
+onUnmounted(() => smallScreenQuery?.removeEventListener('change', onScreenChange))
+
+// Tighter fixed columns (Preço/Custo/Margem/Ficha) so the name column keeps
+// room on smaller screens instead of truncating.
+const cols = computed(() =>
+  isSmallScreen.value
+    ? '2.6fr 0.8fr 84px 84px 84px 64px 88px 112px'
+    : '2.6fr 0.8fr 84px 84px 84px 88px 112px',
+)
+const tableMinWidth = computed(() => (isSmallScreen.value ? '780px' : '708px'))
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
@@ -242,15 +262,7 @@ onMounted(() => {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <div
         v-if="anotaAIStore.error"
         :style="{
@@ -337,11 +349,14 @@ onMounted(() => {
           minHeight: 0,
         }"
       >
+        <div class="table-scroll">
+        <div :style="{ minWidth: tableMinWidth }">
         <div
+          class="table-sticky-header"
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
-            gap: '12px',
+            gap: '8px',
             padding: '12px 18px',
             background: UI.bgSoft,
             borderBottom: `1px solid ${UI.border}`,
@@ -358,12 +373,12 @@ onMounted(() => {
           <span style="text-align: right">Preço</span>
           <span style="text-align: right">Custo</span>
           <span style="text-align: right">Margem</span>
-          <span>Ficha</span>
+          <span v-if="isSmallScreen" data-testid="ficha-column-header">Ficha</span>
           <span>Status</span>
           <span style="text-align: right">Ações</span>
         </div>
 
-        <div style="flex: 1; overflow: auto">
+        <div>
           <div
             v-if="productStore.loading"
             :style="{ padding: '32px', textAlign: 'center', color: UI.textMute }"
@@ -384,7 +399,7 @@ onMounted(() => {
             :style="{
               display: 'grid',
               gridTemplateColumns: cols,
-              gap: '12px',
+              gap: '8px',
               padding: '12px 18px',
               borderBottom: i === filteredItems.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
               fontSize: '13px',
@@ -412,6 +427,13 @@ onMounted(() => {
               >
                 {{ p.name }}
               </span>
+              <UIPill
+                :color="catalogOriginPillColor(p.origin)"
+                size="sm"
+                data-testid="product-origin-pill"
+              >
+                {{ catalogOriginLabel(p.origin) }}
+              </UIPill>
             </span>
             <span :style="{ color: UI.textSub }">{{ p.categoryName }}</span>
             <span
@@ -429,8 +451,16 @@ onMounted(() => {
             <span :style="{ textAlign: 'right', color: UI.textMute, fontVariantNumeric: 'tabular-nums' }">
               —
             </span>
-            <span>
-              <UIPill color="gray" size="sm">Abrir</UIPill>
+            <span v-if="isSmallScreen">
+              <button
+                type="button"
+                :data-testid="`product-${p.id}-open-recipe-pill`"
+                title="Abrir ficha técnica"
+                style="border: none; background: none; padding: 0; cursor: pointer"
+                @click="openRecipe(p)"
+              >
+                <UIPill color="blue" size="sm">Abrir</UIPill>
+              </button>
             </span>
             <span>
               <UIPill :color="p.status === 'ACTIVE' ? 'emerald' : 'gray'" dot>
@@ -461,6 +491,8 @@ onMounted(() => {
               />
             </span>
           </div>
+        </div>
+        </div>
         </div>
 
         <div

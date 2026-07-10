@@ -174,7 +174,7 @@ describe('productStore', () => {
     await store.removeInclude('p1', 'inc1')
 
     expect(store.includes).toEqual([
-      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1 },
+      { id: 'inc2', productId: 'p1', name: 'Colher', cost: 0.1, quantity: 1, totalCost: 0.1, kind: 'PACKAGING' },
     ])
   })
 

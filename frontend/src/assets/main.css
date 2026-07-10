@@ -732,28 +732,82 @@ select.form-control {
   color: var(--color-white);
 }
 
-/* ===== Responsive ===== */
+/* ===== Responsive utilities ===== */
+
+/* Page content wrapper below the topbar: full-height flex column. */
+.view-content {
+  flex: 1;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Wraps grid-based table header + rows so narrow screens scroll horizontally
+   while the header stays pinned during vertical scroll. The direct child sets
+   the min-width that fits the column template. */
+.table-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.table-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Column grids that collapse on narrow screens. Gap is set at the call site. */
+.grid-cols-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.grid-cols-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-cols-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Horizontal row of panels/charts that stacks vertically on narrow screens. */
+.stack-row {
+  display: flex;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .sidebar {
-    width: 60px;
+  .stack-row {
+    flex-direction: column;
   }
-  .sidebar-logo span,
-  .sidebar-nav a span {
-    display: none;
-  }
-  .sidebar-logo {
-    padding: 20px 12px;
-    text-align: center;
-  }
-  .sidebar-nav a {
-    justify-content: center;
-    padding: 10px;
-  }
-  .main-content {
-    margin-left: 60px;
-    padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .view-content {
+    padding: 14px;
   }
   .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .grid-cols-3,
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid-cols-4 {
     grid-template-columns: 1fr;
   }
 }

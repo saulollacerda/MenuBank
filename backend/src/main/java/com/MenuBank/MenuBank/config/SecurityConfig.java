@@ -38,6 +38,9 @@ public class SecurityConfig {
                             // obtain a token without a bearer token.
                             .requestMatchers("/api/auth/dev-login", "/api/auth/dev-register").permitAll()
                             .requestMatchers("/api/plans").permitAll()
+                            // AbacatePay calls this endpoint server-to-server; authentication
+                            // is done via the webhookSecret query parameter.
+                            .requestMatchers("/api/webhooks/abacatepay").permitAll()
                             .anyRequest().authenticated()
                     )
                     .addFilterBefore(new JwtAuthFilter(jwtDecoder), UsernamePasswordAuthenticationFilter.class)

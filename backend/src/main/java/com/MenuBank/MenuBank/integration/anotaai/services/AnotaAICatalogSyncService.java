@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.anotaai.services;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAICatalogResponse;
@@ -78,6 +79,7 @@ public class AnotaAICatalogSyncService {
                         .merchant(merchantRepository.getReferenceById(merchantId))
                         .name(remoteCategory.getTitle())
                         .externalId(remoteCategory.getId())
+                        .origin(CatalogOrigin.ANOTA_AI)
                         .build();
                 category = categoryRepository.save(category);
                 categoriesCreated++;
@@ -111,6 +113,7 @@ public class AnotaAICatalogSyncService {
                             .status(status)
                             .externalId(remoteItem.getId())
                             .category(category)
+                            .origin(CatalogOrigin.ANOTA_AI)
                             .build();
                     productRepository.save(product);
                     productsCreated++;

@@ -6,7 +6,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useOrderStore } from '@/stores/orderStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
-import { UI, UITopbar, UIBtn, UIIcon, brl, num } from '@/design'
+import { UI, UITopbar, UIBtn, UIIcon, UIPeriodPicker, periodLabel as formatPeriod, brl, num } from '@/design'
 import type { OrderOrigin } from '@/types/Order'
 
 const dash = useDashboardStore()
@@ -15,13 +15,8 @@ const notif = useNotificationStore()
 const auth = useAuthStore()
 const router = useRouter()
 
-const MONTHS_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-]
-
 const periodLabel = computed(
-  () => `${MONTHS_PT[dash.selectedMonthNumber - 1]} ${dash.selectedYear}`,
+  () => formatPeriod(dash.selectedMonthNumber, dash.selectedYear),
 )
 
 const kpis = computed(() => {
@@ -68,29 +63,6 @@ function formatDay(dateStr: string): string {
   return String(d.getDate()).padStart(2, '0')
 }
 
-const yearOptions = computed(() => {
-  const now = new Date().getFullYear()
-  const start = 2026
-  const end = Math.max(now, start)
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-})
-
-const currentYear = new Date().getFullYear()
-const currentMonth = new Date().getMonth() + 1
-
-const monthOptions = computed(() => {
-  const maxMonth = dash.selectedYear === currentYear ? currentMonth : 12
-  return MONTHS_PT.slice(0, maxMonth).map((label, i) => ({ value: i + 1, label }))
-})
-
-watch(
-  () => dash.selectedYear,
-  () => {
-    const max = dash.selectedYear === currentYear ? currentMonth : 12
-    if (dash.selectedMonthNumber > max) dash.selectedMonthNumber = max
-  },
-)
-
 watch(
   () => [dash.selectedYear, dash.selectedMonthNumber],
   () => {
@@ -126,37 +98,12 @@ function navIngredientsWithName(name: string | null) {
     <UITopbar
       :title="`Olá, ${auth.restaurantName || 'MenuBank'} 👋`"
       :subtitle="`Resumo da sua operação em ${periodLabel}`"
-      :period-label="periodLabel"
     >
       <template #actions>
-        <select
-          v-model.number="dash.selectedMonthNumber"
-          :style="{
-            padding: '8px 10px',
-            background: UI.panel,
-            border: `1px solid ${UI.border}`,
-            borderRadius: '9px',
-            fontSize: '12.5px',
-            color: UI.text,
-            cursor: 'pointer',
-          }"
-        >
-          <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-        </select>
-        <select
-          v-model.number="dash.selectedYear"
-          :style="{
-            padding: '8px 10px',
-            background: UI.panel,
-            border: `1px solid ${UI.border}`,
-            borderRadius: '9px',
-            fontSize: '12.5px',
-            color: UI.text,
-            cursor: 'pointer',
-          }"
-        >
-          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-        </select>
+        <UIPeriodPicker
+          v-model:month="dash.selectedMonthNumber"
+          v-model:year="dash.selectedYear"
+        />
         <UIBtn
           icon="download"
           variant="secondary"
@@ -176,16 +123,8 @@ function navIngredientsWithName(name: string | null) {
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        overflow: auto;
-      "
-    >
+    <div class="view-content" style="gap: 18px; overflow: auto">
+
       <div
         v-if="dash.error"
         :style="{
@@ -200,7 +139,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- KPIs -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px">
+      <div class="grid-cols-4" style="gap: 16px">
         <div
           v-for="k in kpis"
           :key="k.label"
@@ -251,7 +190,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- Mid: sales chart + peak hours placeholder -->
-      <div style="display: flex; gap: 16px; min-height: 348px">
+      <div class="stack-row" style="min-height: 348px">
         <div
           :style="{
             background: UI.panel,
@@ -398,7 +337,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- Bottom: top products + alerts + recent orders -->
-      <div style="display: flex; gap: 16px; flex: 1; min-height: 0">
+      <div class="stack-row" style="flex: 1; min-height: 0">
         <!-- Top products -->
         <div
           :style="{

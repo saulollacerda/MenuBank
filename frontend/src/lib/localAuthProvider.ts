@@ -12,15 +12,48 @@ function notify(session: AuthSession | null) {
   for (const cb of listeners) cb(session)
 }
 
-/** Best-effort read of the `email` claim from the JWT payload (display only). */
-function decodeEmail(token: string): string {
+/** Decodes the JWT payload without verifying the signature; null when unparseable. */
+function decodePayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split('.')[1] ?? ''
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    return (json.email as string) ?? ''
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
   } catch {
-    return ''
+    return null
   }
+}
+
+/** Best-effort read of the `email` claim from the JWT payload (display only). */
+function decodeEmail(token: string): string {
+  return (decodePayload(token)?.email as string) ?? ''
+}
+
+/**
+ * Reads the persisted token, discarding it when the payload is unreadable or the
+ * `exp` claim is in the past — an expired token must not keep the UI "logged in"
+ * until the first 401. Tokens without `exp` are accepted (dev-token compat);
+ * the backend remains the signature/expiry authority either way.
+ */
+function readValidToken(): string | null {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (!token) return null
+
+  const payload = decodePayload(token)
+  const exp = payload?.exp
+  const expired = typeof exp === 'number' && exp * 1000 <= Date.now()
+  if (!payload || expired) {
+    localStorage.removeItem(TOKEN_KEY)
+    return null
+  }
+  return token
+}
+
+// Cross-tab sync: sign-in/sign-out in another tab fires a `storage` event here,
+// keeping this tab's session state (and router guards) consistent.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== TOKEN_KEY) return
+    notify(event.newValue ? sessionFromToken(event.newValue) : null)
+  })
 }
 
 function sessionFromToken(token: string): AuthSession {
@@ -41,7 +74,7 @@ function persist(token: string): AuthSession {
  */
 export const localAuthProvider: AuthProvider = {
   async init() {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = readValidToken()
     return token ? sessionFromToken(token) : null
   },
 
@@ -83,6 +116,15 @@ export const localAuthProvider: AuthProvider = {
   },
 
   async getAccessToken() {
-    return localStorage.getItem(TOKEN_KEY)
+    return readValidToken()
+  },
+
+  // No email delivery in local dev — failing loudly beats faking a sent email.
+  async requestPasswordReset() {
+    throw new AuthError('not_supported')
+  },
+
+  async updatePassword() {
+    throw new AuthError('not_supported')
   },
 }

@@ -147,6 +147,90 @@ class OrderControllerTest {
         }
 
         @Test
+        @DisplayName("deve retornar 400 quando nem customerId nem customerName são informados")
+        void shouldReturn400WhenNeitherCustomerIdNorCustomerNameProvided() throws Exception {
+            OrderRequest noCustomer = OrderRequest.builder()
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .build()))
+                    .build();
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(noCustomer)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.customerId").value("Cliente é obrigatório"));
+
+            then(orderService).should(never()).create(any(), any(OrderRequest.class));
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando customerName contém apenas espaços")
+        void shouldReturn400WhenCustomerNameIsBlank() throws Exception {
+            OrderRequest blankName = OrderRequest.builder()
+                    .customerName("   ")
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .build()))
+                    .build();
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(blankName)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.customerId").value("Cliente é obrigatório"));
+
+            then(orderService).should(never()).create(any(), any(OrderRequest.class));
+        }
+
+        @Test
+        @DisplayName("deve retornar 201 quando apenas customerName é informado")
+        void shouldCreate201WithCustomerNameOnly() throws Exception {
+            OrderRequest nameOnly = OrderRequest.builder()
+                    .customerName("Maria Clara")
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .build()))
+                    .build();
+
+            given(orderService.create(any(), any(OrderRequest.class))).willReturn(orderResponse);
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(nameOnly)))
+                    .andExpect(status().isCreated());
+
+            org.mockito.ArgumentCaptor<OrderRequest> captor =
+                    org.mockito.ArgumentCaptor.forClass(OrderRequest.class);
+            then(orderService).should().create(any(), captor.capture());
+            org.assertj.core.api.Assertions.assertThat(captor.getValue().getCustomerName())
+                    .isEqualTo("Maria Clara");
+            org.assertj.core.api.Assertions.assertThat(captor.getValue().getCustomerId()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando customerId é string vazia (payload legado)")
+        void shouldReturn400WhenCustomerIdIsEmptyString() throws Exception {
+            String legacyPayload = """
+                    {"customerId":"","items":[{"productId":"%s","quantity":1}]}
+                    """.formatted(productId);
+
+            mockMvc.perform(post("/api/orders")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(legacyPayload))
+                    .andExpect(status().isBadRequest());
+
+            then(orderService).should(never()).create(any(), any(OrderRequest.class));
+        }
+
+        @Test
         @DisplayName("deve retornar 400 quando lista de itens está vazia")
         void shouldReturn400WhenItemsListIsEmpty() throws Exception {
             OrderRequest emptyItems = OrderRequest.builder()
@@ -362,6 +446,26 @@ class OrderControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(OrderRequest.builder().build())))
                     .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando nem customerId nem customerName são informados na atualização")
+        void shouldReturn400OnUpdateWhenNoCustomerReference() throws Exception {
+            OrderRequest noCustomer = OrderRequest.builder()
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(1)
+                            .build()))
+                    .build();
+
+            mockMvc.perform(put("/api/orders/{id}", orderId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(noCustomer)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.customerId").value("Cliente é obrigatório"));
+
+            then(orderService).should(never()).update(any(), any(), any(OrderRequest.class));
         }
     }
 

@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
 import type { DayOfWeek, OpeningHour } from '@/types/User'
+import { ifoodAuthService, type IfoodStatusResponse } from '@/services/ifoodAuthService'
+import { billingService } from '@/services/billingService'
+import type { PlanResponse, SubscriptionResponse } from '@/types/Billing'
+import { clearPendingIfoodAuth, hasPendingIfoodAuth } from '@/composables/useIfoodConnectFlow'
+import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
+import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
+import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
 
 const authStore = useAuthStore()
+const anotaAIStore = useAnotaAIStore()
+const notificationStore = useNotificationStore()
 const route = useRoute()
 
 const apiKey = ref('')
@@ -85,17 +96,189 @@ async function loadProfile() {
   }
 }
 
+// ── iFood ─────────────────────────────────────────────────────────────────────
+
+const ifoodStatus = ref<IfoodStatusResponse | null>(null)
+const ifoodModal = ref(false)
+const ifoodResume = ref(false)
+const ifoodCatalogModal = ref(false)
+const ifoodSyncModal = ref(false)
+
+const ifoodConnected = computed(() => ifoodStatus.value?.connected ?? false)
+const ifoodCatalogImportedLabel = computed(() => {
+  const importedAt = ifoodStatus.value?.catalogImportedAt
+  if (!importedAt) return null
+  return new Date(importedAt).toLocaleDateString('pt-BR')
+})
+
+function startIfoodAuth() {
+  ifoodResume.value = false
+  ifoodModal.value = true
+}
+
+async function revokeIfood() {
+  try {
+    await ifoodAuthService.revoke()
+    clearPendingIfoodAuth()
+    await loadIfoodStatus()
+  } catch {
+    /* ignore */
+  }
+}
+
+function handleIfoodStage1Action() {
+  if (ifoodConnected.value) {
+    revokeIfood()
+  } else {
+    startIfoodAuth()
+  }
+}
+
+async function handleIfoodConnected() {
+  await loadIfoodStatus()
+}
+
+async function handleIfoodCatalogImported() {
+  // o modal continua aberto exibindo o resumo; aqui só atualizamos o checklist
+  await loadIfoodStatus()
+}
+
+function handleIfoodSyncUpdated(status: IfoodStatusResponse) {
+  ifoodStatus.value = status
+  ifoodSyncModal.value = false
+}
+
 async function handleSaveKey() {
   successMessage.value = null
   try {
     const trimmed = apiKey.value.trim()
     await authStore.updateAnotaAIKey(trimmed.length > 0 ? trimmed : null)
     successMessage.value = 'Chave do Anota.AI salva com sucesso.'
+    showTokenForm.value = false
     setTimeout(() => (successMessage.value = null), 4000)
   } catch {
     /* error in store */
   }
 }
+
+// ── Integration cards (collapsible checklists) ───────────────────────────────
+
+const expandedIntegrations = ref<{ ifood: boolean; anotaai: boolean }>({
+  ifood: false,
+  anotaai: false,
+})
+
+function toggleIntegration(key: 'ifood' | 'anotaai') {
+  expandedIntegrations.value[key] = !expandedIntegrations.value[key]
+}
+
+// ── Anota.AI checklist ────────────────────────────────────────────────────────
+
+const showTokenForm = ref(false)
+
+const anotaAiConnected = computed(() => !!user.value?.anotaAiApiKey)
+const anotaAiHoursConfigured = computed(() => (user.value?.openingHours?.length ?? 0) > 0)
+
+async function handleSyncAnotaAIOrders() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncOrders()
+  } catch {
+    /* error in store */
+  } finally {
+    notificationStore.refreshCount()
+  }
+}
+
+// ── Plano e pagamento ────────────────────────────────────────────────────────
+
+const billingPlans = ref<PlanResponse[]>([])
+const billingSubscription = ref<SubscriptionResponse | null>(null)
+const billingLoading = ref(false)
+const billingLoaded = ref(false)
+const billingError = ref<string | null>(null)
+const subscribingPlanId = ref<string | null>(null)
+
+const BILLING_STATUS_LABELS: Record<SubscriptionResponse['status'], string> = {
+  TRIAL: 'Período de teste',
+  ACTIVE: 'Ativa',
+  PAST_DUE: 'Pagamento pendente',
+  CANCELED: 'Cancelada',
+}
+
+const billingStatusLabel = computed(() => {
+  const sub = billingSubscription.value
+  return sub ? (BILLING_STATUS_LABELS[sub.status] ?? sub.status) : ''
+})
+
+const billingStatusDetail = computed(() => {
+  const sub = billingSubscription.value
+  if (!sub) return ''
+  if (sub.status === 'TRIAL' && sub.trialEndsAt) {
+    return `Seu teste grátis termina em ${formatDate(sub.trialEndsAt)}. Assine para não perder o acesso.`
+  }
+  if (sub.status === 'ACTIVE') {
+    return `Plano ${sub.planName ?? ''} — válida até ${formatDate(sub.currentPeriodEnd)}.`
+  }
+  if (sub.status === 'PAST_DUE') {
+    return 'Há um pagamento pendente. Renove a assinatura para manter o acesso.'
+  }
+  return 'Sua assinatura está cancelada. Assine um plano para continuar usando o MenuBank.'
+})
+
+function formatBRL(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleDateString('pt-BR') : ''
+}
+
+function planFeatureDescription(plan: PlanResponse) {
+  const description = plan.features?.description
+  return typeof description === 'string' ? description : 'Acesso a todas as funcionalidades'
+}
+
+async function loadBilling() {
+  billingLoading.value = true
+  billingError.value = null
+  try {
+    // Merchants created before the trial flow may have no subscription row
+    // (404) — the plans must still be listed so they can subscribe.
+    const [subscription, plans] = await Promise.allSettled([
+      billingService.getMySubscription(),
+      billingService.listPlans(),
+    ])
+    if (plans.status === 'rejected') throw plans.reason
+    billingPlans.value = plans.value
+    billingSubscription.value = subscription.status === 'fulfilled' ? subscription.value : null
+    billingLoaded.value = true
+  } catch {
+    billingError.value = 'Não foi possível carregar seu plano. Tente novamente.'
+  } finally {
+    billingLoading.value = false
+  }
+}
+
+async function subscribeToPlan(plan: PlanResponse) {
+  subscribingPlanId.value = plan.id
+  billingError.value = null
+  try {
+    const { url } = await billingService.createCheckout(plan.id)
+    // Same-tab redirect: AbacatePay brings the user back via returnUrl/completionUrl.
+    window.open(url, '_self')
+  } catch {
+    billingError.value = 'Não foi possível iniciar o pagamento. Tente novamente.'
+  } finally {
+    subscribingPlanId.value = null
+  }
+}
+
+watch(section, (current) => {
+  if (current === 'billing' && !billingLoaded.value && !billingLoading.value) {
+    loadBilling()
+  }
+})
 
 const SUBNAV: Array<{
   id: typeof section.value
@@ -112,11 +295,29 @@ const SUBNAV: Array<{
   { id: 'danger', ic: 'alert', l: 'Zona perigosa', danger: true },
 ]
 
+async function loadIfoodStatus() {
+  try {
+    ifoodStatus.value = await ifoodAuthService.status()
+  } catch {
+    /* best-effort — mantém o estado atual em caso de erro */
+  }
+}
+
 onMounted(async () => {
-  await loadProfile()
+  await Promise.all([loadProfile(), loadIfoodStatus()])
   const q = route.query.section
   if (q && typeof q === 'string' && SUBNAV.some((s) => s.id === q)) {
     section.value = q as typeof section.value
+  }
+
+  // Resume an interrupted iFood linking flow (reload/navigation mid-flow).
+  if (!ifoodConnected.value && hasPendingIfoodAuth()) {
+    section.value = 'ints'
+    expandedIntegrations.value.ifood = true
+    ifoodResume.value = true
+    ifoodModal.value = true
+  } else if (ifoodConnected.value && hasPendingIfoodAuth()) {
+    clearPendingIfoodAuth()
   }
 })
 </script>
@@ -128,9 +329,9 @@ onMounted(async () => {
       subtitle="Perfil da loja, integrações e preferências"
     />
 
-    <div style="flex: 1; padding: 28px; display: flex; gap: 20px; overflow: hidden; min-height: 0">
+    <div class="settings-layout">
       <!-- Sub-nav -->
-      <div style="width: 220px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0">
+      <div class="settings-subnav">
         <div
           v-for="it in SUBNAV"
           :key="it.id"
@@ -251,7 +452,7 @@ onMounted(async () => {
               <UIBtn variant="secondary" size="sm" icon="upload">Trocar logo</UIBtn>
             </div>
 
-            <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
+            <div class="grid-cols-2" style="flex: 1; gap: 14px">
               <UIField label="Nome da loja">
                 <UIInput :model-value="user?.merchantName ?? ''" disabled />
               </UIField>
@@ -314,26 +515,238 @@ onMounted(async () => {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 8px">
+            <!-- iFood -->
             <div
               :style="{
                 display: 'flex',
-                alignItems: 'flex-start',
-                gap: '14px',
-                padding: '14px',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '12px 14px',
                 background: UI.bgSoft,
                 border: `1px solid ${UI.border}`,
                 borderRadius: '11px',
-                flexDirection: 'column',
               }"
             >
-              <div style="display: flex; align-items: center; gap: 14px; width: 100%">
+              <div
+                data-testid="ifood-card-toggle"
+                style="display: flex; align-items: center; gap: 14px; cursor: pointer"
+                @click="toggleIntegration('ifood')"
+              >
                 <div
                   :style="{
                     width: '38px',
                     height: '38px',
                     borderRadius: '9px',
-                    background: apiKey ? UI.emeraldBg : UI.bg,
-                    color: apiKey ? UI.emerald2 : UI.textMute,
+                    background: ifoodConnected ? UI.emeraldBg : UI.bg,
+                    color: ifoodConnected ? UI.emerald2 : UI.textMute,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }"
+                >
+                  <UIIcon name="sync" :size="16" />
+                </div>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '13.5px', fontWeight: 600 }">iFood</div>
+                  <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
+                    Importação de cardápio e pedidos via API oficial do iFood, em 3 etapas.
+                  </div>
+                </div>
+                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIIcon
+                  :name="expandedIntegrations.ifood ? 'chevDown' : 'chevRight'"
+                  :size="15"
+                  :style="{ color: UI.textSub, flexShrink: 0 }"
+                />
+              </div>
+
+              <template v-if="expandedIntegrations.ifood">
+              <!-- Etapa 1 — Conectar -->
+              <div
+                data-testid="ifood-stage-connect"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodConnected ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodConnected ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodConnected ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodConnected" name="check" :size="12" />
+                  <template v-else>1</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Conectar conta</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Autorize o MenuBank no portal do iFood.
+                  </div>
+                </div>
+                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  :variant="ifoodConnected ? 'ghost' : 'primary'"
+                  size="sm"
+                  data-testid="ifood-stage-connect-action"
+                  @click="handleIfoodStage1Action"
+                >
+                  {{ ifoodConnected ? 'Desconectar' : 'Conectar' }}
+                </UIBtn>
+              </div>
+
+              <!-- Etapa 2 — Importar cardápio -->
+              <div
+                data-testid="ifood-stage-catalog"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: ifoodConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodCatalogImportedLabel ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodCatalogImportedLabel ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodCatalogImportedLabel ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodCatalogImportedLabel" name="check" :size="12" />
+                  <template v-else>2</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Importar cardápio</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    {{
+                      ifoodCatalogImportedLabel
+                        ? `Última importação: ${ifoodCatalogImportedLabel}`
+                        : 'Evita erros de produto não cadastrado nos pedidos.'
+                    }}
+                  </div>
+                </div>
+                <UIPill :color="ifoodCatalogImportedLabel ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodCatalogImportedLabel ? 'Importado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-catalog-action"
+                  :disabled="!ifoodConnected"
+                  @click="ifoodCatalogModal = true"
+                >
+                  {{ ifoodCatalogImportedLabel ? 'Reimportar' : 'Importar' }}
+                </UIBtn>
+              </div>
+
+              <!-- Etapa 3 — Sincronia de pedidos -->
+              <div
+                data-testid="ifood-stage-sync"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: ifoodConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: ifoodStatus?.orderSyncEnabled ? UI.emeraldBg : UI.bgSoft,
+                    color: ifoodStatus?.orderSyncEnabled ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${ifoodStatus?.orderSyncEnabled ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="ifoodStatus?.orderSyncEnabled" name="check" :size="12" />
+                  <template v-else>3</template>
+                </span>
+                <div style="flex: 1">
+                  <div
+                    :style="{
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }"
+                  >
+                    Sincronia de pedidos
+                    <UIIcon
+                      v-if="ifoodStatus?.orderSyncEnabled && !ifoodCatalogImportedLabel"
+                      data-testid="ifood-stage-sync-warning"
+                      name="alert"
+                      :size="13"
+                      :style="{ color: UI.rose }"
+                      title="Sincronia ativa sem cardápio importado — itens desconhecidos serão ignorados."
+                    />
+                  </div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Importa seus pedidos do iFood automaticamente.
+                  </div>
+                </div>
+                <UIPill :color="ifoodStatus?.orderSyncEnabled ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodStatus?.orderSyncEnabled ? 'Ativa' : 'Inativa' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-sync-action"
+                  :disabled="!ifoodConnected"
+                  @click="ifoodSyncModal = true"
+                >
+                  {{ ifoodStatus?.orderSyncEnabled ? 'Gerenciar' : 'Ativar' }}
+                </UIBtn>
+              </div>
+              </template>
+            </div>
+
+            <div
+              :style="{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '12px 14px',
+                background: UI.bgSoft,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '11px',
+              }"
+            >
+              <div
+                data-testid="anotaai-card-toggle"
+                style="display: flex; align-items: center; gap: 14px; cursor: pointer"
+                @click="toggleIntegration('anotaai')"
+              >
+                <div
+                  :style="{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '9px',
+                    background: anotaAiConnected ? UI.emeraldBg : UI.bg,
+                    color: anotaAiConnected ? UI.emerald2 : UI.textMute,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -345,16 +758,67 @@ onMounted(async () => {
                 <div style="flex: 1">
                   <div :style="{ fontSize: '13.5px', fontWeight: 600 }">Anota.AI</div>
                   <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
-                    Importação automática de pedidos · sincronização de cardápio.
+                    Importação automática de pedidos dentro dos horários da loja, em 3 etapas.
                   </div>
                 </div>
-                <UIPill :color="apiKey ? 'emerald' : 'gray'" dot>
-                  {{ apiKey ? 'Conectado' : 'Desconectado' }}
+                <UIPill :color="anotaAiConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected ? 'Conectado' : 'Pendente' }}
                 </UIPill>
+                <UIIcon
+                  :name="expandedIntegrations.anotaai ? 'chevDown' : 'chevRight'"
+                  :size="15"
+                  :style="{ color: UI.textSub, flexShrink: 0 }"
+                />
+              </div>
+
+              <template v-if="expandedIntegrations.anotaai">
+              <!-- Etapa 1 — Conectar -->
+              <div
+                data-testid="anotaai-stage-connect"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiConnected ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiConnected ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiConnected ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiConnected" name="check" :size="12" />
+                  <template v-else>1</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Conectar conta</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Salve o token de integração fornecido pelo Anota.AI.
+                  </div>
+                </div>
+                <UIPill :color="anotaAiConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  :variant="anotaAiConnected ? 'ghost' : 'primary'"
+                  size="sm"
+                  data-testid="anotaai-stage-connect-action"
+                  @click="showTokenForm = !showTokenForm"
+                >
+                  {{ anotaAiConnected ? 'Alterar' : 'Configurar' }}
+                </UIBtn>
               </div>
 
               <form
-                style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 4px"
+                v-if="showTokenForm || !anotaAiConnected"
+                style="width: 100%; display: flex; flex-direction: column; gap: 10px"
                 @submit.prevent="handleSaveKey"
               >
                 <UIField
@@ -388,11 +852,148 @@ onMounted(async () => {
                   </UIBtn>
                 </div>
               </form>
+
+              <!-- Etapa 2 — Horários de funcionamento -->
+              <div
+                data-testid="anotaai-stage-hours"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: anotaAiConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiHoursConfigured ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiHoursConfigured ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiHoursConfigured ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiHoursConfigured" name="check" :size="12" />
+                  <template v-else>2</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Horários de funcionamento</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Os pedidos são importados automaticamente dentro desses horários.
+                  </div>
+                </div>
+                <UIPill :color="anotaAiHoursConfigured ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiHoursConfigured ? 'Configurado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="anotaai-stage-hours-action"
+                  @click="section = 'horario'"
+                >
+                  {{ anotaAiHoursConfigured ? 'Ajustar' : 'Definir horários' }}
+                </UIBtn>
+              </div>
+
+              <!-- Etapa 3 — Importação de pedidos -->
+              <div
+                data-testid="anotaai-stage-import"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: anotaAiConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiConnected && anotaAiHoursConfigured ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiConnected && anotaAiHoursConfigured ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiConnected && anotaAiHoursConfigured ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiConnected && anotaAiHoursConfigured" name="check" :size="12" />
+                  <template v-else>3</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Importação de pedidos</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    {{
+                      anotaAiConnected && anotaAiHoursConfigured
+                        ? 'Sincronização automática ativa · importe manualmente se precisar.'
+                        : 'Conclua as etapas anteriores para ativar a sincronização automática.'
+                    }}
+                  </div>
+                </div>
+                <UIPill :color="anotaAiConnected && anotaAiHoursConfigured ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected && anotaAiHoursConfigured ? 'Automática' : 'Manual' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="anotaai-stage-import-action"
+                  :disabled="!anotaAiConnected || anotaAIStore.syncingOrders"
+                  @click="handleSyncAnotaAIOrders"
+                >
+                  {{ anotaAIStore.syncingOrders ? 'Importando…' : 'Importar agora' }}
+                </UIBtn>
+              </div>
+
+              <!-- Resultado da importação manual -->
+              <div
+                v-if="anotaAIStore.error"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.roseBg,
+                  color: UI.rose2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                {{ anotaAIStore.error }}
+              </div>
+              <div
+                v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.emeraldBg,
+                  color: UI.emerald2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
+                {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
+              </div>
+              <div
+                v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.amberBg,
+                  color: UI.amber2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não encontrado(s):
+                <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
+                Abra o sino para cadastrá-los.
+              </div>
+              </template>
             </div>
 
+            <!-- Em breve -->
             <div
               v-for="g in [
-                { name: 'iFood', desc: 'Em breve · backend ainda não suporta esta integração.' },
                 { name: 'WhatsApp Business', desc: 'Em breve · notificações de status para o cliente.' },
                 { name: 'Mercado Pago', desc: 'Em breve · conciliação de recebíveis.' },
               ]"
@@ -430,6 +1031,26 @@ onMounted(async () => {
               </div>
               <UIPill color="gray" dot>Em breve</UIPill>
             </div>
+
+            <!-- iFood connect flow -->
+            <IfoodConnectModal
+              v-if="ifoodModal"
+              :resume="ifoodResume"
+              @connected="handleIfoodConnected"
+              @close="ifoodModal = false"
+            />
+            <IfoodCatalogImportModal
+              v-if="ifoodCatalogModal"
+              @imported="handleIfoodCatalogImported"
+              @close="ifoodCatalogModal = false"
+            />
+            <IfoodOrderSyncModal
+              v-if="ifoodSyncModal"
+              :enabled="ifoodStatus?.orderSyncEnabled ?? false"
+              :catalog-imported="!!ifoodStatus?.catalogImportedAt"
+              @updated="handleIfoodSyncUpdated"
+              @close="ifoodSyncModal = false"
+            />
           </div>
         </UICard>
 
@@ -545,9 +1166,107 @@ onMounted(async () => {
           </div>
         </UICard>
 
+        <!-- Plano e pagamento -->
+        <UICard v-if="section === 'billing'" :padding="22">
+          <div
+            :style="{
+              fontSize: '16px',
+              fontWeight: 700,
+              color: UI.text,
+              letterSpacing: '-0.3px',
+              marginBottom: '6px',
+            }"
+          >
+            Plano e pagamento
+          </div>
+          <div :style="{ fontSize: '12.5px', color: UI.textSub, marginBottom: '18px' }">
+            Sua assinatura do MenuBank, com pagamento via Pix (AbacatePay).
+          </div>
+
+          <div
+            v-if="billingError"
+            data-testid="billing-error"
+            :style="{
+              padding: '10px 14px',
+              background: UI.roseBg,
+              color: UI.rose2,
+              borderRadius: '10px',
+              fontSize: '13px',
+              marginBottom: '14px',
+            }"
+          >
+            {{ billingError }}
+          </div>
+
+          <div v-if="billingLoading" :style="{ fontSize: '13px', color: UI.textSub }">
+            Carregando informações do plano…
+          </div>
+
+          <template v-else-if="billingLoaded">
+            <div
+              v-if="billingSubscription"
+              data-testid="billing-status"
+              :style="{
+                padding: '14px',
+                background: UI.panel,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '10px',
+                marginBottom: '16px',
+              }"
+            >
+              <div :style="{ fontSize: '13px', fontWeight: 600, color: UI.text }">
+                Assinatura: {{ billingStatusLabel }}
+              </div>
+              <div :style="{ fontSize: '12.5px', color: UI.textSub, marginTop: '2px' }">
+                {{ billingStatusDetail }}
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div
+                v-for="plan in billingPlans"
+                :key="plan.id"
+                data-testid="billing-plan-card"
+                :style="{
+                  padding: '16px',
+                  border: `1px solid ${UI.border}`,
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '14px',
+                }"
+              >
+                <div>
+                  <div :style="{ fontSize: '14px', fontWeight: 700, color: UI.text }">
+                    {{ plan.name }}
+                  </div>
+                  <div :style="{ fontSize: '12.5px', color: UI.textSub, marginTop: '2px' }">
+                    {{ planFeatureDescription(plan) }}
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px">
+                  <div :style="{ fontSize: '15px', fontWeight: 700, color: UI.text }">
+                    {{ formatBRL(plan.priceMonthly) }}
+                    <span :style="{ fontSize: '12px', color: UI.textSub, fontWeight: 500 }">/mês</span>
+                  </div>
+                  <UIBtn
+                    variant="primary"
+                    data-testid="billing-subscribe-action"
+                    :disabled="subscribingPlanId === plan.id"
+                    @click="subscribeToPlan(plan)"
+                  >
+                    {{ subscribingPlanId === plan.id ? 'Gerando pagamento…' : 'Assinar com Pix' }}
+                  </UIBtn>
+                </div>
+              </div>
+            </div>
+          </template>
+        </UICard>
+
         <!-- Placeholder sections -->
         <UICard
-          v-if="['alerta', 'time', 'billing'].includes(section)"
+          v-if="['alerta', 'time'].includes(section)"
           :padding="22"
         >
           <div
@@ -619,10 +1338,43 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.settings-layout {
+  flex: 1;
+  padding: 28px;
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.settings-subnav {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .settings-subnav-item {
   transition: opacity 0.12s ease, background 0.12s ease;
+  white-space: nowrap;
 }
 .settings-subnav-item:hover {
   opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .settings-layout {
+    flex-direction: column;
+    padding: 14px;
+    overflow: auto;
+  }
+  .settings-subnav {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
 }
 </style>

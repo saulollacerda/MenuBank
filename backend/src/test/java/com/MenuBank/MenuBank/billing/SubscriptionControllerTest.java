@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -35,6 +36,9 @@ class SubscriptionControllerTest {
 
     @MockitoBean
     private SubscriptionService subscriptionService;
+
+    @MockitoBean
+    private AbacatePayBillingService abacatePayBillingService;
 
     @MockitoBean
     private AuthHelper authHelper;
@@ -81,6 +85,56 @@ class SubscriptionControllerTest {
                     .willThrow(new SubscriptionNotFoundException(merchantId));
 
             mockMvc.perform(get("/api/subscription/me"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/subscription/checkout
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("POST /api/subscription/checkout")
+    class CreateCheckout {
+
+        @Test
+        @DisplayName("deve retornar 200 com a URL de pagamento da AbacatePay")
+        void shouldReturn200WithCheckoutUrl() throws Exception {
+            UUID planId = UUID.randomUUID();
+            given(abacatePayBillingService.createCheckout(any(), eq(planId)))
+                    .willReturn(CheckoutResponse.builder()
+                            .url("https://pay.abacatepay.com/bill_xyz")
+                            .build());
+
+            mockMvc.perform(post("/api/subscription/checkout")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"planId\":\"" + planId + "\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.url").value("https://pay.abacatepay.com/bill_xyz"));
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando planId está ausente")
+        void shouldReturn400WhenPlanIdMissing() throws Exception {
+            mockMvc.perform(post("/api/subscription/checkout")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("deve retornar 404 quando o plano não existe")
+        void shouldReturn404WhenPlanNotFound() throws Exception {
+            UUID planId = UUID.randomUUID();
+            given(abacatePayBillingService.createCheckout(any(), eq(planId)))
+                    .willThrow(new PlanNotFoundException(planId));
+
+            mockMvc.perform(post("/api/subscription/checkout")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"planId\":\"" + planId + "\"}"))
                     .andExpect(status().isNotFound());
         }
     }

@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.product;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -19,4 +20,5 @@ public class ProductResponse {
     private String categoryName;
     private BigDecimal unitCost;
     private BigDecimal marginPct;
+    private CatalogOrigin origin;
 }

@@ -263,6 +263,7 @@ onMounted(() => {
 watch(() => route.query.createName, () => maybeOpenFromQuery())
 
 const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
+const tableMinWidth = '820px'
 </script>
 
 <template>
@@ -283,15 +284,7 @@ const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
       </template>
     </UITopbar>
 
-    <div
-      style="
-        flex: 1;
-        padding: 28px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div class="view-content">
       <div
         v-if="store.error"
         :style="{
@@ -348,7 +341,10 @@ const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
           minHeight: 0,
         }"
       >
+        <div class="table-scroll">
+        <div :style="{ minWidth: tableMinWidth }">
         <div
+          class="table-sticky-header"
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
@@ -373,7 +369,7 @@ const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
           <span style="text-align: right">Ações</span>
         </div>
 
-        <div style="flex: 1; overflow: auto">
+        <div>
           <div
             v-if="store.loading"
             :style="{ padding: '32px', textAlign: 'center', color: UI.textMute }"
@@ -493,6 +489,8 @@ const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
               <UIRowAction icon="trash" color="rose" label="Excluir" @click="confirmDeleteId = it.id" />
             </span>
           </div>
+        </div>
+        </div>
         </div>
 
         <div

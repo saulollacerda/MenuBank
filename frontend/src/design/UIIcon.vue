@@ -10,7 +10,16 @@ defineProps<{ name: string; size?: number }>()
     viewBox="0 0 20 20"
     style="flex-shrink: 0; display: block"
   >
-    <template v-if="name === 'home'">
+    <template v-if="name === 'menu'">
+      <path
+        d="M3 5h14M3 10h14M3 15h14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
+    </template>
+    <template v-else-if="name === 'home'">
       <path
         d="M3 10l7-6 7 6v8a1 1 0 01-1 1h-3v-5h-6v5H4a1 1 0 01-1-1v-8z"
         fill="none"

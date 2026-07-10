@@ -179,6 +179,24 @@ class IngredientServiceTest {
         }
 
         @Test
+        @DisplayName("deve lançar DuplicateIngredientException quando canonical name já existe (variação de caixa/acento/espaço)")
+        void shouldThrowWhenCanonicalNameAlreadyExists() {
+            IngredientRequest variant = IngredientRequest.builder()
+                    .name("FARINHA  DE TRIGO ")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .build();
+            given(ingredientRepository.existsByNameAndMerchantId("FARINHA  DE TRIGO ", merchantId)).willReturn(false);
+            given(ingredientRepository.existsByCanonicalNameAndMerchantId("farinha de trigo", merchantId)).willReturn(true);
+
+            assertThatThrownBy(() -> ingredientService.create(merchantId, variant))
+                    .isInstanceOf(DuplicateIngredientException.class)
+                    .hasMessageContaining("nome");
+
+            then(ingredientRepository).should(never()).save(any(Ingredient.class));
+        }
+
+        @Test
         @DisplayName("deve popular canonicalName normalizado a partir do nome (lowercase, sem acentos)")
         void shouldPopulateCanonicalNameNormalizedFromName() {
             IngredientRequest withAccent = IngredientRequest.builder()
@@ -411,6 +429,44 @@ class IngredientServiceTest {
 
             then(ingredientRepository).should().save(argThat(i ->
                     new BigDecimal("9.99").compareTo(i.getSalePrice()) == 0));
+        }
+
+        @Test
+        @DisplayName("deve lançar DuplicateIngredientException ao renomear para canonical de outro ingrediente")
+        void shouldThrowWhenRenamingToCanonicalOfAnotherIngredient() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("MORANGO")
+                    .unit("g")
+                    .costPerUnit(new BigDecimal("0.10"))
+                    .build();
+
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.existsByCanonicalNameAndMerchantIdAndIdNot("morango", merchantId, ingredientId))
+                    .willReturn(true);
+
+            assertThatThrownBy(() -> ingredientService.update(merchantId, ingredientId, req))
+                    .isInstanceOf(DuplicateIngredientException.class)
+                    .hasMessageContaining("nome");
+
+            then(ingredientRepository).should(never()).save(any(Ingredient.class));
+        }
+
+        @Test
+        @DisplayName("deve permitir update mantendo o próprio nome (exclui o próprio id da checagem de duplicidade)")
+        void shouldAllowUpdateKeepingOwnName() {
+            IngredientRequest req = IngredientRequest.builder()
+                    .name("Farinha de Trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .build();
+
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            assertThatNoException().isThrownBy(() -> ingredientService.update(merchantId, ingredientId, req));
+
+            then(ingredientRepository).should()
+                    .existsByCanonicalNameAndMerchantIdAndIdNot("farinha de trigo", merchantId, ingredientId);
         }
 
         @Test

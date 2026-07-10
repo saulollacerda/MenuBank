@@ -56,6 +56,7 @@ Tenant-scoped multi-tenant: todas as entidades de negócio têm `merchant_id` (F
 | `orders` | Pedidos | `merchant_id`, `customer_id`, `fee_id` (nullable) |
 | `order_items` | Itens do pedido — `unit_price` e `unit_cost` são **snapshots** do momento do pedido | `order_id`, `product_id` |
 | `order_item_extra_ingredients` | Extras escolhidos pelo cliente no pedido — `cost_per_unit`, `name`, `unit` são **snapshots** | `order_item_id`, `ingredient_id` |
+| `order_item_unmatched_subitems` | SubItems de pedidos externos que ainda **não casaram** com nenhum `ingredient` (guardados para backfill quando o ingrediente for criado) — `canonical_name`, `name`, `quantity`, `price` | `order_item_id` |
 | `notifications` | Notificações do sistema (ex.: `MISSING_INGREDIENT`) | `merchant_id` |
 
 ### Conceitos-chave
@@ -68,7 +69,8 @@ Tenant-scoped multi-tenant: todas as entidades de negócio têm `merchant_id` (F
   - `order.totalCost` = soma de `(item.unitCost × item.quantity) + extras` — via `OrderCostCalculatorService`.
 - **Snapshots**: `order_items.unit_cost`, `order_items.unit_price`, e os campos de `order_item_extra_ingredients` (`cost_per_unit`, `name`, `unit`) preservam valores no momento do pedido — alterações posteriores em produtos/ingredientes não afetam o histórico financeiro.
 - **Multi-tenant**: `MerchantContext.getMerchantId()` lê o `sub` do JWT. Todo repository tem queries `findByXAndMerchantId(...)` para garantir isolamento de tenant.
-- **Match de extras (Anota.AI)**: `IngredientNameNormalizer` normaliza nomes (lowercase, sem acento, espaços colapsados) e busca em `ingredients.canonical_name`. Match não encontrado gera notificação `MISSING_INGREDIENT`.
+- **Match de extras (pedidos externos)**: `IngredientNameNormalizer` normaliza nomes (lowercase, sem acento, espaços colapsados) e busca em `ingredients.canonical_name`. Match não encontrado gera notificação `MISSING_INGREDIENT` **e** persiste o subItem em `order_item_unmatched_subitems`.
+- **Backfill de ingredientes**: ao criar um `Ingredient`, `OrderIngredientBackfillService` (acionado por `IngredientCreatedEvent`) busca subItems pendentes em `order_item_unmatched_subitems` por `canonical_name`, cria os `OrderItemExtraIngredient` correspondentes, remove o unmatched e recalcula `total_cost`/`estimated_profit`. **Totalmente interno ao core — não chama nenhuma API externa** (o dado cru já foi persistido na importação).
 
 ### Endpoints principais
 
@@ -86,7 +88,35 @@ Tenant-scoped multi-tenant: todas as entidades de negócio têm `merchant_id` (F
 | Notification | `/api/notifications` |
 | Auth | `/api/auth/login`, `/api/auth/register` |
 | Dashboard | `/api/dashboard?from=&to=` |
-| Anota.AI sync | `/api/anota-ai/sync/catalog`, `/api/anota-ai/sync/orders` |
+| Internal — AnotaAI key | `GET /api/internal/merchants/{merchantId}/anotaai-key` (called by adapter) |
+
+## RabbitMQ — External Order Integration
+
+The backend consumes orders published by `anotaai-adapter` (and future adapters). It has **no direct AnotaAI dependency** — it processes platform-agnostic `ExternalOrderMessage` events.
+
+| Queue | Consumer | Purpose |
+|---|---|---|
+| `menubank.external-orders` | `ExternalOrderConsumer` | Creates orders from external platforms |
+| `menubank.catalog-sync` | `ExternalCatalogConsumer` | Syncs categories/products from external catalog |
+
+### Package `integration/external`
+
+| Class | Responsibility |
+|---|---|
+| `ExternalOrderMessage` | Canonical DTO received from queue |
+| `ExternalOrderConsumer` | `@RabbitListener` — orchestrates order import |
+| `ExternalOrderImportService` | Creates Order/Customer/Items from the message |
+| `ExternalCustomerResolver` | Finds or creates Customer from message data |
+| `ExternalProductResolver` | Finds Product by internalId/externalId |
+| `ExternalExtraIngredientResolver` | Maps subItems to OrderItemExtraIngredient |
+| `ExternalCatalogMessage` | Canonical catalog DTO received from queue |
+| `ExternalCatalogConsumer` | `@RabbitListener` — triggers catalog sync |
+| `ExternalCatalogSyncService` | Creates/updates Category and Product entities |
+
+### Internal endpoint (called by adapter)
+
+`GET /api/internal/merchants/{merchantId}/anotaai-key` — returns `{ apiKey }` or 404.
+Authenticated via `X-Internal-Secret` header (shared secret between adapter and core).
 
 ## Running locally
 

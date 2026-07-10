@@ -13,6 +13,14 @@ import { AuthError } from '@/lib/authTypes'
 const TOKEN =
   'eyJhbGciOiJSUzI1NiJ9.eyJlbWFpbCI6ImRldkBleGFtcGxlLmNvbSJ9.sig'
 
+const TOKEN_KEY = 'menubank.auth.token'
+
+/** Builds an unsigned JWT with the given payload (signature irrelevant for the tests). */
+function fakeJwt(payload: Record<string, unknown>): string {
+  const body = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return `eyJhbGciOiJSUzI1NiJ9.${body}.sig`
+}
+
 // This env's global localStorage is an unusable stub; inject a clean in-memory one.
 const memoryStore = new Map<string, string>()
 vi.stubGlobal('localStorage', {
@@ -91,5 +99,99 @@ describe('localAuthProvider', () => {
 
     expect(await localAuthProvider.getAccessToken()).toBeNull()
     expect(await localAuthProvider.init()).toBeNull()
+  })
+
+  describe('recuperação de senha (não suportada no modo local)', () => {
+    it('requestPasswordReset lança AuthError not_supported', async () => {
+      await expect(localAuthProvider.requestPasswordReset('a@b.com')).rejects.toMatchObject({
+        code: 'not_supported',
+      })
+    })
+
+    it('updatePassword lança AuthError not_supported', async () => {
+      await expect(localAuthProvider.updatePassword('novaSenha1')).rejects.toMatchObject({
+        code: 'not_supported',
+      })
+    })
+  })
+
+  describe('validação de expiração (exp)', () => {
+    it('init retorna null e remove do storage um token expirado', async () => {
+      const expired = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) - 60 })
+      memoryStore.set(TOKEN_KEY, expired)
+
+      expect(await localAuthProvider.init()).toBeNull()
+      expect(memoryStore.has(TOKEN_KEY)).toBe(false)
+    })
+
+    it('init retorna null e remove do storage um token com payload ilegível', async () => {
+      memoryStore.set(TOKEN_KEY, 'garbage-not-a-jwt')
+
+      expect(await localAuthProvider.init()).toBeNull()
+      expect(memoryStore.has(TOKEN_KEY)).toBe(false)
+    })
+
+    it('init retorna a sessão para token com exp no futuro', async () => {
+      const valid = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) + 3600 })
+      memoryStore.set(TOKEN_KEY, valid)
+
+      const session = await localAuthProvider.init()
+
+      expect(session?.accessToken).toBe(valid)
+      expect(session?.user.email).toBe('dev@example.com')
+    })
+
+    it('getAccessToken retorna null para token expirado', async () => {
+      const expired = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) - 60 })
+      memoryStore.set(TOKEN_KEY, expired)
+
+      expect(await localAuthProvider.getAccessToken()).toBeNull()
+    })
+
+    it('token sem claim exp continua aceito (compat com tokens de dev)', async () => {
+      memoryStore.set(TOKEN_KEY, TOKEN)
+
+      const session = await localAuthProvider.init()
+
+      expect(session?.accessToken).toBe(TOKEN)
+      expect(await localAuthProvider.getAccessToken()).toBe(TOKEN)
+    })
+  })
+
+  describe('sincronização entre abas (storage event)', () => {
+    it('notifica listeners com null quando o token é removido em outra aba', async () => {
+      const callback = vi.fn()
+      localAuthProvider.onAuthChange(callback)
+
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: TOKEN_KEY, newValue: null }),
+      )
+
+      expect(callback).toHaveBeenCalledWith(null)
+    })
+
+    it('notifica listeners com a nova sessão quando o token muda em outra aba', async () => {
+      const callback = vi.fn()
+      localAuthProvider.onAuthChange(callback)
+
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: TOKEN_KEY, newValue: TOKEN }),
+      )
+
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: TOKEN }),
+      )
+    })
+
+    it('ignora storage events de outras chaves', async () => {
+      const callback = vi.fn()
+      localAuthProvider.onAuthChange(callback)
+
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: 'outra.chave', newValue: 'x' }),
+      )
+
+      expect(callback).not.toHaveBeenCalled()
+    })
   })
 })

@@ -42,6 +42,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByExternalIdAndMerchantId(String externalId, UUID merchantId);
 
+    Optional<Product> findByCanonicalNameAndMerchantId(String canonicalName, UUID merchantId);
+
     long countByCategoryIdAndMerchantId(UUID categoryId, UUID merchantId);
 
     @Query("""

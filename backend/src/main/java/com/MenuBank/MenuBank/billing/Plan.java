@@ -44,6 +44,9 @@ public class Plan {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "abacatepay_product_id", length = 255, unique = true)
+    private String abacatepayProductId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

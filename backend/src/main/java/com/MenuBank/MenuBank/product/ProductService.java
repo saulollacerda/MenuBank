@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
+import com.MenuBank.MenuBank.ingredient.IngredientNameNormalizer;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +39,7 @@ public class ProductService {
         Product product = Product.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
+                .canonicalName(IngredientNameNormalizer.normalize(request.getName()))
                 .price(request.getPrice())
                 .status(request.getStatus() != null ? request.getStatus() : ProductStatus.ACTIVE)
                 .category(category)
@@ -67,6 +69,7 @@ public class ProductService {
                 .orElseThrow(() -> new CategoryNotFoundException(request.getCategoryId()));
 
         product.setName(request.getName());
+        product.setCanonicalName(IngredientNameNormalizer.normalize(request.getName()));
         product.setPrice(request.getPrice());
         product.setCategory(category);
         if (request.getStatus() != null) {
@@ -97,6 +100,7 @@ public class ProductService {
                 .categoryName(category != null ? category.getName() : null)
                 .unitCost(unitCost)
                 .marginPct(marginPct)
+                .origin(product.getOrigin())
                 .build();
     }
 

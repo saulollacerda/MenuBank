@@ -22,8 +22,22 @@ vi.mock('@/stores/anotaAIStore', () => ({
 
 import ProductsView from '@/views/ProductsView.vue'
 
+function stubMatchMedia(matches: boolean) {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches,
+    media: '',
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }) as unknown as typeof window.matchMedia
+}
+
 describe('ProductsView', () => {
   beforeEach(() => {
+    stubMatchMedia(false)
     productStoreMock = {
       items: [
         {
@@ -233,5 +247,29 @@ describe('ProductsView', () => {
 
     expect(wrapper.find('[data-testid="include-i1-name-input"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Copo')
+  })
+
+  describe('Ficha column (small screens only)', () => {
+    it('should show the Abrir button and open the recipe modal when clicked on small screens', async () => {
+      stubMatchMedia(true)
+      const wrapper = mount(ProductsView)
+
+      expect(wrapper.get('[data-testid="ficha-column-header"]').text()).toBe('Ficha')
+
+      await wrapper.get('[data-testid="product-p1-open-recipe-pill"]').trigger('click')
+      await flushPromises()
+
+      expect(productStoreMock.fetchIncludes).toHaveBeenCalledWith('p1')
+      expect(wrapper.text()).toContain('Ficha Técnica — Açaí 330ml')
+    })
+
+    it('should hide the Ficha column entirely on large screens', () => {
+      stubMatchMedia(false)
+      const wrapper = mount(ProductsView)
+
+      expect(wrapper.find('[data-testid="ficha-column-header"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="product-p1-open-recipe-pill"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Abrir')
+    })
   })
 })

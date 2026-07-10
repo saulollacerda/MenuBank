@@ -45,6 +45,22 @@ public class Merchant {
     @Column(name = "anota_ai_api_key", columnDefinition = "TEXT")
     private String anotaAiApiKey;
 
+    @Column(name = "ifood_merchant_id")
+    private String ifoodMerchantId;
+
+    @Column(name = "ifood_authorized_at")
+    private LocalDateTime ifoodAuthorizedAt;
+
+    // columnDefinition default is required for dev (ddl-auto=update on non-empty tables);
+    // prod relies on the matching Flyway migration.
+    @Builder.Default
+    @Column(name = "ifood_order_sync_enabled", nullable = false,
+            columnDefinition = "boolean not null default false")
+    private boolean ifoodOrderSyncEnabled = false;
+
+    @Column(name = "ifood_catalog_imported_at")
+    private LocalDateTime ifoodCatalogImportedAt;
+
     @Column(length = 500)
     private String address;
 

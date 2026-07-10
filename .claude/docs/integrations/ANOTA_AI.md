@@ -21,15 +21,60 @@ Authentication: partner token via `Authorization: Bearer <token>` header, config
 
 **Import only orders with `check: 0`.**
 
-## Sync Flow
+## Integration Architecture
+
+Orders flow through the `anotaai-adapter` microservice — the backend core has no direct dependency on AnotaAI.
 
 ```
-poll /ping/list
-  → filter check: 0
-  → fetch each via /ping/get/{id}
-  → persist locally
-  → mark as checked (check: 1)
+AnotaAI ──► POST /webhook/orders/{merchantId} ──► anotaai-adapter ──► RabbitMQ [menubank.external-orders] ──► backend consumer ──► DB
+Admin   ──► POST /catalog/sync/{merchantId}   ──► anotaai-adapter ──► AnotaAI API ──► RabbitMQ [menubank.catalog-sync] ──► backend consumer ──► DB
 ```
+
+The adapter is **multi-tenant**: webhook URL contains the `merchantId`. The adapter fetches the merchant's API key from the core via `GET /api/internal/merchants/{merchantId}/anotaai-key` when needed (catalog sync).
+
+The old pull-based sync (`AnotaAIController`, `AnotaAISyncService`) has been removed from the backend.
+
+## Webhook — Incoming Order Payload
+
+AnotaAI sends the full order detail directly in the webhook body (same structure as the old `/ping/get/{id}` response). The adapter maps it to an `ExternalOrderMessage` and publishes to the queue.
+
+**Webhook URL registered in AnotaAI:** `POST https://<adapter-host>/webhook/orders/{merchantId}`
+**Security:** `X-Webhook-Secret` header validated against `WEBHOOK_SECRET` env var.
+
+## Canonical Message Format (`ExternalOrderMessage`)
+
+```json
+{
+  "externalOrderId": "6a0e094aa2335ae5e05c5eae",
+  "merchantId": "uuid",
+  "origin": "ANOTA_AI",
+  "createdAt": "2026-05-20T19:19:38.368Z",
+  "paymentName": "ifood-online-pix-payin",
+  "deliveryFee": 0.0,
+  "total": 25.99,
+  "customer": { "name": "Maria Santos", "phone": "11912345678", "taxId": null },
+  "items": [
+    {
+      "internalId": "66c3adfc0fae7c422a4a6c9a",
+      "externalId": "",
+      "name": "Açaí 500 ml",
+      "quantity": 1,
+      "price": 21.99,
+      "subItems": [
+        { "name": "Açaí Zero", "quantity": 1, "price": 0.0, "internalId": "679ab6c7207b65c7415b6614" }
+      ]
+    }
+  ]
+}
+```
+
+## Legacy Sync Flow (removed)
+
+> The pull-based sync below no longer exists. Kept here for historical reference only.
+>
+> ```
+> poll /ping/list → filter check: 0 → fetch each via /ping/get/{id} → persist locally
+> ```
 
 ---
 

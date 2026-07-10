@@ -6,6 +6,9 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
 import com.MenuBank.MenuBank.integration.IntegrationTestBase;
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
+import com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayload;
+import com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayloadRepository;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.notification.Notification;
 import com.MenuBank.MenuBank.notification.NotificationRepository;
@@ -60,6 +63,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
     @Autowired private IncludeRepository includeRepository;
     @Autowired private OrderRepository orderRepository;
     @Autowired private NotificationRepository notificationRepository;
+    @Autowired private ExternalOrderRawPayloadRepository rawPayloadRepository;
 
     private Merchant merchant;
     private String apiKey;
@@ -98,7 +102,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 "order_detail_acai_330_three_leite_ninho.json", AnotaAIOrderDetailResponse.class);
         detail.getInfo().setId("ord-int-1");
         detail.getInfo().getItems().get(0).setInternalId("anota-acai-330");
-        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-1")).willReturn(detail);
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-1")).willReturn(raw(detail));
 
         // Act
         AnotaAISyncResult result = syncService.syncOrders(merchant.getId());
@@ -124,6 +128,16 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
         assertThat(item.getExtraIngredients().get(0).getQuantity()).isEqualByComparingTo("120");
         // totalCost = 120g × 0.05 = 6.00
         assertThat(order.getTotalCost()).isEqualByComparingTo("6.00");
+
+        // Assert — payload bruto persistido em jsonb para auditoria
+        List<ExternalOrderRawPayload> payloads = rawPayloadRepository.findAll();
+        assertThat(payloads).hasSize(1);
+        ExternalOrderRawPayload payload = payloads.get(0);
+        assertThat(payload.getMerchantId()).isEqualTo(merchant.getId());
+        assertThat(payload.getOrigin()).isEqualTo(OrderOrigin.ANOTA_AI);
+        assertThat(payload.getExternalOrderId()).isEqualTo("ord-int-1");
+        assertThat(payload.getPayload()).contains("integration-raw-fixture");
+        assertThat(payload.getCreatedAt()).isNotNull();
     }
 
     @Test
@@ -139,7 +153,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 "order_detail_with_subitems.json", AnotaAIOrderDetailResponse.class);
         detail.getInfo().setId("ord-int-missing");
         detail.getInfo().getItems().get(0).setInternalId("anota-acai-500");
-        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-missing")).willReturn(detail);
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-missing")).willReturn(raw(detail));
 
         // Act
         AnotaAISyncResult result = syncService.syncOrders(merchant.getId());
@@ -178,7 +192,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 "order_detail_duplicate_subitems.json", AnotaAIOrderDetailResponse.class);
         detail.getInfo().setId("ord-int-dup");
         detail.getInfo().getItems().get(0).setInternalId("anota-acai-dup");
-        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-dup")).willReturn(detail);
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-int-dup")).willReturn(raw(detail));
 
         syncService.syncOrders(merchant.getId());
 
@@ -217,7 +231,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 "order_detail_simple.json", AnotaAIOrderDetailResponse.class);
         detail.getInfo().setId("ord-idem");
         detail.getInfo().getItems().get(0).setInternalId("anota-idem");
-        given(anotaAIClient.getOrderDetail(apiKey, "ord-idem")).willReturn(detail);
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-idem")).willReturn(raw(detail));
 
         AnotaAISyncResult first = syncService.syncOrders(merchant.getId());
         AnotaAISyncResult second = syncService.syncOrders(merchant.getId());
@@ -227,11 +241,18 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
         assertThat(second.getOrdersSkipped()).isEqualTo(1);
         // Apenas 1 pedido persistido — não duplicou
         assertThat(orderRepository.count()).isEqualTo(1);
+        // Payload bruto também não duplica: pedido pulado não busca detalhe
+        assertThat(rawPayloadRepository.count()).isEqualTo(1);
     }
 
     // -------------------------------------------------------------------------
     // helpers
     // -------------------------------------------------------------------------
+
+    private RawJsonResponse<AnotaAIOrderDetailResponse> raw(AnotaAIOrderDetailResponse detail) {
+        // Precisa ser JSON válido: a coluna payload é jsonb no Postgres
+        return new RawJsonResponse<>(detail, "{\"fixture\":\"integration-raw-fixture\"}");
+    }
 
     private AnotaAIOrderListResponse orderListWith(String orderId) {
         AnotaAIOrderListResponse response = AnotaAIFixtures.load(

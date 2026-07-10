@@ -103,6 +103,104 @@ class NotificationServiceTest {
     }
 
     @Nested
+    @DisplayName("createMissingProduct()")
+    class CreateMissingProduct {
+
+        @Test
+        @DisplayName("deve criar nova notificação MISSING_PRODUCT quando não existir uma pendente para o canonical name")
+        void shouldCreateNewWhenNoPendingExists() {
+            given(notificationRepository.findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_PRODUCT, "produto fantasma", NotificationStatus.RESOLVED))
+                    .willReturn(Optional.empty());
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            Notification result = notificationService.createMissingProduct("Produto Fantasma", "produto fantasma", merchantId);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            then(notificationRepository).should().save(captor.capture());
+            Notification saved = captor.getValue();
+
+            assertThat(saved.getMerchant().getId()).isEqualTo(merchantId);
+            assertThat(saved.getType()).isEqualTo(NotificationType.MISSING_PRODUCT);
+            assertThat(saved.getReferenceData()).isEqualTo("produto fantasma");
+            assertThat(saved.getReferenceDisplay()).isEqualTo("Produto Fantasma");
+            assertThat(saved.getStatus()).isEqualTo(NotificationStatus.UNREAD);
+            assertThat(saved.getTitle()).contains("Produto");
+            assertThat(saved.getMessage()).contains("Produto Fantasma");
+            assertThat(result).isSameAs(saved);
+        }
+
+        @Test
+        @DisplayName("deve reutilizar notificação existente (não duplicar) quando já existe uma não-resolvida para o mesmo canonical name")
+        void shouldNotDuplicateWhenPendingExists() {
+            Notification existing = Notification.builder()
+                    .id(notificationId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .type(NotificationType.MISSING_PRODUCT)
+                    .referenceData("produto fantasma")
+                    .referenceDisplay("Produto Fantasma")
+                    .status(NotificationStatus.UNREAD)
+                    .createdAt(Instant.now())
+                    .title("Produto não cadastrado")
+                    .message("...")
+                    .build();
+            given(notificationRepository.findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                    merchantId, NotificationType.MISSING_PRODUCT, "produto fantasma", NotificationStatus.RESOLVED))
+                    .willReturn(Optional.of(existing));
+
+            Notification result = notificationService.createMissingProduct("Produto Fantasma", "produto fantasma", merchantId);
+
+            then(notificationRepository).should(never()).save(any(Notification.class));
+            assertThat(result).isSameAs(existing);
+        }
+    }
+
+    @Nested
+    @DisplayName("createOrderCancelled()")
+    class CreateOrderCancelled {
+
+        @Test
+        @DisplayName("deve criar notificação ORDER_CANCELLED com o motivo quando disponível")
+        void shouldCreateWithCancelReason() {
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            Notification result = notificationService.createOrderCancelled(
+                    "ord-1", "Loja fechada", merchantId);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            then(notificationRepository).should().save(captor.capture());
+            Notification saved = captor.getValue();
+
+            assertThat(saved.getMerchant().getId()).isEqualTo(merchantId);
+            assertThat(saved.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+            assertThat(saved.getReferenceData()).isEqualTo("ord-1");
+            assertThat(saved.getStatus()).isEqualTo(NotificationStatus.UNREAD);
+            assertThat(saved.getCreatedAt()).isNotNull();
+            assertThat(saved.getTitle()).contains("cancelado");
+            assertThat(saved.getMessage()).contains("ord-1").contains("Loja fechada");
+            assertThat(result).isSameAs(saved);
+        }
+
+        @Test
+        @DisplayName("deve criar notificação sem trecho de motivo quando cancelReasonDescription é nulo")
+        void shouldCreateWithoutCancelReason() {
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            notificationService.createOrderCancelled("ord-1", null, merchantId);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            then(notificationRepository).should().save(captor.capture());
+            Notification saved = captor.getValue();
+
+            assertThat(saved.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+            assertThat(saved.getMessage()).contains("ord-1").doesNotContain("Motivo");
+        }
+    }
+
+    @Nested
     @DisplayName("deleteMissingIngredient()")
     class DeleteMissingIngredient {
 

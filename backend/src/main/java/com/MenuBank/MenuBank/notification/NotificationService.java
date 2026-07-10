@@ -51,6 +51,64 @@ public class NotificationService {
     }
 
     /**
+     * Creates a notification flagging that a product referenced by an imported order is not
+     * registered yet (no match by external code nor canonical name). Deduplicates by
+     * (merchantId, type, canonicalName), like {@link #createMissingIngredient}.
+     */
+    @Transactional
+    public Notification createMissingProduct(String rawName, String canonicalName, UUID merchantId) {
+        Optional<Notification> existing = notificationRepository
+                .findByMerchantIdAndTypeAndReferenceDataAndStatusNot(
+                        merchantId, NotificationType.MISSING_PRODUCT, canonicalName, NotificationStatus.RESOLVED);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        Notification created = Notification.builder()
+                .merchant(merchantRepository.getReferenceById(merchantId))
+                .type(NotificationType.MISSING_PRODUCT)
+                .title("Produto não cadastrado")
+                .message("O produto '" + rawName + "' apareceu em um pedido mas não está cadastrado no sistema."
+                        + " O item foi ignorado na importação e o custo do pedido pode estar incompleto.")
+                .referenceData(canonicalName)
+                .referenceDisplay(rawName)
+                .status(NotificationStatus.UNREAD)
+                .createdAt(Instant.now())
+                .build();
+        return notificationRepository.save(created);
+    }
+
+    /**
+     * Creates a notification informing the merchant that an already imported order was
+     * cancelled on iFood. Idempotency is handled by the caller (only invoked on the
+     * transition to CANCELLED), so no dedup lookup is needed here.
+     *
+     * @param cancelReasonDescription iFood's cancellation reason, appended to the message
+     *                                when available (may be {@code null})
+     */
+    @Transactional
+    public Notification createOrderCancelled(String externalOrderId,
+                                             String cancelReasonDescription,
+                                             UUID merchantId) {
+        String message = "O pedido " + externalOrderId + " foi cancelado no iFood e removido dos ganhos.";
+        if (cancelReasonDescription != null && !cancelReasonDescription.isBlank()) {
+            message += " Motivo: " + cancelReasonDescription;
+        }
+
+        Notification created = Notification.builder()
+                .merchant(merchantRepository.getReferenceById(merchantId))
+                .type(NotificationType.ORDER_CANCELLED)
+                .title("Pedido cancelado")
+                .message(message)
+                .referenceData(externalOrderId)
+                .referenceDisplay(externalOrderId)
+                .status(NotificationStatus.UNREAD)
+                .createdAt(Instant.now())
+                .build();
+        return notificationRepository.save(created);
+    }
+
+    /**
      * Deletes every {@link NotificationType#MISSING_INGREDIENT} notification for the given
      * canonical name. Invoked when the merchant finally registers the ingredient, so the
      * alert disappears entirely instead of lingering as a resolved item.

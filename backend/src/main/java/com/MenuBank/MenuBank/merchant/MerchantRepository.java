@@ -15,4 +15,12 @@ public interface MerchantRepository extends JpaRepository<Merchant, UUID> {
     Optional<Merchant> findByEmail(String email);
 
     List<Merchant> findAllByAnotaAiApiKeyIsNotNull();
+
+    long countByIfoodMerchantIdIsNotNull();
+
+    List<Merchant> findAllByIfoodMerchantIdIsNotNull();
+
+    List<Merchant> findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue();
+
+    Optional<Merchant> findByIfoodMerchantId(String ifoodMerchantId);
 }

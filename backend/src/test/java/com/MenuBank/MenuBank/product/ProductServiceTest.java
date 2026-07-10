@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 
+import com.MenuBank.MenuBank.category.CatalogOrigin;
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.CategoryRepository;
@@ -96,6 +97,19 @@ class ProductServiceTest {
         }
 
         @Test
+        @DisplayName("deve criar produto com origin MENUBANK e expor origin na resposta")
+        void shouldCreateProductWithMenubankOrigin() {
+            given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ProductResponse result = productService.create(merchantId, productRequest);
+
+            assertThat(result.getOrigin()).isEqualTo(CatalogOrigin.MENUBANK);
+            then(productRepository).should().save(argThat(p -> p.getOrigin() == CatalogOrigin.MENUBANK));
+        }
+
+        @Test
         @DisplayName("deve criar produto com status ACTIVE por padrão")
         void shouldCreateProductWithActiveStatusByDefault() {
             given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
@@ -163,6 +177,24 @@ class ProductServiceTest {
                     .hasMessageContaining("nome");
 
             then(productRepository).should(never()).save(any(Product.class));
+        }
+
+        @Test
+        @DisplayName("deve popular canonicalName normalizado a partir do nome (lowercase, sem acentos, espaços colapsados)")
+        void shouldPopulateCanonicalNameNormalizedFromName() {
+            ProductRequest withAccent = ProductRequest.builder()
+                    .name("  Pão de   Açúcar ")
+                    .price(new BigDecimal("12.00"))
+                    .categoryId(categoryId)
+                    .build();
+            given(productRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            productService.create(merchantId, withAccent);
+
+            then(productRepository).should()
+                    .save(argThat(p -> "pao de acucar".equals(p.getCanonicalName())));
         }
     }
 
@@ -411,6 +443,25 @@ class ProductServiceTest {
                     .isInstanceOf(CategoryNotFoundException.class);
 
             then(productRepository).should(never()).save(any(Product.class));
+        }
+
+        @Test
+        @DisplayName("deve atualizar canonicalName quando o nome é alterado")
+        void shouldUpdateCanonicalNameWhenNameChanges() {
+            ProductRequest updateRequest = ProductRequest.builder()
+                    .name("CRÈME  Brûlée")
+                    .price(new BigDecimal("29.90"))
+                    .categoryId(categoryId)
+                    .build();
+
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(categoryRepository.findByIdAndMerchantId(categoryId, merchantId)).willReturn(Optional.of(category));
+            given(productRepository.save(any(Product.class))).willAnswer(inv -> inv.getArgument(0));
+
+            productService.update(merchantId, productId, updateRequest);
+
+            then(productRepository).should()
+                    .save(argThat(p -> "creme brulee".equals(p.getCanonicalName())));
         }
 
         @Test

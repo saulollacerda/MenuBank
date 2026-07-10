@@ -15,6 +15,7 @@ import com.MenuBank.MenuBank.fee.FeeNotFoundException;
 import com.MenuBank.MenuBank.product.IncludeNotFoundException;
 import com.MenuBank.MenuBank.auth.InvalidCredentialsException;
 import com.MenuBank.MenuBank.billing.DuplicateRevenueReportException;
+import com.MenuBank.MenuBank.billing.PlanNotFoundException;
 import com.MenuBank.MenuBank.billing.SubscriptionNotFoundException;
 import com.MenuBank.MenuBank.merchant.DuplicateMerchantException;
 import com.MenuBank.MenuBank.merchant.MerchantNotFoundException;
@@ -78,6 +79,15 @@ public class GlobalExceptionHandler {
                                 .map(e -> e.getKey() + " — " + e.getValue())
                                 .toList()));
         problem.setProperty("fieldErrors", fieldErrors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleUnreadableBody(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "Corpo da requisição inválido");
+        problem.setTitle("Dados inválidos");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
@@ -169,6 +179,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleSubscriptionNotFound(SubscriptionNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Assinatura não encontrada");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(PlanNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handlePlanNotFound(PlanNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Plano não encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 

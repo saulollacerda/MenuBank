@@ -51,5 +51,17 @@ public class OrderItem {
     @EqualsAndHashCode.Exclude
     @Builder.Default
     private List<OrderItemExtraIngredient> extraIngredients = new ArrayList<>();
+
+    /**
+     * Ids dos {@link com.MenuBank.MenuBank.product.Include}s da ficha técnica que o
+     * operador desmarcou neste item (pedido manual). Vazio = ficha completa.
+     */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "order_item_excluded_includes",
+            joinColumns = @JoinColumn(name = "order_item_id"))
+    @Column(name = "include_id", nullable = false)
+    @BatchSize(size = 30)
+    @Builder.Default
+    private java.util.Set<UUID> excludedIncludeIds = new java.util.HashSet<>();
 }
 

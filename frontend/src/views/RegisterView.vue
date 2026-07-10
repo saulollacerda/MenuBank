@@ -7,7 +7,7 @@ import { UI, UIField, UIInput, UIIcon } from '@/design'
 const authStore = useAuthStore()
 
 const validationError = ref<string | null>(null)
-const accepted = ref(true)
+const accepted = ref(false)
 
 const form = ref<UserRequest>({
   merchantName: '',
@@ -44,6 +44,10 @@ async function handleSubmit() {
   }
   if (!isValidCnpj(form.value.cnpj)) {
     validationError.value = 'CNPJ inválido'
+    return
+  }
+  if (form.value.password.length < 6) {
+    validationError.value = 'A senha deve ter no mínimo 6 caracteres'
     return
   }
   if (form.value.password !== form.value.confirmPassword) {
@@ -247,13 +251,13 @@ async function handleSubmit() {
 
         <div v-else style="display: flex; flex-direction: column; gap: 14px">
           <UIField label="Nome do Restaurante">
-            <UIInput id="merchantName" v-model="form.merchantName" placeholder="Ex: Pizzaria Napoli" />
+            <UIInput id="merchantName" v-model="form.merchantName" placeholder="Ex: Pizzaria Napoli" required />
           </UIField>
           <UIField label="CNPJ">
-            <UIInput id="cnpj" v-model="form.cnpj" placeholder="00.000.000/0000-00" />
+            <UIInput id="cnpj" v-model="form.cnpj" placeholder="00.000.000/0000-00" required />
           </UIField>
           <UIField label="Email">
-            <UIInput id="email" v-model="form.email" icon="mail" type="email" placeholder="seu@email.com" />
+            <UIInput id="email" v-model="form.email" icon="mail" type="email" placeholder="seu@email.com" required />
           </UIField>
           <UIField label="Senha" hint="Mínimo 6 caracteres">
             <UIInput
@@ -262,6 +266,8 @@ async function handleSubmit() {
               icon="lock"
               type="password"
               placeholder="Mínimo 6 caracteres"
+              required
+              minlength="6"
             />
           </UIField>
           <UIField label="Confirmar Senha">
@@ -271,6 +277,7 @@ async function handleSubmit() {
               icon="lock"
               type="password"
               placeholder="Repita sua senha"
+              required
             />
           </UIField>
           <UIField>

@@ -67,15 +67,21 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("create deve persistir pedido com items, extras e calcular custo total")
     void create_shouldPersistOrderWithItemsAndExtras() {
-        // PACKAGING "embalagem" 10un a 0.05 → base = 0.50 (sempre conta)
+        // PACKAGING "embalagem" 10un a 0.05 → 0.50 (na ficha, entra por padrão)
         includeRepository.save(Include.builder()
                 .product(product).name("embalagem")
                 .cost(new BigDecimal("0.05")).quantity(new BigDecimal("10"))
                 .kind(IncludeKind.PACKAGING).build());
-        // INGREDIENT na ficha técnica NÃO entra na base (só conta se for pedido)
-        includeRepository.save(Include.builder()
-                .product(product).name("ingrediente opcional caro")
+        // Pedido manual: os insumos (PACKAGING + legados sem kind) entram por padrão;
+        // este insumo legado caro é DESMARCADO pelo operador (excludedIncludeIds) e sai do custo.
+        Include deselected = includeRepository.save(Include.builder()
+                .product(product).name("insumo legado desmarcado caro")
                 .cost(new BigDecimal("99.00")).quantity(new BigDecimal("10"))
+                .kind(null).build());
+        // INGREDIENT não é puxado para o pedido manual: mesmo sem exclusão, fica fora do custo.
+        includeRepository.save(Include.builder()
+                .product(product).name("creme de ovomaltine")
+                .cost(new BigDecimal("50.00")).quantity(new BigDecimal("10"))
                 .kind(IncludeKind.INGREDIENT).build());
 
         OrderRequest request = OrderRequest.builder()
@@ -83,6 +89,7 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                 .items(List.of(OrderItemRequest.builder()
                         .productId(product.getId())
                         .quantity(2)
+                        .excludedIncludeIds(List.of(deselected.getId()))
                         .extraIngredients(List.of(OrderItemExtraIngredientRequest.builder()
                                 .ingredientId(ingredient.getId())
                                 .quantity(new BigDecimal("30")) // 30g de extra por unidade
@@ -104,9 +111,11 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
         var item = persisted.getItems().get(0);
         assertThat(item.getExtraIngredients()).hasSize(1);
         assertThat(item.getExtraIngredients().get(0).getQuantity()).isEqualByComparingTo("30");
-        // totalCost = (base PACKAGING 0.50 + extra 30×0.05=1.50) × 2 = 4.00
-        // o include INGREDIENT (99×10) NÃO entra na base
+        // totalCost = (insumos 0.50 + extra 30×0.05=1.50) × 2 = 4.00
+        // o insumo desmarcado (99×10) sai do custo e fica como exclusão;
+        // o INGREDIENT (50×10) nunca entra — só contaria se pedido como extra
         assertThat(persisted.getTotalCost()).isEqualByComparingTo("4.00");
+        assertThat(item.getExcludedIncludeIds()).containsExactly(deselected.getId());
     }
 
     @Test
