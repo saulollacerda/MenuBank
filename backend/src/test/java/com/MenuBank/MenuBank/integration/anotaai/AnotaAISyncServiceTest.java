@@ -8,6 +8,8 @@ import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
+import com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayloadService;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderOrigin;
@@ -61,6 +63,7 @@ class AnotaAISyncServiceTest {
     @Mock private IncludeRepository includeRepository;
     @Mock private NotificationService notificationService;
     @Mock private com.MenuBank.MenuBank.product.OrderCostCalculatorService orderCostCalculatorService;
+    @Mock private ExternalOrderRawPayloadService rawPayloadService;
 
     @InjectMocks
     private AnotaAISyncService syncService;
@@ -260,7 +263,7 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(buildOrderDetail("order-1"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(existingCustomer));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -298,7 +301,7 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(buildOrderDetail("order-1"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -365,7 +368,7 @@ class AnotaAISyncServiceTest {
                 .willReturn(buildOrderListWithSalesChannel("order-whats", "anotaai"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-whats", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-whats"))
-                .willReturn(buildOrderDetail("order-whats"));
+                .willReturn(raw(buildOrderDetail("order-whats")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(productRepository.findByExternalIdAndMerchantId("65d4a428f784bb001956f919", merchantId))
@@ -391,7 +394,7 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-1"))
-                .willReturn(buildOrderDetailWithDeliveryFee("order-1", 25.80, 6.00));
+                .willReturn(raw(buildOrderDetailWithDeliveryFee("order-1", 25.80, 6.00)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -441,7 +444,7 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(buildOrderDetail("order-1"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId)).willReturn(Optional.empty());
         given(customerRepository.save(any(Customer.class)))
                 .willAnswer(inv -> { Customer c = inv.getArgument(0); c.setId(UUID.randomUUID()); return c; });
@@ -488,7 +491,7 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-2"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-2", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-2"))
-                .willReturn(buildOrderDetailWithSubItems("order-2"));
+                .willReturn(raw(buildOrderDetailWithSubItems("order-2")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -533,8 +536,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-q2"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-q2", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-q2"))
-                .willReturn(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -566,7 +569,7 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-3"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-3", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-3"))
-                .willReturn(buildOrderDetailWithSubItems("order-3"));
+                .willReturn(raw(buildOrderDetailWithSubItems("order-3")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -602,9 +605,9 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderListWith2Orders("ord-A", "ord-B"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "ord-A"))
-                .willReturn(buildOrderDetailWithSubItems("ord-A"));
+                .willReturn(raw(buildOrderDetailWithSubItems("ord-A")));
         given(anotaAIClient.getOrderDetail("test-api-key", "ord-B"))
-                .willReturn(buildOrderDetailWithSubItems("ord-B"));
+                .willReturn(raw(buildOrderDetailWithSubItems("ord-B")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -637,7 +640,7 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(buildOrderDetail("order-1"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
 
@@ -666,8 +669,8 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderListWith2Orders("ord-A", "ord-B"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "ord-A")).willReturn(buildOrderDetail("ord-A"));
-        given(anotaAIClient.getOrderDetail("test-api-key", "ord-B")).willReturn(buildOrderDetail("ord-B"));
+        given(anotaAIClient.getOrderDetail("test-api-key", "ord-A")).willReturn(raw(buildOrderDetail("ord-A")));
+        given(anotaAIClient.getOrderDetail("test-api-key", "ord-B")).willReturn(raw(buildOrderDetail("ord-B")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
 
@@ -724,8 +727,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-dedup-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-dedup-1", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-dedup-1"))
-                .willReturn(AnotaAIFixtures.load("order_detail_duplicate_subitems.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_duplicate_subitems.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID())
                         .merchant(Merchant.builder().id(merchantId).build()).build()));
@@ -789,7 +792,7 @@ class AnotaAISyncServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-dedup-2"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-dedup-2", merchantId)).willReturn(false);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-dedup-2")).willReturn(response);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-dedup-2")).willReturn(raw(response));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID())
                         .merchant(Merchant.builder().id(merchantId).build()).build()));
@@ -851,8 +854,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-pps-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-pps-1", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-pps-1"))
-                .willReturn(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -899,7 +902,7 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-piq-1"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-piq-1", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-piq-1"))
-                .willReturn(buildOrderDetailWithSubItems("order-piq-1"));
+                .willReturn(raw(buildOrderDetailWithSubItems("order-piq-1")));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -946,8 +949,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-pps-2"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-pps-2", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-pps-2"))
-                .willReturn(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -996,8 +999,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-pps-3"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-pps-3", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-pps-3"))
-                .willReturn(AnotaAIFixtures.load("order_detail_acai_330_three_leite_ninho.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_acai_330_three_leite_ninho.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -1042,8 +1045,8 @@ class AnotaAISyncServiceTest {
         given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-pps-4"));
         given(orderRepository.existsByExternalOrderIdAndMerchantId("order-pps-4", merchantId)).willReturn(false);
         given(anotaAIClient.getOrderDetail("test-api-key", "order-pps-4"))
-                .willReturn(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
-                        AnotaAIOrderDetailResponse.class));
+                .willReturn(raw(AnotaAIFixtures.load("order_detail_with_subitem_quantity_two.json",
+                        AnotaAIOrderDetailResponse.class)));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -1098,7 +1101,7 @@ class AnotaAISyncServiceTest {
         // Reescreve o subItem para casar com o Include PACKAGING "Copo 500ml"
         detail.getInfo().getItems().get(0).getSubItems().get(0).setName("Copo 500ml");
         detail.getInfo().getItems().get(0).getSubItems().get(0).setQuantity(1);
-        given(anotaAIClient.getOrderDetail("test-api-key", "order-skip-1")).willReturn(detail);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-skip-1")).willReturn(raw(detail));
         given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
                 .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
         given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
@@ -1127,8 +1130,55 @@ class AnotaAISyncServiceTest {
     }
 
     // -------------------------------------------------------------------------
+    // syncOrders — payload bruto para auditoria
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("syncOrders deve salvar o payload bruto do pedido importado para auditoria")
+    void syncOrders_shouldSaveRawPayloadForImportedOrder() {
+        Product mappedProduct = Product.builder()
+                .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Refrigerante 1L")
+                .status(ProductStatus.ACTIVE).externalId("65d4a428f784bb001956f919").build();
+
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
+        given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
+        given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
+                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
+        given(productRepository.findByExternalIdAndMerchantId("65d4a428f784bb001956f919", merchantId))
+                .willReturn(Optional.of(mappedProduct));
+
+        syncService.syncOrders(merchantId);
+
+        verify(rawPayloadService).save(merchantId, OrderOrigin.ANOTA_AI, "order-1", RAW_JSON);
+    }
+
+    @Test
+    @DisplayName("syncOrders NÃO deve salvar payload bruto quando o import do pedido falha")
+    void syncOrders_shouldNotSaveRawPayloadWhenImportFails() {
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
+        given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1")).willReturn(raw(buildOrderDetail("order-1")));
+        given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
+                .willThrow(new RuntimeException("boom"));
+
+        AnotaAISyncResult result = syncService.syncOrders(merchantId);
+
+        assertThat(result.getErrors()).isNotEmpty();
+        verify(rawPayloadService, never()).save(any(), any(), anyString(), anyString());
+    }
+
+    // -------------------------------------------------------------------------
     // helpers
     // -------------------------------------------------------------------------
+
+    private static final String RAW_JSON = "{\"fixture\":\"raw\"}";
+
+    private RawJsonResponse<AnotaAIOrderDetailResponse> raw(AnotaAIOrderDetailResponse response) {
+        return new RawJsonResponse<>(response, RAW_JSON);
+    }
 
     private AnotaAICatalogResponse buildCatalog() {
         return AnotaAIFixtures.load("catalog_minimal.json", AnotaAICatalogResponse.class);

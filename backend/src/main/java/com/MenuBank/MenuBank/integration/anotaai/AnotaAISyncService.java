@@ -4,11 +4,13 @@ import com.MenuBank.MenuBank.category.CategoryRepository;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.fee.FeeRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.integration.anotaai.services.AnotaAICatalogSyncService;
 import com.MenuBank.MenuBank.integration.anotaai.services.AnotaAICustomerResolver;
 import com.MenuBank.MenuBank.integration.anotaai.services.AnotaAIExtraIngredientResolver;
 import com.MenuBank.MenuBank.integration.anotaai.services.AnotaAIOrderImportService;
 import com.MenuBank.MenuBank.integration.anotaai.services.AnotaAIProductResolver;
+import com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayloadService;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.notification.NotificationService;
@@ -41,6 +43,7 @@ public class AnotaAISyncService {
     private final AnotaAIClient anotaAIClient;
     private final MerchantRepository merchantRepository;
     private final OrderRepository orderRepository;
+    private final ExternalOrderRawPayloadService rawPayloadService;
 
     private final AnotaAICatalogSyncService catalogSyncService;
     private final AnotaAIOrderImportService orderImportService;
@@ -55,10 +58,12 @@ public class AnotaAISyncService {
                                IngredientRepository ingredientRepository,
                                IncludeRepository includeRepository,
                                NotificationService notificationService,
-                               OrderCostCalculatorService orderCostCalculatorService) {
+                               OrderCostCalculatorService orderCostCalculatorService,
+                               ExternalOrderRawPayloadService rawPayloadService) {
         this.anotaAIClient = anotaAIClient;
         this.merchantRepository = merchantRepository;
         this.orderRepository = orderRepository;
+        this.rawPayloadService = rawPayloadService;
 
         this.catalogSyncService = new AnotaAICatalogSyncService(
                 anotaAIClient, merchantRepository, categoryRepository,
@@ -122,17 +127,20 @@ public class AnotaAISyncService {
             }
 
             try {
-                AnotaAIOrderDetailResponse detailResponse = anotaAIClient
+                RawJsonResponse<AnotaAIOrderDetailResponse> detailResponse = anotaAIClient
                         .getOrderDetail(apiKey, externalOrderId);
-                if (detailResponse == null || detailResponse.getInfo() == null) {
+                if (detailResponse == null || detailResponse.body() == null
+                        || detailResponse.body().getInfo() == null) {
                     log.warn("[Anota.AI] pedido {} sem dados de detalhe", externalOrderId);
                     errors.add("Pedido " + externalOrderId + " sem dados de detalhe");
                     continue;
                 }
                 orderImportService.importOrder(
-                        detailResponse.getInfo(), merchantId, OrderOrigin.ANOTA_AI, missingIngredientNames,
+                        detailResponse.body().getInfo(), merchantId, OrderOrigin.ANOTA_AI, missingIngredientNames,
                         () -> catalogSyncService.sync(merchantId, apiKey, false),
                         catalogSynced);
+                rawPayloadService.save(merchantId, OrderOrigin.ANOTA_AI,
+                        externalOrderId, detailResponse.rawJson());
                 ordersImported++;
                 log.info("[Anota.AI] pedido {} importado", externalOrderId);
             } catch (RuntimeException e) {

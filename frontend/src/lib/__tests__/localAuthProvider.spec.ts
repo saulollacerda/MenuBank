@@ -101,6 +101,20 @@ describe('localAuthProvider', () => {
     expect(await localAuthProvider.init()).toBeNull()
   })
 
+  describe('recuperação de senha (não suportada no modo local)', () => {
+    it('requestPasswordReset lança AuthError not_supported', async () => {
+      await expect(localAuthProvider.requestPasswordReset('a@b.com')).rejects.toMatchObject({
+        code: 'not_supported',
+      })
+    })
+
+    it('updatePassword lança AuthError not_supported', async () => {
+      await expect(localAuthProvider.updatePassword('novaSenha1')).rejects.toMatchObject({
+        code: 'not_supported',
+      })
+    })
+  })
+
   describe('validação de expiração (exp)', () => {
     it('init retorna null e remove do storage um token expirado', async () => {
       const expired = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) - 60 })

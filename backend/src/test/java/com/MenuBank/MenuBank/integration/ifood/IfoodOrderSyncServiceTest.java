@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood;
 
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodEventResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
 import com.MenuBank.MenuBank.integration.ifood.services.IfoodOrderImportService;
@@ -72,6 +73,14 @@ class IfoodOrderSyncServiceTest {
         return detail;
     }
 
+    private RawJsonResponse<IfoodOrderDetailResponse> raw(IfoodOrderDetailResponse detail) {
+        return new RawJsonResponse<>(detail, rawOf(detail));
+    }
+
+    private static String rawOf(IfoodOrderDetailResponse detail) {
+        return "{\"id\":\"" + detail.getId() + "\"}";
+    }
+
     private static HttpClientErrorException unauthorized() {
         return HttpClientErrorException.create(
                 HttpStatus.UNAUTHORIZED, "Unauthorized", new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
@@ -115,11 +124,11 @@ class IfoodOrderSyncServiceTest {
             IfoodOrderDetailResponse detail = detail("ord-1");
             given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
                     .willReturn(List.of(event("evt-1", "CONFIRMED", "ord-1")));
-            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(raw(detail));
 
             syncService.syncOrders();
 
-            then(importService).should().importOrder(detail, OrderStatus.PENDING);
+            then(importService).should().importOrder(detail, OrderStatus.PENDING, rawOf(detail));
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -129,11 +138,11 @@ class IfoodOrderSyncServiceTest {
             IfoodOrderDetailResponse detail = detail("ord-1");
             given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
                     .willReturn(List.of(event("evt-1", "order_confirmed", "ord-1")));
-            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(raw(detail));
 
             syncService.syncOrders();
 
-            then(importService).should().importOrder(detail, OrderStatus.PENDING);
+            then(importService).should().importOrder(detail, OrderStatus.PENDING, rawOf(detail));
         }
 
         @Test
@@ -145,7 +154,7 @@ class IfoodOrderSyncServiceTest {
 
             syncService.syncOrders();
 
-            then(importService).should(never()).importOrder(any(), any());
+            then(importService).should(never()).importOrder(any(), any(), any());
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
     }
@@ -164,7 +173,7 @@ class IfoodOrderSyncServiceTest {
             syncService.syncOrders();
 
             then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
-            then(importService).should(never()).importOrder(any(), any());
+            then(importService).should(never()).importOrder(any(), any(), any());
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -175,11 +184,11 @@ class IfoodOrderSyncServiceTest {
             given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
                     .willReturn(List.of(event("evt-1", "CONCLUDED", "ord-1")));
             given(importService.concludeOrder("ord-1", "ifood-m1")).willReturn(false);
-            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(raw(detail));
 
             syncService.syncOrders();
 
-            then(importService).should().importOrder(detail, OrderStatus.PAID);
+            then(importService).should().importOrder(detail, OrderStatus.PAID, rawOf(detail));
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -210,7 +219,7 @@ class IfoodOrderSyncServiceTest {
             syncService.syncOrders();
 
             then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
-            then(importService).should(never()).importOrder(any(), any());
+            then(importService).should(never()).importOrder(any(), any(), any());
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -221,11 +230,11 @@ class IfoodOrderSyncServiceTest {
             given(orderClient.pollEvents("token-1", List.of("ifood-m1")))
                     .willReturn(List.of(event("evt-1", "CANCELLED", "ord-1")));
             given(importService.cancelOrder("ord-1", "ifood-m1")).willReturn(false);
-            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(detail);
+            given(orderClient.getOrderDetail("token-1", "ord-1")).willReturn(raw(detail));
 
             syncService.syncOrders();
 
-            then(importService).should().importOrder(detail, OrderStatus.CANCELLED);
+            then(importService).should().importOrder(detail, OrderStatus.CANCELLED, rawOf(detail));
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -239,7 +248,7 @@ class IfoodOrderSyncServiceTest {
 
             syncService.syncOrders();
 
-            then(importService).should(never()).importOrder(any(), any());
+            then(importService).should(never()).importOrder(any(), any(), any());
             then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1"));
         }
 
@@ -267,7 +276,7 @@ class IfoodOrderSyncServiceTest {
         syncService.syncOrders();
 
         then(orderClient).should(never()).getOrderDetail(anyString(), anyString());
-        then(importService).should(never()).importOrder(any(), any());
+        then(importService).should(never()).importOrder(any(), any(), any());
         then(importService).should(never()).concludeOrder(anyString(), anyString());
         then(importService).should(never()).cancelOrder(anyString(), anyString());
         then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-2", "evt-3"));
@@ -284,11 +293,11 @@ class IfoodOrderSyncServiceTest {
         given(importService.concludeOrder(anyString(), anyString())).willReturn(false);
         given(orderClient.getOrderDetail("token-1", "ord-1"))
                 .willThrow(new RuntimeException("boom"));
-        given(orderClient.getOrderDetail("token-1", "ord-3")).willReturn(detail3);
+        given(orderClient.getOrderDetail("token-1", "ord-3")).willReturn(raw(detail3));
 
         syncService.syncOrders();
 
-        then(importService).should().importOrder(detail3, OrderStatus.PAID);
+        then(importService).should().importOrder(detail3, OrderStatus.PAID, rawOf(detail3));
         then(orderClient).should().acknowledgeEvents("token-1", List.of("evt-1", "evt-3"));
     }
 

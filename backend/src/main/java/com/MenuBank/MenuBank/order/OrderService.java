@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.order;
 import com.MenuBank.MenuBank.customer.Customer;
 import com.MenuBank.MenuBank.customer.CustomerRepository;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
+import com.MenuBank.MenuBank.ingredient.IngredientNameNormalizer;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.fee.Fee;
@@ -66,10 +67,9 @@ public class OrderService {
         this.orderCostCalculatorService = orderCostCalculatorService;
     }
 
+    @Transactional
     public OrderResponse create(UUID merchantId, OrderRequest request) {
-        Customer customer = customerRepository.findByIdAndMerchantId(request.getCustomerId(), merchantId)
-                .orElseThrow(() -> new OrderNotFoundException(
-                        "Cliente com ID " + request.getCustomerId() + " não encontrado"));
+        Customer customer = resolveCustomer(merchantId, request);
 
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
@@ -145,9 +145,7 @@ public class OrderService {
         Order order = orderRepository.findByIdAndMerchantId(id, merchantId)
                 .orElseThrow(() -> new OrderNotFoundException(id));
 
-        Customer customer = customerRepository.findByIdAndMerchantId(request.getCustomerId(), merchantId)
-                .orElseThrow(() -> new OrderNotFoundException(
-                        "Cliente com ID " + request.getCustomerId() + " não encontrado"));
+        Customer customer = resolveCustomer(merchantId, request);
 
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
@@ -195,14 +193,21 @@ public class OrderService {
                     .orElseThrow(() -> new OrderNotFoundException(
                             "Produto com ID " + itemRequest.getProductId() + " não encontrado"));
 
-            BigDecimal unitCost = ProductCostCalculator.computeOrderBaseCost(
-                    includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchantId));
+            // Pedido manual: a ficha técnica completa acompanha o produto por padrão;
+            // o operador desmarca os insumos que ficaram de fora (excludedIncludeIds).
+            Set<UUID> excludedIncludeIds = itemRequest.getExcludedIncludeIds() != null
+                    ? new java.util.HashSet<>(itemRequest.getExcludedIncludeIds())
+                    : new java.util.HashSet<>();
+            BigDecimal unitCost = ProductCostCalculator.computeSelectedCost(
+                    includeRepository.findByProductIdAndProductMerchantId(product.getId(), merchantId),
+                    excludedIncludeIds);
 
             OrderItem item = OrderItem.builder()
                     .product(product)
                     .quantity(itemRequest.getQuantity())
                     .unitPrice(product.getPrice())
                     .unitCost(unitCost)
+                    .excludedIncludeIds(excludedIncludeIds)
                     .build();
 
             List<OrderItemExtraIngredient> extraIngredients = buildExtraIngredients(merchantId, itemRequest);
@@ -238,6 +243,29 @@ public class OrderService {
         return extraIngredients;
     }
 
+    /**
+     * Resolve o cliente do pedido. Com {@code customerId}, busca o cliente existente
+     * (404 quando não encontrado). Com apenas {@code customerName} — fluxo rápido da
+     * UI — reutiliza o primeiro cliente do lojista cujo nome case no formato canônico
+     * (sem caixa/acentos) ou cria um novo somente com o nome.
+     */
+    private Customer resolveCustomer(UUID merchantId, OrderRequest request) {
+        if (request.getCustomerId() != null) {
+            return customerRepository.findByIdAndMerchantId(request.getCustomerId(), merchantId)
+                    .orElseThrow(() -> new OrderNotFoundException(
+                            "Cliente com ID " + request.getCustomerId() + " não encontrado"));
+        }
+
+        String canonicalName = IngredientNameNormalizer.normalize(request.getCustomerName());
+        return customerRepository.findAllByMerchantId(merchantId).stream()
+                .filter(c -> IngredientNameNormalizer.normalize(c.getName()).equals(canonicalName))
+                .findFirst()
+                .orElseGet(() -> customerRepository.save(Customer.builder()
+                        .merchant(merchantRepository.getReferenceById(merchantId))
+                        .name(request.getCustomerName().trim())
+                        .build()));
+    }
+
     private Fee resolveFee(UUID feeId, UUID merchantId) {
         if (feeId == null) return null;
         return feeRepository.findByIdAndMerchantId(feeId, merchantId)
@@ -259,7 +287,7 @@ public class OrderService {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
         UUID orderMerchantId = order.getMerchant().getId();
         List<OrderItemResponse> itemResponses = items.stream()
-                .map(item -> toItemResponse(item, orderMerchantId, includesByProduct))
+                .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin()))
                 .toList();
 
         Fee fee = order.getFee();
@@ -302,11 +330,8 @@ public class OrderService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId) {
-        return toItemResponse(item, merchantId, null);
-    }
-
-    private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId, Map<UUID, List<Include>> includesByProduct) {
+    private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId, Map<UUID, List<Include>> includesByProduct,
+                                             OrderOrigin origin) {
         List<OrderItemExtraIngredientResponse> extraResponses = item.getExtraIngredients() != null
                 ? item.getExtraIngredients().stream().map(extra -> {
                     BigDecimal totalCost = extra.getQuantity()
@@ -326,14 +351,23 @@ public class OrderService {
                 : List.of();
 
         // Insumos = Includes da ficha técnica do produto (snapshot atual).
-        // Apenas itens PACKAGING (copo, embalagem...) contam como insumo fixo do pedido.
-        // Includes do tipo INGREDIENT (ou legados sem kind) são opções de personalização
-        // e não devem aparecer em todo pedido — só entram via extraIngredients quando escolhidos.
+        // Pedido manual (MENUBANK/legado sem origem): PACKAGING + legados sem kind menos
+        // os insumos desmarcados pelo operador (excludedIncludeIds). INGREDIENT nunca é
+        // puxado — só conta quando pedido como extra.
+        // Pedido importado (AnotaAI/iFood): apenas PACKAGING — ingredientes escolhidos
+        // chegam via extraIngredients (subItems).
         List<Include> productIncludes = includesByProduct != null
                 ? includesByProduct.getOrDefault(item.getProduct().getId(), List.of())
                 : includeRepository.findByProductIdAndProductMerchantId(item.getProduct().getId(), merchantId);
+        Set<UUID> excludedIncludeIds = item.getExcludedIncludeIds() != null
+                ? item.getExcludedIncludeIds()
+                : Set.of();
+        boolean manualOrder = origin == null || origin == OrderOrigin.MENUBANK;
         List<IncludeResponse> insumos = productIncludes.stream()
-                .filter(inc -> inc.getKind() == IncludeKind.PACKAGING)
+                .filter(inc -> manualOrder
+                        ? inc.getKind() != IncludeKind.INGREDIENT
+                        : inc.getKind() == IncludeKind.PACKAGING)
+                .filter(inc -> inc.getId() == null || !excludedIncludeIds.contains(inc.getId()))
                 .map(this::toIncludeResponse)
                 .toList();
 
@@ -352,6 +386,7 @@ public class OrderService {
                 .totalCost(totalCost)
                 .insumos(insumos)
                 .extraIngredients(extraResponses)
+                .excludedIncludeIds(List.copyOf(excludedIncludeIds))
                 .build();
     }
 

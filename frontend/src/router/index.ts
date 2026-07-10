@@ -17,6 +17,20 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/esqueci-senha',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/redefinir-senha',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+      // The Supabase recovery link signs the user in (detectSessionInUrl), so this
+      // page must stay visible when authenticated instead of bouncing to the dashboard.
+      meta: { public: true, allowAuthenticated: true },
+    },
+    {
       path: '/email-verificado',
       name: 'email-verified',
       component: () => import('@/views/EmailVerifiedView.vue'),
@@ -93,6 +107,16 @@ router.beforeEach((to) => {
     const hasToken = window.location.hash.includes('access_token')
     if (!hasToken && !auth.isAuthenticated) {
       return { name: 'register' }
+    }
+  }
+
+  // /redefinir-senha is only reachable from a Supabase recovery link (which carries
+  // #access_token in the hash) or with an active session. Direct navigation without
+  // either cannot set a password, so redirect to the request form.
+  if (to.name === 'reset-password') {
+    const hasToken = window.location.hash.includes('access_token')
+    if (!hasToken && !auth.isAuthenticated) {
+      return { name: 'forgot-password' }
     }
   }
 })

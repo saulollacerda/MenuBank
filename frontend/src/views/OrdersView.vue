@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePolling } from '@/composables/usePolling'
 import { useAuthStore } from '@/stores/authStore'
@@ -19,6 +19,7 @@ import {
   UIField,
   UIInput,
   UISelect,
+  UICombobox,
   UIModal,
   UIIcon,
   UIRowAction,
@@ -31,6 +32,8 @@ import type {
   OrderItemExtraIngredientRequest,
   OrderOrigin,
 } from '@/types/Order'
+import type { IncludeResponse } from '@/types/Product'
+import { includeService } from '@/services/includeService'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -60,9 +63,57 @@ const editingOrderId = ref<string | null>(null)
 
 const form = ref<OrderRequest>({
   customerId: '',
+  customerName: '',
   origin: 'MENUBANK',
   items: [{ productId: '', quantity: 1, extraIngredients: [] }],
 })
+
+// Erros do modal de pedido: validação client-side do cliente + falha do submit.
+const customerError = ref<string | null>(null)
+const submitError = ref<string | null>(null)
+
+const customerOptions = computed(() =>
+  customerStore.items.map((c) => ({ id: c.id, label: c.name })),
+)
+
+// Ficha técnica por produto (cache local): os insumos (PACKAGING + legados sem kind)
+// acompanham o item do pedido por padrão e o operador pode desmarcar os que ficaram
+// de fora. INGREDIENT não é puxado — só entra no custo quando pedido como extra.
+const includesByProduct = ref<Record<string, IncludeResponse[]>>({})
+
+async function loadIncludes(productId: string) {
+  if (!productId || includesByProduct.value[productId]) return
+  try {
+    includesByProduct.value[productId] = await includeService.findByProductId(productId)
+  } catch {
+    /* ficha indisponível: o pedido segue sem a lista de insumos */
+  }
+}
+
+watch(
+  () => form.value.items.map((item) => item.productId),
+  (ids) => ids.forEach((id) => void loadIncludes(id)),
+  { immediate: true },
+)
+
+function insumosOf(item: OrderItemRequest): IncludeResponse[] {
+  return (includesByProduct.value[item.productId] ?? []).filter(
+    (inc) => inc.kind !== 'INGREDIENT',
+  )
+}
+
+function isInsumoIncluded(item: OrderItemRequest, includeId: string): boolean {
+  return !(item.excludedIncludeIds ?? []).includes(includeId)
+}
+
+function toggleInsumo(item: OrderItemRequest, includeId: string, included: boolean) {
+  const excluded = item.excludedIncludeIds ?? (item.excludedIncludeIds = [])
+  if (included) {
+    item.excludedIncludeIds = excluded.filter((id) => id !== includeId)
+  } else if (!excluded.includes(includeId)) {
+    excluded.push(includeId)
+  }
+}
 
 function ensureExtras(item: OrderItemRequest): OrderItemExtraIngredientRequest[] {
   if (!item.extraIngredients) item.extraIngredients = []
@@ -155,18 +206,24 @@ async function handleSyncAnotaAI() {
 
 function openCreate() {
   editingOrderId.value = null
+  customerError.value = null
+  submitError.value = null
   form.value = {
     customerId: '',
+    customerName: '',
     origin: 'MENUBANK',
     feeId: '',
-    items: [{ productId: '', quantity: 1, extraIngredients: [] }],
+    items: [{ productId: '', quantity: 1, extraIngredients: [], excludedIncludeIds: [] }],
   }
   showModal.value = true
 }
 function openEdit(o: OrderResponse) {
   editingOrderId.value = o.id
+  customerError.value = null
+  submitError.value = null
   form.value = {
     customerId: o.customerId,
+    customerName: o.customerName,
     status: o.status,
     feeId: o.feeId ?? '',
     origin: o.origin,
@@ -177,6 +234,7 @@ function openEdit(o: OrderResponse) {
         ingredientId: extra.ingredientId,
         quantity: extra.quantity,
       })),
+      excludedIncludeIds: [...(item.excludedIncludeIds ?? [])],
     })),
   }
   showModal.value = true
@@ -184,9 +242,11 @@ function openEdit(o: OrderResponse) {
 function closeModal() {
   showModal.value = false
   editingOrderId.value = null
+  customerError.value = null
+  submitError.value = null
 }
 function addItem() {
-  form.value.items.push({ productId: '', quantity: 1, extraIngredients: [] })
+  form.value.items.push({ productId: '', quantity: 1, extraIngredients: [], excludedIncludeIds: [] })
 }
 function removeItem(i: number) {
   if (form.value.items.length > 1) form.value.items.splice(i, 1)
@@ -203,8 +263,21 @@ function onExtraChange(extra: OrderItemExtraIngredientRequest, id: string) {
   extra.quantity = ing?.defaultQuantity ?? 1
 }
 async function handleSubmit() {
+  submitError.value = null
+  const customerName = (form.value.customerName ?? '').trim()
+  if (!form.value.customerId && !customerName) {
+    customerError.value = 'Cliente é obrigatório'
+    return
+  }
+  customerError.value = null
   try {
-    const payload = { ...form.value, feeId: form.value.feeId || undefined }
+    // Envia exatamente uma referência de cliente: id (selecionado) ou nome (fluxo rápido).
+    const payload = {
+      ...form.value,
+      customerId: form.value.customerId || undefined,
+      customerName: form.value.customerId ? undefined : customerName,
+      feeId: form.value.feeId || undefined,
+    }
     if (editingOrderId.value) {
       await orderStore.update(editingOrderId.value, payload)
     } else {
@@ -212,7 +285,7 @@ async function handleSubmit() {
     }
     closeModal()
   } catch {
-    /* store has error */
+    submitError.value = orderStore.error ?? 'Erro ao salvar o pedido'
   }
 }
 async function viewDetail(o: OrderResponse) {
@@ -675,19 +748,41 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       <form id="order-form" @submit.prevent="handleSubmit">
         <div style="display: flex; flex-direction: column; gap: 16px">
           <div
+            v-if="submitError"
+            data-testid="order-modal-error"
+            :style="{
+              background: UI.roseBg,
+              color: UI.rose2,
+              border: `1px solid ${UI.rose}22`,
+              borderRadius: '9px',
+              padding: '10px 12px',
+              fontSize: '12.5px',
+            }"
+          >
+            {{ submitError }}
+          </div>
+          <div
             :class="editingOrderId ? 'grid-cols-3' : 'grid-cols-2'"
             :style="{ gap: '12px' }"
           >
             <UIField label="Cliente">
-              <UISelect
+              <UICombobox
                 v-model="form.customerId"
-                placeholder="Selecione o cliente…"
-                data-testid="order-customer-select"
+                v-model:query="form.customerName"
+                :options="customerOptions"
+                placeholder="Digite o nome do cliente…"
+                data-testid="order-customer-input"
+                @update:query="customerError = null"
               >
-                <option v-for="c in customerStore.items" :key="c.id" :value="c.id">
-                  {{ c.name }}
-                </option>
-              </UISelect>
+                <template #create="{ query }">Criar cliente “{{ query }}”</template>
+              </UICombobox>
+              <div
+                v-if="customerError"
+                data-testid="order-customer-error"
+                :style="{ color: UI.rose, fontSize: '11.5px', marginTop: '4px' }"
+              >
+                {{ customerError }}
+              </div>
             </UIField>
             <UIField label="Canal">
               <UISelect v-model="form.origin" data-testid="order-origin-select">
@@ -780,6 +875,53 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                     <UIIcon name="trash" :size="14" />
                   </div>
                 </div>
+
+                <!-- Insumos da ficha técnica: entram no custo por padrão; desmarcar exclui -->
+                <div
+                  v-if="insumosOf(item).length"
+                  :style="{
+                    marginTop: '14px',
+                    paddingTop: '12px',
+                    borderTop: `1px dashed ${UI.border}`,
+                  }"
+                >
+                  <div
+                    :style="{
+                      fontSize: '11.5px',
+                      color: UI.textSub,
+                      fontWeight: 600,
+                      marginBottom: '8px',
+                    }"
+                  >
+                    Insumos da ficha técnica
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px 14px">
+                    <label
+                      v-for="inc in insumosOf(item)"
+                      :key="inc.id"
+                      :data-testid="`order-item-${i}-insumo-${inc.id}`"
+                      :style="{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        color: isInsumoIncluded(item, inc.id) ? UI.text : UI.textMute,
+                        textDecoration: isInsumoIncluded(item, inc.id) ? 'none' : 'line-through',
+                      }"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="isInsumoIncluded(item, inc.id)"
+                        :data-testid="`order-item-${i}-insumo-${inc.id}-checkbox`"
+                        style="accent-color: #2563eb; cursor: pointer"
+                        @change="toggleInsumo(item, inc.id, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ inc.name }} — {{ brl(Number(inc.totalCost)) }}</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div
                   :style="{
                     marginTop: '14px',

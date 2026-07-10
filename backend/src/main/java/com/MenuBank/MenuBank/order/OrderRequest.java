@@ -11,10 +11,18 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@CustomerReferenceRequired
 public class OrderRequest {
 
-    @NotNull(message = "ID do cliente é obrigatório")
+    /** Cliente existente. Opcional quando {@link #customerName} é informado. */
     private UUID customerId;
+
+    /**
+     * Nome do cliente para o fluxo rápido: o backend reutiliza um cliente existente
+     * com o mesmo nome (match canônico) ou cria um novo. Ignorado quando
+     * {@link #customerId} está presente.
+     */
+    private String customerName;
 
     @NotEmpty(message = "Pedido deve ter pelo menos um item")
     @Valid

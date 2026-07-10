@@ -28,6 +28,7 @@ export type AuthErrorCode =
   | 'invalid_credentials'
   | 'email_not_confirmed'
   | 'email_exists'
+  | 'not_supported'
   | 'unknown'
 
 /** Normalized auth error so the store maps to pt-BR messages without knowing the backend. */
@@ -57,4 +58,8 @@ export interface AuthProvider {
   signOut(): Promise<void>
   /** Current access token for the Authorization header (null if signed out). */
   getAccessToken(): Promise<string | null>
+  /** Emails a password-recovery link; throws {@link AuthError} on failure. */
+  requestPasswordReset(email: string): Promise<void>
+  /** Sets a new password for the authenticated user (e.g. after a recovery link). */
+  updatePassword(password: string): Promise<void>
 }

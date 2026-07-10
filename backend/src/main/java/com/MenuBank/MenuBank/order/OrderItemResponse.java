@@ -33,5 +33,12 @@ public class OrderItemResponse {
      */
     @Builder.Default
     private List<OrderItemExtraIngredientResponse> extraIngredients = List.of();
+
+    /**
+     * Ids dos includes da ficha técnica desmarcados neste item (pedido manual).
+     * Usado pela UI para restaurar os checkboxes na edição.
+     */
+    @Builder.Default
+    private List<UUID> excludedIncludeIds = List.of();
 }
 

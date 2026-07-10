@@ -38,10 +38,12 @@ export const supabaseAuthProvider: AuthProvider = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       const msg = error.message.toLowerCase()
-      throw new AuthError(
-        msg.includes('email not confirmed') ? 'email_not_confirmed' : 'invalid_credentials',
-        error.message,
-      )
+      const code = msg.includes('email not confirmed')
+        ? 'email_not_confirmed'
+        : msg.includes('invalid login credentials')
+          ? 'invalid_credentials'
+          : 'unknown' // network failure, rate limit, misconfiguration — not the user's fault
+      throw new AuthError(code, error.message)
     }
     cachedToken = data.session?.access_token ?? null
     return toSession(data.session)!
@@ -64,6 +66,11 @@ export const supabaseAuthProvider: AuthProvider = {
       const msg = error.message.toLowerCase()
       throw new AuthError(msg.includes('already') ? 'email_exists' : 'unknown', error.message)
     }
+    // Email confirmation ON + email already registered: Supabase obfuscates the
+    // duplicate as a 200 with an empty identities array and sends no email.
+    if (data.user && data.user.identities?.length === 0) {
+      throw new AuthError('email_exists')
+    }
     // Email confirmation ON → session is null; confirmation OFF → session is set.
     cachedToken = data.session?.access_token ?? null
     return { session: toSession(data.session) }
@@ -76,5 +83,17 @@ export const supabaseAuthProvider: AuthProvider = {
 
   async getAccessToken() {
     return cachedToken
+  },
+
+  async requestPasswordReset(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/redefinir-senha`,
+    })
+    if (error) throw new AuthError('unknown', error.message)
+  },
+
+  async updatePassword(password) {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw new AuthError('unknown', error.message)
   },
 }

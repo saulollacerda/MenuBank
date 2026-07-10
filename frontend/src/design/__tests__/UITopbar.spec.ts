@@ -31,4 +31,10 @@ describe('UITopbar — hambúrguer mobile', () => {
     expect(wrapper.text()).toContain('Pedidos')
     expect(wrapper.text()).toContain('12 pedidos no total')
   })
+
+  it('não renderiza a pill estática de período', () => {
+    const wrapper = mount(UITopbar, { props: { title: 'Pedidos' } })
+    expect(wrapper.find('.ui-topbar-pill').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Maio 2026')
+  })
 })

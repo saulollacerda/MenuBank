@@ -6,6 +6,7 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNameNormalizer;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
+import com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayloadService;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.notification.NotificationService;
@@ -66,6 +67,7 @@ public class IfoodOrderImportService {
     private final IncludeRepository includeRepository;
     private final NotificationService notificationService;
     private final OrderCostCalculatorService orderCostCalculatorService;
+    private final ExternalOrderRawPayloadService rawPayloadService;
 
     public IfoodOrderImportService(MerchantRepository merchantRepository,
                                    OrderRepository orderRepository,
@@ -74,7 +76,8 @@ public class IfoodOrderImportService {
                                    IngredientRepository ingredientRepository,
                                    IncludeRepository includeRepository,
                                    NotificationService notificationService,
-                                   OrderCostCalculatorService orderCostCalculatorService) {
+                                   OrderCostCalculatorService orderCostCalculatorService,
+                                   ExternalOrderRawPayloadService rawPayloadService) {
         this.merchantRepository = merchantRepository;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
@@ -83,16 +86,18 @@ public class IfoodOrderImportService {
         this.includeRepository = includeRepository;
         this.notificationService = notificationService;
         this.orderCostCalculatorService = orderCostCalculatorService;
+        this.rawPayloadService = rawPayloadService;
     }
 
     /**
      * @param status status inicial derivado do evento que originou o import
      *               (CONFIRMED → PENDING, CONCLUDED → PAID, CANCELLED → CANCELLED)
+     * @param rawJson corpo JSON bruto retornado pelo iFood, persistido para auditoria
      * @return {@code true} se o pedido foi importado; {@code false} se foi pulado
      *         (categoria não-FOOD, pedido de teste, merchant desconhecido ou duplicado).
      */
     @Transactional
-    public boolean importOrder(IfoodOrderDetailResponse detail, OrderStatus status) {
+    public boolean importOrder(IfoodOrderDetailResponse detail, OrderStatus status, String rawJson) {
         if (!FOOD_CATEGORY.equalsIgnoreCase(detail.getCategory())) {
             log.info("[iFood] pedido {} ignorado — category='{}'", detail.getId(), detail.getCategory());
             return false;
@@ -148,6 +153,7 @@ public class IfoodOrderImportService {
         order.setEstimatedProfit(OrderCalculations.calculateEstimatedProfit(order));
 
         orderRepository.save(order);
+        rawPayloadService.save(merchantId, OrderOrigin.IFOOD, detail.getId(), rawJson);
         return true;
     }
 

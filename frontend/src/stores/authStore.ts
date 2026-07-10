@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const awaitingEmailConfirmation = ref(false)
+  const passwordResetEmailSent = ref(false)
   let initialized = false
 
   const isAuthenticated = computed(() => !!session.value)
@@ -59,7 +60,9 @@ export const useAuthStore = defineStore('auth', () => {
         error.value =
           e.code === 'email_not_confirmed'
             ? 'Confirme seu email antes de entrar.'
-            : 'Email ou senha inválidos'
+            : e.code === 'invalid_credentials'
+              ? 'Email ou senha inválidos'
+              : 'Erro ao entrar. Tente novamente.'
       }
       throw e
     } finally {
@@ -76,7 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
         email: request.email,
         password: request.password,
         merchantName: request.merchantName,
-        cnpj: request.cnpj,
+        // Digits only: the backend duplicate check compares raw strings, so a
+        // masked CNPJ would slip past it.
+        cnpj: request.cnpj.replace(/\D/g, ''),
         phone: request.phone ?? null,
       })
       if (newSession) {
@@ -100,12 +105,26 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Single-flight: login() and the onAuthChange callback can race here (the local
+  // provider notifies listeners synchronously during signIn); concurrent getMe(403)
+  // + provision calls would hit the backend's check-then-insert twice.
+  let ensureInFlight: Promise<UserResponse> | null = null
+
+  function ensureProvisionedAndLoad(): Promise<UserResponse> {
+    if (!ensureInFlight) {
+      ensureInFlight = doEnsureProvisionedAndLoad().finally(() => {
+        ensureInFlight = null
+      })
+    }
+    return ensureInFlight
+  }
+
   /**
    * Loads the current merchant. On the first authenticated access the merchant does
    * not exist yet (backend returns 403), so we provision it from the business data
    * stored in the Supabase user metadata, then load it.
    */
-  async function ensureProvisionedAndLoad(): Promise<UserResponse> {
+  async function doEnsureProvisionedAndLoad(): Promise<UserResponse> {
     try {
       currentUser.value = await userService.getMe()
       return currentUser.value
@@ -121,14 +140,57 @@ export const useAuthStore = defineStore('auth', () => {
         cnpj?: string
         phone?: string | null
       }
-      await authService.provision({
-        merchantName: meta.merchantName ?? '',
-        cnpj: meta.cnpj ?? '',
-        email: user?.email ?? '',
-        phone: meta.phone ?? undefined,
-      })
+      try {
+        await authService.provision({
+          merchantName: meta.merchantName ?? '',
+          cnpj: meta.cnpj ?? '',
+          email: user?.email ?? '',
+          phone: meta.phone ?? undefined,
+        })
+      } catch (provisionError: unknown) {
+        const provisionStatus = (provisionError as { response?: { status?: number } }).response
+          ?.status
+        error.value =
+          provisionStatus === 409
+            ? 'Já existe um cadastro com este email ou CNPJ.'
+            : 'Erro ao concluir seu cadastro. Tente novamente.'
+        throw provisionError
+      }
       currentUser.value = await userService.getMe()
       return currentUser.value
+    }
+  }
+
+  async function requestPasswordReset(email: string) {
+    loading.value = true
+    error.value = null
+    passwordResetEmailSent.value = false
+    try {
+      await authProvider.requestPasswordReset(email)
+      passwordResetEmailSent.value = true
+    } catch (e: unknown) {
+      if (e instanceof AuthError) {
+        error.value =
+          e.code === 'not_supported'
+            ? 'Recuperação de senha não está disponível no ambiente de desenvolvimento.'
+            : 'Erro ao enviar o email de recuperação. Tente novamente.'
+      }
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updatePassword(password: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await authProvider.updatePassword(password)
+    } catch (e: unknown) {
+      error.value = 'Erro ao redefinir a senha. Tente novamente.'
+      throw e
+    } finally {
+      loading.value = false
     }
   }
 
@@ -189,11 +251,14 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     awaitingEmailConfirmation,
+    passwordResetEmailSent,
     isAuthenticated,
     restaurantName,
     init,
     login,
     register,
+    requestPasswordReset,
+    updatePassword,
     logout,
     fetchCurrentUser,
     updateAnotaAIKey,

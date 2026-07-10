@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { useAuthStore } from '@/stores/authStore'
 import { UI, UIIcon } from '@/design'
+
+// The confirmation link signs the user in (detectSessionInUrl); the CTA must not
+// send an already-authenticated user to a login page they would bounce off of.
+const authStore = useAuthStore()
 </script>
 
 <template>
@@ -91,12 +96,18 @@ import { UI, UIIcon } from '@/design'
           lineHeight: 1.6,
         }"
       >
-        Sua conta está confirmada e pronta para uso. Faça login para acessar o painel
-        e começar a gerenciar sua loja.
+        <template v-if="authStore.isAuthenticated">
+          Sua conta está confirmada e você já está conectado. Acesse o painel para
+          começar a gerenciar sua loja.
+        </template>
+        <template v-else>
+          Sua conta está confirmada e pronta para uso. Entre com seu email e senha
+          para acessar o painel e começar a gerenciar sua loja.
+        </template>
       </p>
 
       <RouterLink
-        to="/login"
+        :to="authStore.isAuthenticated ? '/dashboard' : '/login'"
         class="ui-btn"
         :style="{
           marginTop: '28px',
@@ -115,7 +126,7 @@ import { UI, UIIcon } from '@/design'
           cursor: 'pointer',
         }"
       >
-        Ir para o login
+        {{ authStore.isAuthenticated ? 'Ir para o painel' : 'Ir para o login' }}
         <UIIcon name="arrow" :size="15" />
       </RouterLink>
     </div>

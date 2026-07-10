@@ -5,6 +5,15 @@ import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 import { orderService, type OrderFilterParams } from '@/services/orderService'
 import { useDashboardStore } from '@/stores/dashboardStore'
 
+/** Extrai o `detail` do ProblemDetail retornado pelo backend, quando presente. */
+function extractDetail(e: unknown): string | null {
+  if (typeof e === 'object' && e !== null && 'response' in e) {
+    const data = (e as { response?: { data?: { detail?: unknown } } }).response?.data
+    if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail
+  }
+  return null
+}
+
 export const useOrderStore = defineStore('order', () => {
   const items = ref<OrderResponse[]>([])
   const loading = ref(false)
@@ -80,7 +89,7 @@ export const useOrderStore = defineStore('order', () => {
       refreshDashboard()
       return created
     } catch (e: unknown) {
-      error.value = 'Erro ao criar pedido'
+      error.value = extractDetail(e) ?? 'Erro ao criar pedido'
       throw e
     } finally {
       loading.value = false
@@ -97,7 +106,7 @@ export const useOrderStore = defineStore('order', () => {
       refreshDashboard()
       return updated
     } catch (e: unknown) {
-      error.value = 'Erro ao atualizar pedido'
+      error.value = extractDetail(e) ?? 'Erro ao atualizar pedido'
       throw e
     } finally {
       loading.value = false

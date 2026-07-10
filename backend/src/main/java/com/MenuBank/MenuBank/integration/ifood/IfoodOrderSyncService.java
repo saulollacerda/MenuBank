@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood;
 
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodEventResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
 import com.MenuBank.MenuBank.integration.ifood.services.IfoodOrderImportService;
@@ -116,9 +117,13 @@ public class IfoodOrderSyncService {
     }
 
     private void importOrder(String token, IfoodEventResponse event, OrderStatus status) {
-        IfoodOrderDetailResponse detail =
+        RawJsonResponse<IfoodOrderDetailResponse> detail =
                 withRetryOn401(token, t -> orderClient.getOrderDetail(t, event.getOrderId()));
-        importService.importOrder(detail, status);
+        if (detail == null) {
+            log.warn("[iFood] detalhe do pedido {} veio vazio — pulando", event.getOrderId());
+            return;
+        }
+        importService.importOrder(detail.body(), status, detail.rawJson());
     }
 
     private static String normalizeFullCode(String fullCode) {

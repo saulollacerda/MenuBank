@@ -46,6 +46,14 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {} }),
 }))
 
+let includesByProductMock: Record<string, unknown[]>
+
+vi.mock('@/services/includeService', () => ({
+  includeService: {
+    findByProductId: vi.fn(async (productId: string) => includesByProductMock[productId] ?? []),
+  },
+}))
+
 import OrdersView from '@/views/OrdersView.vue'
 
 describe('OrdersView', () => {
@@ -127,6 +135,14 @@ describe('OrdersView', () => {
       markRead: vi.fn(),
       dismiss: vi.fn(),
     }
+
+    includesByProductMock = {
+      p1: [
+        { id: 'inc1', productId: 'p1', name: 'Copo', cost: 0.1, quantity: 1, totalCost: 0.1, kind: 'PACKAGING' },
+        { id: 'inc2', productId: 'p1', name: 'Açaí base', cost: 0.02, quantity: 150, totalCost: 3, kind: null },
+        { id: 'inc3', productId: 'p1', name: 'Granola', cost: 0.05, quantity: 40, totalCost: 2, kind: 'INGREDIENT' },
+      ],
+    }
   })
 
   it('should submit order with extra ingredients', async () => {
@@ -134,7 +150,8 @@ describe('OrdersView', () => {
 
     await wrapper.get('[data-testid="new-order-button"]').trigger('click')
 
-    await wrapper.get('[data-testid="order-customer-select"]').setValue('c1')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('jo')
+    await wrapper.get('[data-testid="combo-option-c1"]').trigger('click')
     await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
     await wrapper.get('[data-testid="order-item-0-quantity-input"]').setValue('2')
 
@@ -155,9 +172,156 @@ describe('OrdersView', () => {
           productId: 'p1',
           quantity: 2,
           extraIngredients: [{ ingredientId: 'i1', quantity: 1.5 }],
+          excludedIncludeIds: [],
         },
       ],
     })
+    const payload = orderStoreMock.create.mock.calls[0][0]
+    expect(payload.customerName).toBeUndefined()
+  })
+
+  it('should list the product ficha técnica as checked insumos when a product is selected', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+    await flushPromises()
+
+    const copo = wrapper.get('[data-testid="order-item-0-insumo-inc1-checkbox"]')
+    const acai = wrapper.get('[data-testid="order-item-0-insumo-inc2-checkbox"]')
+    expect((copo.element as HTMLInputElement).checked).toBe(true)
+    expect((acai.element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.html()).toContain('Copo')
+    expect(wrapper.html()).toContain('Açaí base')
+  })
+
+  it('should not pull INGREDIENT-kind includes as insumos of the order item', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="order-item-0-insumo-inc3-checkbox"]').exists()).toBe(false)
+  })
+
+  it('should send excludedIncludeIds when an insumo is unchecked', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('jo')
+    await wrapper.get('[data-testid="combo-option-c1"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="order-item-0-insumo-inc1-checkbox"]').setValue(false)
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(orderStoreMock.create).toHaveBeenCalledTimes(1)
+    const payload = orderStoreMock.create.mock.calls[0][0]
+    expect(payload.items[0].excludedIncludeIds).toEqual(['inc1'])
+  })
+
+  it('should re-include the insumo cost when the checkbox is checked back', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('jo')
+    await wrapper.get('[data-testid="combo-option-c1"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="order-item-0-insumo-inc1-checkbox"]').setValue(false)
+    await wrapper.get('[data-testid="order-item-0-insumo-inc1-checkbox"]').setValue(true)
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const payload = orderStoreMock.create.mock.calls[0][0]
+    expect(payload.items[0].excludedIncludeIds).toEqual([])
+  })
+
+  it('should show a validation error and keep the modal open when no customer is given', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="order-customer-error"]').text()).toBe(
+      'Cliente é obrigatório',
+    )
+    expect(orderStoreMock.create).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="order-form-title"]').exists()).toBe(true)
+  })
+
+  it('should treat a whitespace-only customer name as missing', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('   ')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="order-customer-error"]').text()).toBe(
+      'Cliente é obrigatório',
+    )
+    expect(orderStoreMock.create).not.toHaveBeenCalled()
+  })
+
+  it('should clear the validation error when the user types a customer name', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('[data-testid="order-customer-error"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('Ma')
+
+    expect(wrapper.find('[data-testid="order-customer-error"]').exists()).toBe(false)
+  })
+
+  it('should quick-create: submit customerName without customerId when typing a new name', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('  Maria ')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(orderStoreMock.create).toHaveBeenCalledTimes(1)
+    const payload = orderStoreMock.create.mock.calls[0][0]
+    expect(payload.customerName).toBe('Maria')
+    expect(payload.customerId).toBeUndefined()
+  })
+
+  it('should show the backend error inside the modal and keep it open on failure', async () => {
+    orderStoreMock.create = vi.fn().mockImplementation(() => {
+      orderStoreMock.error = 'Cliente é obrigatório'
+      return Promise.reject(new Error('bad request'))
+    })
+
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('Maria')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="order-modal-error"]').text()).toContain(
+      'Cliente é obrigatório',
+    )
+    expect(wrapper.find('[data-testid="order-form-title"]').exists()).toBe(true)
   })
 
   it('should auto-fill extra ingredient quantity with ingredient defaultQuantity', async () => {
@@ -290,8 +454,8 @@ describe('OrdersView', () => {
 
     expect(wrapper.get('[data-testid="order-form-title"]').text()).toBe('Editar Pedido')
     expect(
-      (wrapper.get('[data-testid="order-customer-select"]').element as HTMLSelectElement).value,
-    ).toBe('c1')
+      (wrapper.get('[data-testid="order-customer-input"]').element as HTMLInputElement).value,
+    ).toBe('João')
     expect(
       (wrapper.get('[data-testid="order-item-0-product-select"]').element as HTMLSelectElement).value,
     ).toBe('p1')
@@ -326,6 +490,50 @@ describe('OrdersView', () => {
       }),
     )
     expect(orderStoreMock.create).not.toHaveBeenCalled()
+  })
+
+  it('should restore unchecked insumos when editing an order with exclusions', async () => {
+    orderStoreMock.update = vi.fn().mockResolvedValue({})
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 40,
+        estimatedProfit: 20,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 330ml',
+            quantity: 1,
+            unitPrice: 20,
+            unitCost: 0.1,
+            totalCost: 0.1,
+            extraIngredients: [],
+            excludedIncludeIds: ['inc2'],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="order-o1-edit-button"]').trigger('click')
+    await flushPromises()
+
+    const copo = wrapper.get('[data-testid="order-item-0-insumo-inc1-checkbox"]')
+    const acai = wrapper.get('[data-testid="order-item-0-insumo-inc2-checkbox"]')
+    expect((copo.element as HTMLInputElement).checked).toBe(true)
+    expect((acai.element as HTMLInputElement).checked).toBe(false)
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const payload = orderStoreMock.update.mock.calls[0][1]
+    expect(payload.items[0].excludedIncludeIds).toEqual(['inc2'])
   })
 
   it('should fall back to quantity 1 when selected ingredient has no defaultQuantity', async () => {

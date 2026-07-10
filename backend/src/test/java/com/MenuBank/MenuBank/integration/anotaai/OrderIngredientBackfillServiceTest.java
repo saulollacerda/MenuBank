@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.integration.anotaai;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientCreatedEvent;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.order.Order;
@@ -128,6 +129,10 @@ class OrderIngredientBackfillServiceTest {
                 .build();
         items.forEach(i -> i.setOrder(order));
         return order;
+    }
+
+    private RawJsonResponse<AnotaAIOrderDetailResponse> raw(AnotaAIOrderDetailResponse response) {
+        return new RawJsonResponse<>(response, "{\"fixture\":\"raw\"}");
     }
 
     private AnotaAIOrderDetailResponse buildDetailResponse(String productExternalId, String subItemName, int subItemQty) {
@@ -259,7 +264,7 @@ class OrderIngredientBackfillServiceTest {
         void whenAnotaAIResponseHasNullInfo_shouldSkipOrder() {
             AnotaAIOrderDetailResponse response = new AnotaAIOrderDetailResponse();
             response.setInfo(null);
-            given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123")).willReturn(response);
+            given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123")).willReturn(raw(response));
 
             backfillService.onIngredientCreated(event);
 
@@ -290,7 +295,7 @@ class OrderIngredientBackfillServiceTest {
                     eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                     .willReturn(List.of(order));
             given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                    .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                    .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
             given(costCalculatorService.computeOrderTotalCost(order))
                     .willReturn(new BigDecimal("15.00"));
         }
@@ -363,7 +368,7 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
 
         backfillService.onIngredientCreated(event);
 
@@ -388,7 +393,7 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Banana", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Banana", 1)));
 
         backfillService.onIngredientCreated(event);
 
@@ -416,7 +421,7 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
         given(costCalculatorService.computeOrderTotalCost(order)).willReturn(new BigDecimal("18.00"));
 
         backfillService.onIngredientCreated(event);
@@ -447,9 +452,9 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order1, order2));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-1"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-2"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
         given(costCalculatorService.computeOrderTotalCost(any())).willReturn(new BigDecimal("15.00"));
 
         backfillService.onIngredientCreated(event);
@@ -483,7 +488,7 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 3));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 3)));
         given(costCalculatorService.computeOrderTotalCost(order)).willReturn(new BigDecimal("15.00"));
 
         backfillService.onIngredientCreated(event);
@@ -510,7 +515,7 @@ class OrderIngredientBackfillServiceTest {
                 eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
                 .willReturn(List.of(order));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
 
         backfillService.onIngredientCreated(event);
 
@@ -543,7 +548,7 @@ class OrderIngredientBackfillServiceTest {
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-fail"))
                 .willThrow(new RuntimeException("AnotaAI offline"));
         given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-ok"))
-                .willReturn(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1));
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1)));
         given(costCalculatorService.computeOrderTotalCost(order2)).willReturn(new BigDecimal("15.00"));
 
         backfillService.onIngredientCreated(event);
