@@ -200,8 +200,10 @@ const recipeMargin = computed(() => {
   return ((price - recipeTotalCost.value) / price) * 100
 })
 
-const cols = '1.5fr 1fr 100px 100px 100px 100px 90px 130px'
-const tableMinWidth = '900px'
+// Tighter fixed columns (Preço/Custo/Margem/Ficha) so the name column keeps
+// room on smaller screens instead of truncating.
+const cols = '2.6fr 0.8fr 84px 84px 84px 64px 88px 112px'
+const tableMinWidth = '780px'
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
@@ -338,7 +340,7 @@ onMounted(() => {
           :style="{
             display: 'grid',
             gridTemplateColumns: cols,
-            gap: '12px',
+            gap: '8px',
             padding: '12px 18px',
             background: UI.bgSoft,
             borderBottom: `1px solid ${UI.border}`,
@@ -381,7 +383,7 @@ onMounted(() => {
             :style="{
               display: 'grid',
               gridTemplateColumns: cols,
-              gap: '12px',
+              gap: '8px',
               padding: '12px 18px',
               borderBottom: i === filteredItems.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
               fontSize: '13px',
