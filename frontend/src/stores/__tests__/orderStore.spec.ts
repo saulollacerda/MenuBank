@@ -78,6 +78,69 @@ describe('orderStore', () => {
     expect(store.items).toContainEqual(created)
   })
 
+  it('create should accept a quick-create payload with customerName only', async () => {
+    const created = {
+      id: '1',
+      dateTime: '2026-03-24T10:00:00',
+      customerId: 'c9',
+      customerName: 'Maria',
+      status: 'PAID' as const,
+      totalValue: 30.0,
+      estimatedProfit: 10.0,
+      items: [],
+    }
+    mockedService.create.mockResolvedValue(created)
+    mockedService.findAll.mockResolvedValue(asPage([created]))
+
+    const store = useOrderStore()
+    await store.create({
+      customerName: 'Maria',
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+
+    expect(mockedService.create).toHaveBeenCalledWith({
+      customerName: 'Maria',
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+  })
+
+  it('create should surface the backend ProblemDetail message on failure', async () => {
+    mockedService.create.mockRejectedValue({
+      response: { data: { detail: 'Cliente é obrigatório' } },
+    })
+
+    const store = useOrderStore()
+    await expect(
+      store.create({ customerId: 'c1', items: [{ productId: 'p1', quantity: 1 }] }),
+    ).rejects.toBeTruthy()
+
+    expect(store.error).toBe('Cliente é obrigatório')
+  })
+
+  it('create should fall back to a generic message when no detail is present', async () => {
+    mockedService.create.mockRejectedValue(new Error('network'))
+
+    const store = useOrderStore()
+    await expect(
+      store.create({ customerId: 'c1', items: [{ productId: 'p1', quantity: 1 }] }),
+    ).rejects.toBeTruthy()
+
+    expect(store.error).toBe('Erro ao criar pedido')
+  })
+
+  it('update should surface the backend ProblemDetail message on failure', async () => {
+    mockedService.update.mockRejectedValue({
+      response: { data: { detail: 'Cliente com ID x não encontrado' } },
+    })
+
+    const store = useOrderStore()
+    await expect(
+      store.update('1', { customerId: 'c1', items: [{ productId: 'p1', quantity: 1 }] }),
+    ).rejects.toBeTruthy()
+
+    expect(store.error).toBe('Cliente com ID x não encontrado')
+  })
+
   it('remove should call service and refetch the current page', async () => {
     mockedService.remove.mockResolvedValue()
     mockedService.findAll.mockResolvedValue(asPage([]))
