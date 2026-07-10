@@ -370,6 +370,22 @@ describe('SettingsView — Plano e pagamento', () => {
     expect(openSpy).toHaveBeenCalledWith('https://pay.abacatepay.com/bill_xyz', '_self')
   })
 
+  it('mostra os planos mesmo quando o merchant ainda não tem assinatura registrada', async () => {
+    mockedBilling.getMySubscription.mockRejectedValue({ response: { status: 404 } })
+    mockedBilling.listPlans.mockResolvedValue([basicPlan])
+    const wrapper = await mountView(statusOf())
+    const item = wrapper
+      .findAll('.settings-subnav-item')
+      .find((el) => el.text().includes('Plano e pagamento'))
+    await item!.trigger('click')
+    await flushPromises()
+
+    const planCard = wrapper.find('[data-testid="billing-plan-card"]')
+    expect(planCard.exists()).toBe(true)
+    expect(planCard.text()).toContain('Básico')
+    expect(wrapper.find('[data-testid="billing-subscribe-action"]').exists()).toBe(true)
+  })
+
   it('exibe erro quando a criação do checkout falha', async () => {
     mockedBilling.createCheckout.mockRejectedValue(new Error('fail'))
     const wrapper = await openBilling(subscriptionOf(), [basicPlan])

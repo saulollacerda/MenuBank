@@ -243,12 +243,15 @@ async function loadBilling() {
   billingLoading.value = true
   billingError.value = null
   try {
-    const [subscription, plans] = await Promise.all([
+    // Merchants created before the trial flow may have no subscription row
+    // (404) — the plans must still be listed so they can subscribe.
+    const [subscription, plans] = await Promise.allSettled([
       billingService.getMySubscription(),
       billingService.listPlans(),
     ])
-    billingSubscription.value = subscription
-    billingPlans.value = plans
+    if (plans.status === 'rejected') throw plans.reason
+    billingPlans.value = plans.value
+    billingSubscription.value = subscription.status === 'fulfilled' ? subscription.value : null
     billingLoaded.value = true
   } catch {
     billingError.value = 'Não foi possível carregar seu plano. Tente novamente.'
@@ -1199,8 +1202,9 @@ onMounted(async () => {
             Carregando informações do plano…
           </div>
 
-          <template v-else-if="billingSubscription">
+          <template v-else-if="billingLoaded">
             <div
+              v-if="billingSubscription"
               data-testid="billing-status"
               :style="{
                 padding: '14px',
