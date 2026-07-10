@@ -70,10 +70,15 @@ function statusOf(overrides: Partial<IfoodStatusResponse> = {}): IfoodStatusResp
   return { connected: false, catalogImportedAt: null, orderSyncEnabled: false, ...overrides }
 }
 
-async function mountView(status: IfoodStatusResponse) {
+async function mountView(status: IfoodStatusResponse, { expand = true } = {}) {
   mockedService.status.mockResolvedValue(status)
   const wrapper = mount(SettingsView, { global: { stubs: STUBS } })
   await flushPromises()
+  if (expand) {
+    // Checklists start collapsed; most tests interact with the stages.
+    await wrapper.find('[data-testid="ifood-card-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="anotaai-card-toggle"]').trigger('click')
+  }
   return wrapper
 }
 
@@ -88,6 +93,42 @@ beforeEach(() => {
     syncOrders: vi.fn(async () => ({ ordersImported: 2, ordersSkipped: 1 })),
     clearResult: vi.fn(),
   }
+})
+
+describe('SettingsView — cards de integração recolhíveis', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  it('as etapas começam recolhidas em ambos os cards', async () => {
+    const wrapper = await mountView(statusOf(), { expand: false })
+
+    expect(wrapper.find('[data-testid="ifood-card-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="anotaai-card-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ifood-stage-connect"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="anotaai-stage-connect"]').exists()).toBe(false)
+  })
+
+  it('a seta expande e recolhe as etapas do card do iFood', async () => {
+    const wrapper = await mountView(statusOf(), { expand: false })
+
+    await wrapper.find('[data-testid="ifood-card-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="ifood-stage-connect"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="ifood-card-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="ifood-stage-connect"]').exists()).toBe(false)
+  })
+
+  it('a seta expande e recolhe as etapas do card do Anota.AI', async () => {
+    const wrapper = await mountView(statusOf(), { expand: false })
+
+    await wrapper.find('[data-testid="anotaai-card-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="anotaai-stage-connect"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="anotaai-card-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="anotaai-stage-connect"]').exists()).toBe(false)
+  })
 })
 
 describe('SettingsView — checklist iFood', () => {

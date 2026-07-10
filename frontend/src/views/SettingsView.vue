@@ -161,6 +161,17 @@ async function handleSaveKey() {
   }
 }
 
+// ── Integration cards (collapsible checklists) ───────────────────────────────
+
+const expandedIntegrations = ref<{ ifood: boolean; anotaai: boolean }>({
+  ifood: false,
+  anotaai: false,
+})
+
+function toggleIntegration(key: 'ifood' | 'anotaai') {
+  expandedIntegrations.value[key] = !expandedIntegrations.value[key]
+}
+
 // ── Anota.AI checklist ────────────────────────────────────────────────────────
 
 const showTokenForm = ref(false)
@@ -299,6 +310,7 @@ onMounted(async () => {
   // Resume an interrupted iFood linking flow (reload/navigation mid-flow).
   if (!ifoodConnected.value && hasPendingIfoodAuth()) {
     section.value = 'ints'
+    expandedIntegrations.value.ifood = true
     ifoodResume.value = true
     ifoodModal.value = true
   } else if (ifoodConnected.value && hasPendingIfoodAuth()) {
@@ -512,7 +524,11 @@ onMounted(async () => {
                 borderRadius: '11px',
               }"
             >
-              <div style="display: flex; align-items: center; gap: 14px">
+              <div
+                data-testid="ifood-card-toggle"
+                style="display: flex; align-items: center; gap: 14px; cursor: pointer"
+                @click="toggleIntegration('ifood')"
+              >
                 <div
                   :style="{
                     width: '38px',
@@ -534,8 +550,17 @@ onMounted(async () => {
                     Importação de cardápio e pedidos via API oficial do iFood, em 3 etapas.
                   </div>
                 </div>
+                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ ifoodConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIIcon
+                  :name="expandedIntegrations.ifood ? 'chevDown' : 'chevRight'"
+                  :size="15"
+                  :style="{ color: UI.textSub, flexShrink: 0 }"
+                />
               </div>
 
+              <template v-if="expandedIntegrations.ifood">
               <!-- Etapa 1 — Conectar -->
               <div
                 data-testid="ifood-stage-connect"
@@ -693,6 +718,7 @@ onMounted(async () => {
                   {{ ifoodStatus?.orderSyncEnabled ? 'Gerenciar' : 'Ativar' }}
                 </UIBtn>
               </div>
+              </template>
             </div>
 
             <div
@@ -706,7 +732,11 @@ onMounted(async () => {
                 borderRadius: '11px',
               }"
             >
-              <div style="display: flex; align-items: center; gap: 14px">
+              <div
+                data-testid="anotaai-card-toggle"
+                style="display: flex; align-items: center; gap: 14px; cursor: pointer"
+                @click="toggleIntegration('anotaai')"
+              >
                 <div
                   :style="{
                     width: '38px',
@@ -728,8 +758,17 @@ onMounted(async () => {
                     Importação automática de pedidos dentro dos horários da loja, em 3 etapas.
                   </div>
                 </div>
+                <UIPill :color="anotaAiConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected ? 'Conectado' : 'Pendente' }}
+                </UIPill>
+                <UIIcon
+                  :name="expandedIntegrations.anotaai ? 'chevDown' : 'chevRight'"
+                  :size="15"
+                  :style="{ color: UI.textSub, flexShrink: 0 }"
+                />
               </div>
 
+              <template v-if="expandedIntegrations.anotaai">
               <!-- Etapa 1 — Conectar -->
               <div
                 data-testid="anotaai-stage-connect"
@@ -946,6 +985,7 @@ onMounted(async () => {
                 <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
                 Abra o sino para cadastrá-los.
               </div>
+              </template>
             </div>
 
             <!-- Em breve -->
