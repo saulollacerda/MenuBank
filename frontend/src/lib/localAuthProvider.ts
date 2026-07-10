@@ -118,4 +118,13 @@ export const localAuthProvider: AuthProvider = {
   async getAccessToken() {
     return readValidToken()
   },
+
+  // No email delivery in local dev — failing loudly beats faking a sent email.
+  async requestPasswordReset() {
+    throw new AuthError('not_supported')
+  },
+
+  async updatePassword() {
+    throw new AuthError('not_supported')
+  },
 }

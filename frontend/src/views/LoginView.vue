@@ -10,7 +10,6 @@ const authStore = useAuthStore()
 
 const form = ref<LoginRequest>({ email: '', password: '' })
 const showPassword = ref(false)
-const remember = ref(false)
 
 async function handleSubmit() {
   try {
@@ -266,45 +265,18 @@ async function handleSubmit() {
             </UIInput>
           </UIField>
 
-          <div style="display: flex; justify-content: space-between; align-items: center">
-            <label
-              :style="{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '12.5px',
-                color: UI.text,
-                cursor: 'pointer',
-              }"
-            >
-              <span
-                :style="{
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '4px',
-                  background: remember ? UI.blue : UI.panel,
-                  border: `1px solid ${remember ? UI.blue : UI.border}`,
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }"
-                @click="remember = !remember"
-              >
-                <UIIcon v-if="remember" name="check" :size="10" />
-              </span>
-              Manter conectado
-            </label>
-            <span
+          <div style="display: flex; justify-content: flex-end; align-items: center">
+            <RouterLink
+              to="/esqueci-senha"
               :style="{
                 fontSize: '12.5px',
                 color: UI.blue,
                 fontWeight: 600,
-                cursor: 'pointer',
+                textDecoration: 'none',
               }"
             >
               Esqueceu a senha?
-            </span>
+            </RouterLink>
           </div>
 
           <button
