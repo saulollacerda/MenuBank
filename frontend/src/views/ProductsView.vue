@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useProductStore } from '@/stores/productStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAnotaAIStore } from '@/stores/anotaAIStore'
@@ -200,10 +200,26 @@ const recipeMargin = computed(() => {
   return ((price - recipeTotalCost.value) / price) * 100
 })
 
+// The Ficha column ("Abrir") only exists on phones/tablets, where the row
+// actions sit far right after horizontal scroll; desktop opens the recipe
+// via the row action icon instead.
+const smallScreenQuery =
+  typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1024px)') : null
+const isSmallScreen = ref(smallScreenQuery?.matches ?? false)
+function onScreenChange(e: MediaQueryListEvent) {
+  isSmallScreen.value = e.matches
+}
+onMounted(() => smallScreenQuery?.addEventListener('change', onScreenChange))
+onUnmounted(() => smallScreenQuery?.removeEventListener('change', onScreenChange))
+
 // Tighter fixed columns (Preço/Custo/Margem/Ficha) so the name column keeps
 // room on smaller screens instead of truncating.
-const cols = '2.6fr 0.8fr 84px 84px 84px 64px 88px 112px'
-const tableMinWidth = '780px'
+const cols = computed(() =>
+  isSmallScreen.value
+    ? '2.6fr 0.8fr 84px 84px 84px 64px 88px 112px'
+    : '2.6fr 0.8fr 84px 84px 84px 88px 112px',
+)
+const tableMinWidth = computed(() => (isSmallScreen.value ? '780px' : '708px'))
 
 onMounted(() => {
   productStore.fetchPage({ page: 0, search: '' })
@@ -357,7 +373,7 @@ onMounted(() => {
           <span style="text-align: right">Preço</span>
           <span style="text-align: right">Custo</span>
           <span style="text-align: right">Margem</span>
-          <span>Ficha</span>
+          <span v-if="isSmallScreen" data-testid="ficha-column-header">Ficha</span>
           <span>Status</span>
           <span style="text-align: right">Ações</span>
         </div>
@@ -435,8 +451,16 @@ onMounted(() => {
             <span :style="{ textAlign: 'right', color: UI.textMute, fontVariantNumeric: 'tabular-nums' }">
               —
             </span>
-            <span>
-              <UIPill color="gray" size="sm">Abrir</UIPill>
+            <span v-if="isSmallScreen">
+              <button
+                type="button"
+                :data-testid="`product-${p.id}-open-recipe-pill`"
+                title="Abrir ficha técnica"
+                style="border: none; background: none; padding: 0; cursor: pointer"
+                @click="openRecipe(p)"
+              >
+                <UIPill color="blue" size="sm">Abrir</UIPill>
+              </button>
             </span>
             <span>
               <UIPill :color="p.status === 'ACTIVE' ? 'emerald' : 'gray'" dot>
