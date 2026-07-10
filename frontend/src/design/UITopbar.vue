@@ -4,15 +4,10 @@ import UIIcon from './UIIcon.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import { useSidebar } from '@/composables/useSidebar'
 
-withDefaults(
-  defineProps<{
-    title: string
-    subtitle?: string
-    periodPill?: boolean
-    periodLabel?: string
-  }>(),
-  { periodPill: true, periodLabel: 'Maio 2026' },
-)
+defineProps<{
+  title: string
+  subtitle?: string
+}>()
 
 const sidebar = useSidebar()
 </script>
@@ -40,19 +35,6 @@ const sidebar = useSidebar()
       </div>
     </div>
     <div class="ui-topbar-actions">
-      <div
-        v-if="periodPill"
-        class="ui-topbar-pill"
-        :style="{
-          background: UI.bg,
-          border: `1px solid ${UI.border}`,
-          color: UI.text,
-        }"
-      >
-        <UIIcon name="clock" :size="14" />
-        {{ periodLabel }}
-        <UIIcon name="chevDown" :size="11" />
-      </div>
       <slot name="actions" />
       <NotificationBell />
     </div>
@@ -88,16 +70,6 @@ const sidebar = useSidebar()
   flex-wrap: wrap;
 }
 
-.ui-topbar-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 9px;
-  font-size: 12.5px;
-  font-weight: 500;
-}
-
 .ui-topbar-hamburger {
   display: none;
   background: transparent;
@@ -121,9 +93,6 @@ const sidebar = useSidebar()
   }
   .ui-topbar-hamburger {
     display: flex;
-  }
-  .ui-topbar-pill {
-    display: none;
   }
 }
 </style>
