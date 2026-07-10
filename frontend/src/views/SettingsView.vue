@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useAnotaAIStore } from '@/stores/anotaAIStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import { UI, UITopbar, UICard, UIBtn, UIField, UIInput, UIPill, UIIcon } from '@/design'
 import type { DayOfWeek, OpeningHour } from '@/types/User'
 import { ifoodAuthService, type IfoodStatusResponse } from '@/services/ifoodAuthService'
@@ -11,6 +13,8 @@ import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
 import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
 
 const authStore = useAuthStore()
+const anotaAIStore = useAnotaAIStore()
+const notificationStore = useNotificationStore()
 const route = useRoute()
 
 const apiKey = ref('')
@@ -148,9 +152,28 @@ async function handleSaveKey() {
     const trimmed = apiKey.value.trim()
     await authStore.updateAnotaAIKey(trimmed.length > 0 ? trimmed : null)
     successMessage.value = 'Chave do Anota.AI salva com sucesso.'
+    showTokenForm.value = false
     setTimeout(() => (successMessage.value = null), 4000)
   } catch {
     /* error in store */
+  }
+}
+
+// ── Anota.AI checklist ────────────────────────────────────────────────────────
+
+const showTokenForm = ref(false)
+
+const anotaAiConnected = computed(() => !!user.value?.anotaAiApiKey)
+const anotaAiHoursConfigured = computed(() => (user.value?.openingHours?.length ?? 0) > 0)
+
+async function handleSyncAnotaAIOrders() {
+  anotaAIStore.clearResult()
+  try {
+    await anotaAIStore.syncOrders()
+  } catch {
+    /* error in store */
+  } finally {
+    notificationStore.refreshCount()
   }
 }
 
@@ -586,23 +609,22 @@ onMounted(async () => {
             <div
               :style="{
                 display: 'flex',
-                alignItems: 'flex-start',
-                gap: '14px',
-                padding: '14px',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '12px 14px',
                 background: UI.bgSoft,
                 border: `1px solid ${UI.border}`,
                 borderRadius: '11px',
-                flexDirection: 'column',
               }"
             >
-              <div style="display: flex; align-items: center; gap: 14px; width: 100%">
+              <div style="display: flex; align-items: center; gap: 14px">
                 <div
                   :style="{
                     width: '38px',
                     height: '38px',
                     borderRadius: '9px',
-                    background: apiKey ? UI.emeraldBg : UI.bg,
-                    color: apiKey ? UI.emerald2 : UI.textMute,
+                    background: anotaAiConnected ? UI.emeraldBg : UI.bg,
+                    color: anotaAiConnected ? UI.emerald2 : UI.textMute,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -614,16 +636,58 @@ onMounted(async () => {
                 <div style="flex: 1">
                   <div :style="{ fontSize: '13.5px', fontWeight: 600 }">Anota.AI</div>
                   <div :style="{ fontSize: '11.5px', color: UI.textSub, marginTop: '2px' }">
-                    Importação automática de pedidos · sincronização de cardápio.
+                    Importação automática de pedidos dentro dos horários da loja, em 3 etapas.
                   </div>
                 </div>
-                <UIPill :color="apiKey ? 'emerald' : 'gray'" dot>
-                  {{ apiKey ? 'Conectado' : 'Desconectado' }}
+              </div>
+
+              <!-- Etapa 1 — Conectar -->
+              <div
+                data-testid="anotaai-stage-connect"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiConnected ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiConnected ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiConnected ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiConnected" name="check" :size="12" />
+                  <template v-else>1</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Conectar conta</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Salve o token de integração fornecido pelo Anota.AI.
+                  </div>
+                </div>
+                <UIPill :color="anotaAiConnected ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected ? 'Conectado' : 'Pendente' }}
                 </UIPill>
+                <UIBtn
+                  :variant="anotaAiConnected ? 'ghost' : 'primary'"
+                  size="sm"
+                  data-testid="anotaai-stage-connect-action"
+                  @click="showTokenForm = !showTokenForm"
+                >
+                  {{ anotaAiConnected ? 'Alterar' : 'Configurar' }}
+                </UIBtn>
               </div>
 
               <form
-                style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 4px"
+                v-if="showTokenForm || !anotaAiConnected"
+                style="width: 100%; display: flex; flex-direction: column; gap: 10px"
                 @submit.prevent="handleSaveKey"
               >
                 <UIField
@@ -657,6 +721,142 @@ onMounted(async () => {
                   </UIBtn>
                 </div>
               </form>
+
+              <!-- Etapa 2 — Horários de funcionamento -->
+              <div
+                data-testid="anotaai-stage-hours"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: anotaAiConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiHoursConfigured ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiHoursConfigured ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiHoursConfigured ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiHoursConfigured" name="check" :size="12" />
+                  <template v-else>2</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Horários de funcionamento</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Os pedidos são importados automaticamente dentro desses horários.
+                  </div>
+                </div>
+                <UIPill :color="anotaAiHoursConfigured ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiHoursConfigured ? 'Configurado' : 'Pendente' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="anotaai-stage-hours-action"
+                  @click="section = 'horario'"
+                >
+                  {{ anotaAiHoursConfigured ? 'Ajustar' : 'Definir horários' }}
+                </UIBtn>
+              </div>
+
+              <!-- Etapa 3 — Importação de pedidos -->
+              <div
+                data-testid="anotaai-stage-import"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: anotaAiConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                    background: anotaAiConnected && anotaAiHoursConfigured ? UI.emeraldBg : UI.bgSoft,
+                    color: anotaAiConnected && anotaAiHoursConfigured ? UI.emerald2 : UI.textMute,
+                    border: `1px solid ${anotaAiConnected && anotaAiHoursConfigured ? 'transparent' : UI.border}`,
+                  }"
+                >
+                  <UIIcon v-if="anotaAiConnected && anotaAiHoursConfigured" name="check" :size="12" />
+                  <template v-else>3</template>
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Importação de pedidos</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    {{
+                      anotaAiConnected && anotaAiHoursConfigured
+                        ? 'Sincronização automática ativa · importe manualmente se precisar.'
+                        : 'Conclua as etapas anteriores para ativar a sincronização automática.'
+                    }}
+                  </div>
+                </div>
+                <UIPill :color="anotaAiConnected && anotaAiHoursConfigured ? 'emerald' : 'gray'" size="sm" dot>
+                  {{ anotaAiConnected && anotaAiHoursConfigured ? 'Automática' : 'Manual' }}
+                </UIPill>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="anotaai-stage-import-action"
+                  :disabled="!anotaAiConnected || anotaAIStore.syncingOrders"
+                  @click="handleSyncAnotaAIOrders"
+                >
+                  {{ anotaAIStore.syncingOrders ? 'Importando…' : 'Importar agora' }}
+                </UIBtn>
+              </div>
+
+              <!-- Resultado da importação manual -->
+              <div
+                v-if="anotaAIStore.error"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.roseBg,
+                  color: UI.rose2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                {{ anotaAIStore.error }}
+              </div>
+              <div
+                v-if="anotaAIStore.lastResult && !anotaAIStore.error"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.emeraldBg,
+                  color: UI.emerald2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
+                {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
+              </div>
+              <div
+                v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
+                :style="{
+                  padding: '10px 14px',
+                  background: UI.amberBg,
+                  color: UI.amber2,
+                  borderRadius: '9px',
+                  fontSize: '12.5px',
+                }"
+              >
+                ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não encontrado(s):
+                <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
+                Abra o sino para cadastrá-los.
+              </div>
             </div>
 
             <!-- Em breve -->

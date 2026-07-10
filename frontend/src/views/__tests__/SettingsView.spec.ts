@@ -12,16 +12,28 @@ vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
 }))
 
+let mockUser: { anotaAiApiKey: string | null; openingHours: unknown[] }
+
 vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({
-    currentUser: null,
+    currentUser: mockUser,
     restaurantName: 'Test Burguer',
     loading: false,
     error: null,
-    fetchCurrentUser: vi.fn().mockResolvedValue({ anotaAiApiKey: null, openingHours: [] }),
+    fetchCurrentUser: vi.fn(async () => mockUser),
     updateOpeningHours: vi.fn(),
     updateAnotaAIKey: vi.fn(),
   }),
+}))
+
+let anotaAIStoreMock: any
+
+vi.mock('@/stores/anotaAIStore', () => ({
+  useAnotaAIStore: () => anotaAIStoreMock,
+}))
+
+vi.mock('@/stores/notificationStore', () => ({
+  useNotificationStore: () => ({ refreshCount: vi.fn() }),
 }))
 
 vi.mock('@/services/ifoodAuthService', async (importOriginal) => {
@@ -55,6 +67,17 @@ async function mountView(status: IfoodStatusResponse) {
 }
 
 enableAutoUnmount(afterEach)
+
+beforeEach(() => {
+  mockUser = { anotaAiApiKey: null, openingHours: [] }
+  anotaAIStoreMock = {
+    syncingOrders: false,
+    lastResult: null,
+    error: null,
+    syncOrders: vi.fn(async () => ({ ordersImported: 2, ordersSkipped: 1 })),
+    clearResult: vi.fn(),
+  }
+})
 
 describe('SettingsView — checklist iFood', () => {
   beforeEach(() => {
@@ -145,5 +168,62 @@ describe('SettingsView — checklist iFood', () => {
     )
 
     expect(wrapper.find('[data-testid="ifood-stage-sync-warning"]').exists()).toBe(true)
+  })
+})
+
+describe('SettingsView — checklist Anota.AI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  it('sem token: etapa 1 pendente e importação manual desabilitada', async () => {
+    const wrapper = await mountView(statusOf())
+
+    expect(wrapper.find('[data-testid="anotaai-stage-connect"]').text()).toContain('Pendente')
+    expect(wrapper.find('[data-testid="anotaai-stage-hours"]').text()).toContain('Pendente')
+    expect(
+      wrapper.find('[data-testid="anotaai-stage-import-action"]').attributes('disabled'),
+    ).toBeDefined()
+  })
+
+  it('com token e horários: etapas conectada e configurada, importação habilitada', async () => {
+    mockUser = {
+      anotaAiApiKey: 'token-123',
+      openingHours: [{ dayOfWeek: 'MONDAY', openTime: '11:00', closeTime: '22:00', closed: false }],
+    }
+    const wrapper = await mountView(statusOf())
+
+    expect(wrapper.find('[data-testid="anotaai-stage-connect"]').text()).toContain('Conectado')
+    expect(wrapper.find('[data-testid="anotaai-stage-hours"]').text()).toContain('Configurado')
+    expect(
+      wrapper.find('[data-testid="anotaai-stage-import-action"]').attributes('disabled'),
+    ).toBeUndefined()
+  })
+
+  it('ação da etapa de horários leva à seção de horários de funcionamento', async () => {
+    const wrapper = await mountView(statusOf())
+
+    await wrapper.find('[data-testid="anotaai-stage-hours-action"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Horários de funcionamento')
+  })
+
+  it('importar agora chama a sincronização de pedidos do Anota.AI', async () => {
+    mockUser = { anotaAiApiKey: 'token-123', openingHours: [] }
+    const wrapper = await mountView(statusOf())
+
+    await wrapper.find('[data-testid="anotaai-stage-import-action"]').trigger('click')
+
+    expect(anotaAIStoreMock.syncOrders).toHaveBeenCalled()
+  })
+
+  it('exibe o resultado da última importação dentro do card', async () => {
+    mockUser = { anotaAiApiKey: 'token-123', openingHours: [] }
+    anotaAIStoreMock.lastResult = { ordersImported: 3, ordersSkipped: 2, missingIngredientNames: [] }
+    const wrapper = await mountView(statusOf())
+
+    expect(wrapper.text()).toContain('3 pedido(s) importado(s)')
+    expect(wrapper.text()).toContain('2 já existente(s)')
   })
 })

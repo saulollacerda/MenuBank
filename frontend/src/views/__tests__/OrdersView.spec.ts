@@ -6,7 +6,6 @@ let customerStoreMock: any
 let productStoreMock: any
 let ingredientStoreMock: any
 let feeStoreMock: any
-let anotaAIStoreMock: any
 let notificationStoreMock: any
 
 vi.mock('@/stores/orderStore', () => ({
@@ -27,10 +26,6 @@ vi.mock('@/stores/ingredientStore', () => ({
 
 vi.mock('@/stores/feeStore', () => ({
   useFeeStore: () => feeStoreMock,
-}))
-
-vi.mock('@/stores/anotaAIStore', () => ({
-  useAnotaAIStore: () => anotaAIStoreMock,
 }))
 
 vi.mock('@/stores/notificationStore', () => ({
@@ -115,16 +110,6 @@ describe('OrdersView', () => {
       fetchAll: vi.fn(),
     }
 
-    anotaAIStoreMock = {
-      syncingOrders: false,
-      syncingCatalog: false,
-      lastResult: null,
-      error: null,
-      syncOrders: vi.fn(),
-      syncCatalog: vi.fn(),
-      clearResult: vi.fn(),
-    }
-
     notificationStoreMock = {
       items: [],
       unreadCount: 0,
@@ -143,6 +128,11 @@ describe('OrdersView', () => {
         { id: 'inc3', productId: 'p1', name: 'Granola', cost: 0.05, quantity: 40, totalCost: 2, kind: 'INGREDIENT' },
       ],
     }
+  })
+
+  it('should not render the Anota.AI import button (moved to Settings > Integrações)', () => {
+    const wrapper = mount(OrdersView)
+    expect(wrapper.text()).not.toContain('Importar do Anota.AI')
   })
 
   it('should submit order with extra ingredients', async () => {

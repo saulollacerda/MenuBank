@@ -8,8 +8,6 @@ import { useCustomerStore } from '@/stores/customerStore'
 import { useProductStore } from '@/stores/productStore'
 import { useIngredientStore } from '@/stores/ingredientStore'
 import { useFeeStore } from '@/stores/feeStore'
-import { useAnotaAIStore } from '@/stores/anotaAIStore'
-import { useNotificationStore } from '@/stores/notificationStore'
 import {
   UI,
   UITopbar,
@@ -42,8 +40,6 @@ const customerStore = useCustomerStore()
 const productStore = useProductStore()
 const ingredientStore = useIngredientStore()
 const feeStore = useFeeStore()
-const anotaAIStore = useAnotaAIStore()
-const notificationStore = useNotificationStore()
 
 const showHoursBanner = computed(() => {
   const u = authStore.currentUser
@@ -193,17 +189,6 @@ function onPageChange(p: number) {
   orderStore.fetchPage({ page: p })
 }
 
-async function handleSyncAnotaAI() {
-  anotaAIStore.clearResult()
-  try {
-    await anotaAIStore.syncOrders()
-  } catch {
-    /* error in store */
-  } finally {
-    notificationStore.refreshCount()
-  }
-}
-
 function openCreate() {
   editingOrderId.value = null
   customerError.value = null
@@ -343,14 +328,6 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       :subtitle="`${counts.total} pedidos no total`"
     >
       <template #actions>
-        <UIBtn
-          icon="download"
-          variant="secondary"
-          :disabled="anotaAIStore.syncingOrders"
-          @click="handleSyncAnotaAI"
-        >
-          {{ anotaAIStore.syncingOrders ? 'Importando…' : 'Importar do Anota.AI' }}
-        </UIBtn>
         <UIBtn icon="plus" variant="dark" data-testid="new-order-button" @click="openCreate">
           Novo Pedido
         </UIBtn>
@@ -393,50 +370,6 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
         >
           Configurar horários
         </button>
-      </div>
-
-      <!-- Anota.AI sync alerts -->
-      <div
-        v-if="anotaAIStore.error"
-        :style="{
-          padding: '10px 14px',
-          background: UI.roseBg,
-          color: UI.rose2,
-          borderRadius: '10px',
-          fontSize: '13px',
-          marginBottom: '12px',
-        }"
-      >
-        {{ anotaAIStore.error }}
-      </div>
-      <div
-        v-if="anotaAIStore.lastResult && !anotaAIStore.error"
-        :style="{
-          padding: '10px 14px',
-          background: UI.emeraldBg,
-          color: UI.emerald2,
-          borderRadius: '10px',
-          fontSize: '13px',
-          marginBottom: '12px',
-        }"
-      >
-        {{ anotaAIStore.lastResult.ordersImported }} pedido(s) importado(s).
-        {{ anotaAIStore.lastResult.ordersSkipped }} já existente(s).
-      </div>
-      <div
-        v-if="anotaAIStore.lastResult && (anotaAIStore.lastResult.missingIngredientNames?.length ?? 0) > 0"
-        :style="{
-          padding: '10px 14px',
-          background: UI.amberBg,
-          color: UI.amber2,
-          borderRadius: '10px',
-          fontSize: '13px',
-          marginBottom: '12px',
-        }"
-      >
-        ⚠️ {{ anotaAIStore.lastResult.missingIngredientNames!.length }} ingrediente(s) não encontrado(s):
-        <strong>{{ anotaAIStore.lastResult.missingIngredientNames!.join(', ') }}</strong>.
-        Abra o sino para cadastrá-los.
       </div>
 
       <div
