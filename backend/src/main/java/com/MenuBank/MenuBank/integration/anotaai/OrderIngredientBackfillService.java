@@ -4,6 +4,7 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientCreatedEvent;
 import com.MenuBank.MenuBank.ingredient.IngredientNameNormalizer;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.merchant.Merchant;
 import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import com.MenuBank.MenuBank.order.Order;
@@ -88,8 +89,11 @@ public class OrderIngredientBackfillService {
     private void backfillOrder(Order order, Ingredient ingredient, String apiKey, String canonicalName) {
         if (order.getExternalOrderId() == null) return;
 
-        AnotaAIOrderDetailResponse response = anotaAIClient.getOrderDetail(apiKey, order.getExternalOrderId());
-        if (response == null || response.getInfo() == null) return;
+        RawJsonResponse<AnotaAIOrderDetailResponse> detailResponse =
+                anotaAIClient.getOrderDetail(apiKey, order.getExternalOrderId());
+        if (detailResponse == null || detailResponse.body() == null) return;
+        AnotaAIOrderDetailResponse response = detailResponse.body();
+        if (response.getInfo() == null) return;
 
         List<AnotaAIOrderDetailResponse.AnotaAIOrderItem> remoteItems = response.getInfo().getItems();
         if (remoteItems == null) return;

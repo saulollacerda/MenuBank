@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood;
 
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodEventResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -158,7 +159,10 @@ class IfoodOrderClientTest {
                       }
                       """, MediaType.APPLICATION_JSON));
 
-        IfoodOrderDetailResponse detail = client.getOrderDetail("access.jwt", "ord_1");
+        RawJsonResponse<IfoodOrderDetailResponse> result = client.getOrderDetail("access.jwt", "ord_1");
+        IfoodOrderDetailResponse detail = result.body();
+
+        assertThat(result.rawJson()).contains("\"displayId\":\"1234\"");
 
         assertThat(detail.getId()).isEqualTo("ord_1");
         assertThat(detail.getCategory()).isEqualTo("FOOD");
@@ -190,7 +194,7 @@ class IfoodOrderClientTest {
                        "items":[],"total":{"orderAmount":0}}
                       """, MediaType.APPLICATION_JSON));
 
-        IfoodOrderDetailResponse detail = client.getOrderDetail("access.jwt", "ord_2");
+        IfoodOrderDetailResponse detail = client.getOrderDetail("access.jwt", "ord_2").body();
 
         assertThat(detail.isTest()).isTrue();
         server.verify();

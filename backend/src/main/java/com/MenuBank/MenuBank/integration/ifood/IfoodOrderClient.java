@@ -1,5 +1,6 @@
 package com.MenuBank.MenuBank.integration.ifood;
 
+import com.MenuBank.MenuBank.integration.RawJsonResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodEventResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodOrderDetailResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -57,11 +58,25 @@ public class IfoodOrderClient {
                 .toBodilessEntity();
     }
 
-    public IfoodOrderDetailResponse getOrderDetail(String accessToken, String orderId) {
-        return restClient.get()
+    /**
+     * Fetches the order detail keeping the raw JSON body alongside the parsed DTO —
+     * the raw payload is stored for financial auditing and preserves fields the DTO
+     * ignores.
+     */
+    public RawJsonResponse<IfoodOrderDetailResponse> getOrderDetail(String accessToken, String orderId) {
+        String body = restClient.get()
                 .uri("/orders/{orderId}", orderId)
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .body(IfoodOrderDetailResponse.class);
+                .body(String.class);
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        try {
+            return new RawJsonResponse<>(
+                    objectMapper.readValue(body, IfoodOrderDetailResponse.class), body);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Unexpected iFood order detail payload", e);
+        }
     }
 }
