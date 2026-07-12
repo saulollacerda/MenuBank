@@ -5,4 +5,8 @@ public class AbacatePayException extends RuntimeException {
     public AbacatePayException(String message) {
         super(message);
     }
+
+    public AbacatePayException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

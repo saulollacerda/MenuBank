@@ -1,21 +1,31 @@
 package com.MenuBank.MenuBank.integration.abacatepay;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.MenuBank.MenuBank.integration.abacatepay.dto.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @DisplayName("AbacatePayClient")
@@ -25,12 +35,22 @@ class AbacatePayClientTest {
 
     private MockRestServiceServer server;
     private AbacatePayClient client;
+    private ListAppender<ILoggingEvent> logWatcher;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new AbacatePayClient(builder, BASE_URL, "test-api-key");
+
+        logWatcher = new ListAppender<>();
+        logWatcher.start();
+        ((Logger) LoggerFactory.getLogger(AbacatePayClient.class)).addAppender(logWatcher);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ((Logger) LoggerFactory.getLogger(AbacatePayClient.class)).detachAppender(logWatcher);
     }
 
     @Test
@@ -112,5 +132,46 @@ class AbacatePayClientTest {
                 .build()))
                 .isInstanceOf(AbacatePayException.class)
                 .hasMessageContaining("Invalid API key");
+    }
+
+    @Test
+    @DisplayName("deve lançar AbacatePayException e logar ERROR quando a API responde non-2xx")
+    void shouldWrapAndLogHttpErrorResponse() {
+        server.expect(requestTo(BASE_URL + "/products/create"))
+              .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .body("{\"error\":\"internal\"}"));
+
+        assertThatThrownBy(() -> client.createProduct(AbacatePayProductRequest.builder()
+                .externalId("plan-123")
+                .name("Plano Básico")
+                .price(5000)
+                .currency("BRL")
+                .build()))
+                .isInstanceOf(AbacatePayException.class)
+                .hasMessageContaining("500");
+
+        assertThat(logWatcher.list).anySatisfy(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+            assertThat(event.getFormattedMessage()).contains("/products/create").contains("500");
+        });
+    }
+
+    @Test
+    @DisplayName("deve lançar AbacatePayException e logar ERROR quando há falha de rede")
+    void shouldWrapAndLogNetworkFailure() {
+        server.expect(requestTo(BASE_URL + "/checkouts/create"))
+              .andRespond(withException(new SocketTimeoutException("connect timed out")));
+
+        assertThatThrownBy(() -> client.createCheckout(AbacatePayCheckoutRequest.builder()
+                .items(List.of(new AbacatePayCheckoutItem("prod_abc123", 1)))
+                .externalId("menubank:sub-1")
+                .build()))
+                .isInstanceOf(AbacatePayException.class);
+
+        assertThat(logWatcher.list).anySatisfy(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+            assertThat(event.getFormattedMessage()).contains("/checkouts/create");
+        });
     }
 }

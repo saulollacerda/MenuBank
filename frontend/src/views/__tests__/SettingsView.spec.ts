@@ -67,7 +67,13 @@ const STUBS = {
 }
 
 function statusOf(overrides: Partial<IfoodStatusResponse> = {}): IfoodStatusResponse {
-  return { connected: false, catalogImportedAt: null, orderSyncEnabled: false, ...overrides }
+  return {
+    connected: false,
+    catalogImportedAt: null,
+    orderSyncEnabled: false,
+    connectionEnabled: true,
+    ...overrides,
+  }
 }
 
 async function mountView(status: IfoodStatusResponse, { expand = true } = {}) {
@@ -212,6 +218,31 @@ describe('SettingsView — checklist iFood', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="ifood-stage-catalog"]').text()).toContain('Importado')
+  })
+
+  it('conexão em homologação: botão Conectar desabilitado com aviso', async () => {
+    const wrapper = await mountView(statusOf({ connectionEnabled: false }))
+
+    const action = wrapper.find('[data-testid="ifood-stage-connect-action"]')
+    expect(action.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="ifood-stage-connect"]').text().toLowerCase())
+      .toContain('homologação')
+  })
+
+  it('conexão em homologação: clicar em Conectar não abre o modal', async () => {
+    const wrapper = await mountView(statusOf({ connectionEnabled: false }))
+
+    await wrapper.find('[data-testid="ifood-stage-connect-action"]').trigger('click')
+
+    expect(wrapper.findComponent(IfoodConnectModal).exists()).toBe(false)
+  })
+
+  it('conexão em homologação mas já conectado: Desconectar continua habilitado', async () => {
+    const wrapper = await mountView(statusOf({ connected: true, connectionEnabled: false }))
+
+    const action = wrapper.find('[data-testid="ifood-stage-connect-action"]')
+    expect(action.text()).toContain('Desconectar')
+    expect(action.attributes('disabled')).toBeUndefined()
   })
 
   it('sincronia ativa sem catálogo importado mostra indicador de aviso na etapa 3', async () => {

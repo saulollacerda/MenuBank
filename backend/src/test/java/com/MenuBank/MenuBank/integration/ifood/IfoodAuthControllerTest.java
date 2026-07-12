@@ -153,7 +153,8 @@ class IfoodAuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.connected").value(true))
                 .andExpect(jsonPath("$.catalogImportedAt").value("2026-07-01T10:00:00"))
-                .andExpect(jsonPath("$.orderSyncEnabled").value(true));
+                .andExpect(jsonPath("$.orderSyncEnabled").value(true))
+                .andExpect(jsonPath("$.connectionEnabled").value(true));
     }
 
     @Test

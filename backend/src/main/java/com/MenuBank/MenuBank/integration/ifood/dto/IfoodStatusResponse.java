@@ -12,9 +12,10 @@ public class IfoodStatusResponse {
     private boolean connected;
     private LocalDateTime catalogImportedAt;
     private boolean orderSyncEnabled;
+    private boolean connectionEnabled;
 
-    public static IfoodStatusResponse from(IfoodIntegrationStatus status) {
+    public static IfoodStatusResponse from(IfoodIntegrationStatus status, boolean connectionEnabled) {
         return new IfoodStatusResponse(
-                status.connected(), status.catalogImportedAt(), status.orderSyncEnabled());
+                status.connected(), status.catalogImportedAt(), status.orderSyncEnabled(), connectionEnabled);
     }
 }

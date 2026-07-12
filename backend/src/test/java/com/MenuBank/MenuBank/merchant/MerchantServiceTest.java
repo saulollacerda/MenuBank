@@ -113,6 +113,19 @@ class MerchantServiceTest {
         }
 
         @Test
+        @DisplayName("deve criar uma subscription PENDING para o merchant recém-criado")
+        void shouldCreatePendingSubscriptionForNewMerchant() {
+            given(merchantRepository.existsByEmail(anyString())).willReturn(false);
+            given(merchantRepository.existsByCnpj(anyString())).willReturn(false);
+            given(passwordEncoder.encode(anyString())).willReturn("$2a$10$encodedpassword");
+            given(merchantRepository.save(any(Merchant.class))).willReturn(merchant);
+
+            merchantService.create(merchantRequest);
+
+            then(subscriptionService).should().createPendingSubscription(merchant.getId());
+        }
+
+        @Test
         @DisplayName("deve lançar DuplicateMerchantException quando email já está cadastrado")
         void shouldThrowWhenEmailAlreadyExists() {
             given(merchantRepository.existsByEmail(merchantRequest.getEmail())).willReturn(true);

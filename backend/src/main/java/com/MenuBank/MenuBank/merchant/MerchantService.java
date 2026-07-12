@@ -45,7 +45,7 @@ public class MerchantService {
                 .build();
 
         Merchant saved = merchantRepository.save(merchant);
-        subscriptionService.createTrial(saved.getId());
+        subscriptionService.createPendingSubscription(saved.getId());
         return toResponse(saved);
     }
 

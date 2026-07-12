@@ -66,6 +66,31 @@ describe('SubscriptionExpiredOverlay', () => {
     expect(overlay.text()).toContain('assinatura expirou')
   })
 
+  it('bloqueia a tela quando a assinatura está pendente (nunca paga)', async () => {
+    const wrapper = await mountOverlay(subscriptionOf({ status: 'PENDING', trialEndsAt: null }))
+
+    expect(wrapper.find('[data-testid="subscription-expired-overlay"]').exists()).toBe(true)
+  })
+
+  it('mostra o texto de escolher plano quando a assinatura está pendente', async () => {
+    const wrapper = await mountOverlay(subscriptionOf({ status: 'PENDING', trialEndsAt: null }))
+
+    const overlay = wrapper.find('[data-testid="subscription-expired-overlay"]')
+    expect(overlay.text()).toContain('Escolha um plano para começar')
+    expect(overlay.text()).not.toContain('assinatura expirou')
+    expect(wrapper.find('[data-testid="subscription-expired-renew"]').text()).toContain(
+      'Escolher plano',
+    )
+  })
+
+  it('mostra o texto de renovação para assinatura expirada/cancelada', async () => {
+    const wrapper = await mountOverlay(subscriptionOf({ status: 'CANCELED' }))
+
+    const overlay = wrapper.find('[data-testid="subscription-expired-overlay"]')
+    expect(overlay.text()).toContain('assinatura expirou')
+    expect(overlay.text()).not.toContain('Escolha um plano para começar')
+  })
+
   it('não aparece quando a assinatura está vigente', async () => {
     const wrapper = await mountOverlay(subscriptionOf({ trialEndsAt: FUTURE }))
 

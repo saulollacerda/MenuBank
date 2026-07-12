@@ -43,27 +43,25 @@ class SubscriptionServiceTest {
     }
 
     // -------------------------------------------------------------------------
-    // createTrial()
+    // createPendingSubscription()
     // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("createTrial()")
-    class CreateTrial {
+    @DisplayName("createPendingSubscription()")
+    class CreatePendingSubscription {
 
         @Test
-        @DisplayName("deve criar subscription com status TRIAL e trial_ends_at = agora + 7 dias")
-        void shouldCreateTrialSubscription() {
+        @DisplayName("deve criar subscription com status PENDING, sem plano e sem trial")
+        void shouldCreatePendingSubscription() {
             given(subscriptionRepository.save(any(Subscription.class)))
                     .willAnswer(inv -> inv.getArgument(0));
 
-            subscriptionService.createTrial(merchantId);
+            subscriptionService.createPendingSubscription(merchantId);
 
             then(subscriptionRepository).should().save(argThat(sub ->
                     merchantId.equals(sub.getMerchantId())
-                            && SubscriptionStatus.TRIAL.equals(sub.getStatus())
-                            && sub.getTrialEndsAt() != null
-                            && sub.getTrialEndsAt().isAfter(LocalDateTime.now().plusDays(6))
-                            && sub.getTrialEndsAt().isBefore(LocalDateTime.now().plusDays(8))
+                            && SubscriptionStatus.PENDING.equals(sub.getStatus())
+                            && sub.getTrialEndsAt() == null
                             && sub.getPlan() == null
             ));
         }
@@ -75,7 +73,7 @@ class SubscriptionServiceTest {
             given(subscriptionRepository.save(captor.capture()))
                     .willAnswer(inv -> inv.getArgument(0));
 
-            subscriptionService.createTrial(merchantId);
+            subscriptionService.createPendingSubscription(merchantId);
 
             Subscription saved = captor.getValue();
             assertThat(saved.getCreatedAt()).isNotNull();

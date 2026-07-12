@@ -14,9 +14,8 @@
           </ul>
         </nav>
         <div class="lp-spacer"></div>
-        <RouterLink to="/login" class="lp-nav-signin">Entrar</RouterLink>
-        <RouterLink to="/register" class="lp-btn lp-btn-sm">
-          Criar conta grátis
+        <RouterLink to="/planos" class="lp-btn lp-btn-sm">
+          Ver planos e preços
           <IconArrow :size="14" />
         </RouterLink>
       </div>
@@ -43,15 +42,15 @@
         </p>
 
         <div class="lp-hero-ctas">
-          <RouterLink to="/register" class="lp-btn lp-btn-primary">
-            Começar grátis · 14 dias
+          <RouterLink to="/planos" class="lp-btn lp-btn-primary">
+            Conhecer os planos
             <IconArrow :size="15" />
           </RouterLink>
           <a href="#how" class="lp-btn lp-btn-secondary">Ver como funciona</a>
         </div>
 
         <div class="lp-hero-bullets">
-          <span><IconCheck :size="14" color="#059669" /> Sem cartão para começar</span>
+          <span><IconCheck :size="14" color="#059669" /> Sem fidelidade</span>
           <span><IconCheck :size="14" color="#059669" /> Cancele quando quiser</span>
           <span><IconCheck :size="14" color="#059669" /> Migração assistida</span>
         </div>
@@ -392,10 +391,10 @@
           Em duas semanas reajustamos preço e a operação inteira ficou no positivo."
         </p>
         <div class="lp-quote-author">
-          <div class="lp-quote-avatar">GA</div>
+          <div class="lp-quote-avatar">LA</div>
           <div style="text-align:left;">
-            <div style="font-size:14px;font-weight:600;">Renata Vasconcelos</div>
-            <div style="font-size:12px;color:#94a3b8;">Dona da Goat Açaí · 3 unidades</div>
+            <div style="font-size:14px;font-weight:600;">Lucas Almeda</div>
+            <div style="font-size:12px;color:#94a3b8;">Dono do Açaí Goat</div>
           </div>
         </div>
       </div>
@@ -407,7 +406,7 @@
         <div class="lp-section-header">
           <div class="lp-eyebrow">Preços</div>
           <h2 class="lp-section-h2">Plano honesto, sem surpresa.</h2>
-          <p class="lp-section-sub">14 dias grátis em qualquer plano. Sem cartão para começar. Cancele quando quiser.</p>
+          <p class="lp-section-sub">Planos simples, sem fidelidade. Cancele quando quiser.</p>
         </div>
         <div class="lp-pricing-grid">
           <div
@@ -416,7 +415,7 @@
             class="lp-pricing-card"
             :class="{ 'lp-pricing-highlight': p.highlight }"
           >
-            <div v-if="p.highlight" class="lp-pricing-popular">MAIS POPULAR</div>
+            <div v-if="p.highlight" class="lp-pricing-popular">TUDO INCLUÍDO</div>
             <div class="lp-pricing-name">{{ p.name }}</div>
             <div class="lp-pricing-desc">{{ p.desc }}</div>
             <div class="lp-pricing-price">
@@ -430,10 +429,7 @@
                 {{ f }}
               </li>
             </ul>
-            <RouterLink
-              :to="p.cta === 'Falar com vendas' ? '/register' : '/register'"
-              class="lp-pricing-cta"
-            >{{ p.cta }}</RouterLink>
+            <RouterLink to="/planos" class="lp-pricing-cta">{{ p.cta }}</RouterLink>
           </div>
         </div>
       </div>
@@ -477,10 +473,9 @@
             </h2>
             <p class="lp-cta-sub">Em 4 minutos sua loja está cadastrada, o cardápio importado e o lucro real visível.</p>
             <div style="display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;">
-              <RouterLink to="/register" class="lp-btn lp-btn-emerald">
-                Começar grátis · 14 dias <IconArrow :size="15" />
+              <RouterLink to="/planos" class="lp-btn lp-btn-emerald">
+                Ver planos e preços <IconArrow :size="15" />
               </RouterLink>
-              <RouterLink to="/register" class="lp-btn lp-btn-ghost-white">Falar com vendas</RouterLink>
             </div>
           </div>
         </div>
@@ -503,7 +498,7 @@
           </div>
         </div>
         <div class="lp-footer-bottom">
-          <div class="lp-footer-copy">© 2026 menubank · CNPJ 00.000.000/0001-00 · São Paulo, Brasil</div>
+          <div class="lp-footer-copy">© 2026 menubank · CNPJ 67.595.605/0001-43 · Brasil</div>
           <div class="lp-footer-copy">Feito para lojas que pensam em lucro, não só em volume.</div>
         </div>
       </div>
@@ -563,7 +558,6 @@ const topProducts = [
 ]
 
 const stats = [
-  { v: '+ 350',  l: 'lojas usam o menubank' },
   { v: '63%',    l: 'margem média das lojas' },
   { v: '4 min',  l: 'para configurar uma loja' },
   { v: '8h/mês', l: 'economizadas em planilha' },
@@ -610,22 +604,10 @@ const features = [
 
 const plans = [
   {
-    name: 'Inicial', price: 'R$ 79', sub: '/mês', highlight: false,
-    desc: 'Pra quem está começando a olhar o lucro.',
-    features: ['1 loja', 'Até 200 pedidos / mês', 'Ficha técnica ilimitada', 'Dashboard com lucro', 'Suporte por email'],
-    cta: 'Começar grátis',
-  },
-  {
-    name: 'Profissional', price: 'R$ 149', sub: '/mês', highlight: true,
-    desc: 'Pra lojas com vendas multicanal.',
-    features: ['1 loja', 'Pedidos ilimitados', 'Importação Anota.AI', 'Importação iFood', 'Alertas em tempo real', 'Suporte prioritário'],
-    cta: 'Teste 14 dias grátis',
-  },
-  {
-    name: 'Multi-loja', price: 'R$ 299', sub: '/loja · mês', highlight: false,
-    desc: 'Pra redes com múltiplas unidades.',
-    features: ['Múltiplas lojas', 'Painel consolidado', 'Comparação entre unidades', 'API para integrações', 'Onboarding assistido', 'Gerente de conta'],
-    cta: 'Falar com vendas',
+    name: 'Básico', price: 'R$ 50', sub: '/mês', highlight: true,
+    desc: 'Acesso a todas as funcionalidades.',
+    features: ['Pedidos ilimitados', 'Ficha técnica ilimitada', 'Importação Anota.AI', 'Dashboard com lucro real', 'Alertas em tempo real', 'Suporte por email'],
+    cta: 'Conhecer os planos',
   },
 ]
 
@@ -633,7 +615,7 @@ const faqItems = [
   { q: 'Funciona com qual plataforma de delivery?', a: 'Anota.AI tem integração nativa (sincronização automática). iFood e Aiqfome funcionam por importação de planilha (CSV) ou copy/paste estruturado. Estamos adicionando novos canais todo mês.' },
   { q: 'Preciso refazer meu cardápio do zero?', a: 'Não. Você pode importar o cardápio do Anota.AI direto, e cadastrar fichas técnicas só para os produtos que quiser monitorar custo. O dashboard funciona desde o primeiro produto.' },
   { q: 'E se eu não souber o custo dos meus ingredientes hoje?', a: 'Você cadastra os ingredientes com base na sua última compra (valor pago + quantidade). O menubank calcula o custo por unidade automaticamente. Não precisa de calculadora.' },
-  { q: 'Tem período de teste grátis?', a: '14 dias em qualquer plano. Sem cadastro de cartão. Se você não quiser continuar, é só não fazer nada — a conta vira somente leitura ao final do período.' },
+  { q: 'Quanto custa o menubank?', a: 'Plano único e transparente, sem fidelidade. Veja os valores atualizados e assine na página de planos.' },
   { q: 'Posso cancelar quando quiser?', a: 'Sim, sem multa e sem fidelidade. Você cancela direto pelo painel e o acesso continua até o fim do mês contratado.' },
   { q: 'Como vocês cuidam dos meus dados?', a: 'Tudo criptografado em trânsito e em repouso. Você é dono dos seus dados — pode exportar tudo em CSV a qualquer momento, e a exclusão da conta apaga o conteúdo em até 30 dias.' },
 ]
@@ -948,7 +930,7 @@ function toggleFaq(i: number) {
 
 /* ── Pricing ────────────────────────────────────────────────── */
 .lp-pricing { padding: 90px 0; background: #fff; }
-.lp-pricing-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; align-items: stretch; }
+.lp-pricing-grid { display: grid; grid-template-columns: minmax(0, 380px); gap: 16px; align-items: stretch; justify-content: center; }
 .lp-pricing-card {
   border-radius: 16px; padding: 32px; display: flex; flex-direction: column;
   position: relative; background: #fff; border: 1px solid #e8eaee;

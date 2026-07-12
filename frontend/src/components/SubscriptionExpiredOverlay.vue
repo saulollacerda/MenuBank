@@ -12,18 +12,31 @@ const router = useRouter()
 const onBillingSection = computed(
   () => route.path === '/settings' && route.query.section === 'billing',
 )
-const visible = computed(() => subscriptionStore.isExpired && !onBillingSection.value)
+const visible = computed(() => subscriptionStore.isBlocked && !onBillingSection.value)
+
+// PENDING means the subscription was created at registration and never paid,
+// so the copy invites the merchant to pick a plan instead of renewing.
+const isPending = computed(() => subscriptionStore.subscription?.status === 'PENDING')
+const title = computed(() =>
+  isPending.value ? 'Escolha um plano para começar' : 'Sua assinatura expirou',
+)
+const body = computed(() =>
+  isPending.value
+    ? 'O MenuBank exige um plano ativo para ser utilizado. Escolha um plano e conclua o pagamento para liberar o acesso.'
+    : 'Para continuar usando o MenuBank, renove sua assinatura. Seus dados continuam salvos e voltam a ficar disponíveis assim que o pagamento for confirmado.',
+)
+const buttonLabel = computed(() => (isPending.value ? 'Escolher plano' : 'Renovar assinatura'))
 
 onMounted(() => {
   subscriptionStore.fetch()
 })
 
-// While expired, re-check on every navigation so the block lifts right
+// While blocked, re-check on every navigation so the block lifts right
 // after the payment activates the subscription (no manual reload needed).
 watch(
   () => route.fullPath,
   () => {
-    if (subscriptionStore.isExpired) {
+    if (subscriptionStore.isBlocked) {
       subscriptionStore.fetch()
     }
   },
@@ -80,11 +93,10 @@ function goToBilling() {
         <UIIcon name="lock" :size="20" />
       </div>
       <div :style="{ fontSize: '17px', fontWeight: 700, color: UI.text, letterSpacing: '-0.3px' }">
-        Sua assinatura expirou
+        {{ title }}
       </div>
       <div :style="{ fontSize: '13px', color: UI.textSub, lineHeight: 1.5 }">
-        Para continuar usando o MenuBank, renove sua assinatura. Seus dados continuam salvos e
-        voltam a ficar disponíveis assim que o pagamento for confirmado.
+        {{ body }}
       </div>
       <UIBtn
         variant="primary"
@@ -93,7 +105,7 @@ function goToBilling() {
         style="margin-top: 8px"
         @click="goToBilling"
       >
-        Renovar assinatura
+        {{ buttonLabel }}
       </UIBtn>
     </div>
   </div>

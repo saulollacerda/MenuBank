@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.billing;
 
 import com.MenuBank.MenuBank.auth.AuthHelper;
+import com.MenuBank.MenuBank.integration.abacatepay.AbacatePayException;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -136,6 +137,23 @@ class SubscriptionControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"planId\":\"" + planId + "\"}"))
                     .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("deve retornar 502 quando a comunicação com a AbacatePay falha")
+        void shouldReturn502WhenAbacatePayFails() throws Exception {
+            UUID planId = UUID.randomUUID();
+            given(abacatePayBillingService.createCheckout(any(), eq(planId)))
+                    .willThrow(new AbacatePayException("AbacatePay call to /checkouts/create failed: HTTP 500"));
+
+            mockMvc.perform(post("/api/subscription/checkout")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"planId\":\"" + planId + "\"}"))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.title").value("Erro na integração com AbacatePay"))
+                    .andExpect(jsonPath("$.detail").value(
+                            "Não foi possível comunicar com o serviço de pagamento. Tente novamente em instantes."));
         }
     }
 

@@ -19,6 +19,7 @@ const ENABLED_STATUS: IfoodStatusResponse = {
   connected: true,
   catalogImportedAt: '2026-07-01T10:00:00',
   orderSyncEnabled: true,
+  connectionEnabled: true,
 }
 
 enableAutoUnmount(afterEach)

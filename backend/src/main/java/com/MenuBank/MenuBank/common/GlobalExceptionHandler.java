@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.common;
 import com.MenuBank.MenuBank.category.CategoryNotFoundException;
 import com.MenuBank.MenuBank.category.DuplicateCategoryException;
 import com.MenuBank.MenuBank.customer.CustomerNotFoundException;
+import com.MenuBank.MenuBank.integration.abacatepay.AbacatePayException;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAIIntegrationException;
 import com.MenuBank.MenuBank.ingredient.DuplicateIngredientException;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
@@ -159,6 +160,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de dados");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    // Detail is intentionally generic: the exception message carries internal
+    // endpoint/status info that belongs in logs, not in the pt-BR UI response.
+    @ExceptionHandler(AbacatePayException.class)
+    public ResponseEntity<ProblemDetail> handleAbacatePayFailure(AbacatePayException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
+                "Não foi possível comunicar com o serviço de pagamento. Tente novamente em instantes.");
+        problem.setTitle("Erro na integração com AbacatePay");
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 
     @ExceptionHandler(AnotaAIIntegrationException.class)

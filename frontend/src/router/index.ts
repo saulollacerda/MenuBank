@@ -40,8 +40,18 @@ const router = createRouter({
     },
     {
       path: '/',
+      redirect: '/home',
+    },
+    {
+      path: '/home',
       name: 'landing',
       component: () => import('@/views/LandingView.vue'),
+      meta: { public: true, allowAuthenticated: true },
+    },
+    {
+      path: '/planos',
+      name: 'plans',
+      component: () => import('@/views/PlansView.vue'),
       meta: { public: true, allowAuthenticated: true },
     },
     {
