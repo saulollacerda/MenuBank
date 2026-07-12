@@ -49,54 +49,62 @@ describe('subscriptionStore', () => {
     expect(store.subscription?.id).toBe('sub-1')
   })
 
-  it('isExpired é false para trial ainda vigente', async () => {
+  it('isBlocked é false para trial ainda vigente', async () => {
     mockedBilling.getMySubscription.mockResolvedValue(subscriptionOf({ trialEndsAt: FUTURE }))
     const store = useSubscriptionStore()
     await store.fetch()
 
-    expect(store.isExpired).toBe(false)
+    expect(store.isBlocked).toBe(false)
   })
 
-  it('isExpired é true para trial vencido', async () => {
+  it('isBlocked é true para trial vencido', async () => {
     mockedBilling.getMySubscription.mockResolvedValue(subscriptionOf({ trialEndsAt: PAST }))
     const store = useSubscriptionStore()
     await store.fetch()
 
-    expect(store.isExpired).toBe(true)
+    expect(store.isBlocked).toBe(true)
   })
 
-  it('isExpired é false para assinatura ativa com período vigente', async () => {
+  it('isBlocked é true para assinatura pendente (nunca paga)', async () => {
+    mockedBilling.getMySubscription.mockResolvedValue(subscriptionOf({ status: 'PENDING' }))
+    const store = useSubscriptionStore()
+    await store.fetch()
+
+    expect(store.isBlocked).toBe(true)
+  })
+
+  it('isBlocked é false para assinatura ativa com período vigente', async () => {
     mockedBilling.getMySubscription.mockResolvedValue(
       subscriptionOf({ status: 'ACTIVE', currentPeriodEnd: FUTURE }),
     )
     const store = useSubscriptionStore()
     await store.fetch()
 
-    expect(store.isExpired).toBe(false)
+    expect(store.isBlocked).toBe(false)
   })
 
-  it('isExpired é true para assinatura ativa com período encerrado', async () => {
+  it('isBlocked é true para assinatura ativa com período encerrado', async () => {
     mockedBilling.getMySubscription.mockResolvedValue(
       subscriptionOf({ status: 'ACTIVE', currentPeriodEnd: PAST }),
     )
     const store = useSubscriptionStore()
     await store.fetch()
 
-    expect(store.isExpired).toBe(true)
+    expect(store.isBlocked).toBe(true)
   })
 
-  it.each(['PAST_DUE', 'CANCELED'] as const)('isExpired é true para status %s', async (status) => {
+  it.each(['PAST_DUE', 'CANCELED'] as const)('isBlocked é true para status %s', async (status) => {
     mockedBilling.getMySubscription.mockResolvedValue(subscriptionOf({ status }))
     const store = useSubscriptionStore()
     await store.fetch()
 
-    expect(store.isExpired).toBe(true)
+    expect(store.isBlocked).toBe(true)
   })
 
-  it('isExpired é false antes de carregar', () => {
+  it('isBlocked é false antes de carregar', () => {
     const store = useSubscriptionStore()
 
-    expect(store.isExpired).toBe(false)
+    expect(store.isBlocked).toBe(false)
   })
 
   it('falha ao carregar não bloqueia o uso (fail-open)', async () => {
@@ -106,6 +114,6 @@ describe('subscriptionStore', () => {
     await store.fetch()
 
     expect(store.subscription).toBeNull()
-    expect(store.isExpired).toBe(false)
+    expect(store.isBlocked).toBe(false)
   })
 })

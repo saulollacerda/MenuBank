@@ -27,13 +27,12 @@ public class SubscriptionService {
     }
 
     @Transactional
-    public void createTrial(UUID merchantId) {
+    public void createPendingSubscription(UUID merchantId) {
         LocalDateTime now = LocalDateTime.now();
         Subscription subscription = Subscription.builder()
                 .merchantId(merchantId)
                 .plan(null)
-                .status(SubscriptionStatus.TRIAL)
-                .trialEndsAt(now.plusDays(7))
+                .status(SubscriptionStatus.PENDING)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

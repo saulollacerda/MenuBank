@@ -7,10 +7,13 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   const subscription = ref<SubscriptionResponse | null>(null)
   const loading = ref(false)
 
-  const isExpired = computed(() => {
+  const isBlocked = computed(() => {
     const sub = subscription.value
     if (!sub) return false
-    if (sub.status === 'PAST_DUE' || sub.status === 'CANCELED') return true
+    // PENDING: subscription created at registration, never paid — the merchant
+    // must pick a plan before using the system (the free trial was removed).
+    if (sub.status === 'PENDING' || sub.status === 'PAST_DUE' || sub.status === 'CANCELED')
+      return true
     const now = Date.now()
     if (sub.status === 'TRIAL') {
       return !!sub.trialEndsAt && new Date(sub.trialEndsAt).getTime() < now
@@ -34,5 +37,5 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     }
   }
 
-  return { subscription, loading, isExpired, fetch }
+  return { subscription, loading, isBlocked, fetch }
 })

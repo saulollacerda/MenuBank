@@ -200,6 +200,7 @@ const billingError = ref<string | null>(null)
 const subscribingPlanId = ref<string | null>(null)
 
 const BILLING_STATUS_LABELS: Record<SubscriptionResponse['status'], string> = {
+  PENDING: 'Aguardando pagamento',
   TRIAL: 'Período de teste',
   ACTIVE: 'Ativa',
   PAST_DUE: 'Pagamento pendente',
@@ -214,6 +215,9 @@ const billingStatusLabel = computed(() => {
 const billingStatusDetail = computed(() => {
   const sub = billingSubscription.value
   if (!sub) return ''
+  if (sub.status === 'PENDING') {
+    return 'Escolha um plano e conclua o pagamento para começar a usar o MenuBank.'
+  }
   if (sub.status === 'TRIAL' && sub.trialEndsAt) {
     return `Seu teste grátis termina em ${formatDate(sub.trialEndsAt)}. Assine para não perder o acesso.`
   }
