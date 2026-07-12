@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.integration.ifood.dto.IfoodStatusResponse;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodSyncToggleRequest;
 import com.MenuBank.MenuBank.integration.ifood.services.IfoodIntegrationSettingsService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -23,10 +24,13 @@ public class IfoodSyncController {
 
     private final IfoodIntegrationSettingsService settingsService;
     private final AuthHelper authHelper;
+    private final boolean connectionEnabled;
 
-    public IfoodSyncController(IfoodIntegrationSettingsService settingsService, AuthHelper authHelper) {
+    public IfoodSyncController(IfoodIntegrationSettingsService settingsService, AuthHelper authHelper,
+                               @Value("${ifood.connection-enabled:true}") boolean connectionEnabled) {
         this.settingsService = settingsService;
         this.authHelper = authHelper;
+        this.connectionEnabled = connectionEnabled;
     }
 
     @PutMapping
@@ -34,7 +38,7 @@ public class IfoodSyncController {
             @Valid @RequestBody IfoodSyncToggleRequest request, Authentication auth) {
         UUID merchantId = authHelper.getMerchantId(auth);
         return ResponseEntity.ok(IfoodStatusResponse.from(
-                settingsService.setOrderSyncEnabled(merchantId, request.getEnabled())));
+                settingsService.setOrderSyncEnabled(merchantId, request.getEnabled()), connectionEnabled));
     }
 
     @ExceptionHandler(IllegalStateException.class)

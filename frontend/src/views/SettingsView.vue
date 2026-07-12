@@ -105,6 +105,9 @@ const ifoodCatalogModal = ref(false)
 const ifoodSyncModal = ref(false)
 
 const ifoodConnected = computed(() => ifoodStatus.value?.connected ?? false)
+// Linking is blocked server-side while the integration awaits iFood homologation.
+const ifoodConnectionEnabled = computed(() => ifoodStatus.value?.connectionEnabled ?? true)
+const ifoodConnectBlocked = computed(() => !ifoodConnected.value && !ifoodConnectionEnabled.value)
 const ifoodCatalogImportedLabel = computed(() => {
   const importedAt = ifoodStatus.value?.catalogImportedAt
   if (!importedAt) return null
@@ -129,7 +132,7 @@ async function revokeIfood() {
 function handleIfoodStage1Action() {
   if (ifoodConnected.value) {
     revokeIfood()
-  } else {
+  } else if (!ifoodConnectBlocked.value) {
     startIfoodAuth()
   }
 }
@@ -315,12 +318,12 @@ onMounted(async () => {
   }
 
   // Resume an interrupted iFood linking flow (reload/navigation mid-flow).
-  if (!ifoodConnected.value && hasPendingIfoodAuth()) {
+  if (!ifoodConnected.value && !ifoodConnectBlocked.value && hasPendingIfoodAuth()) {
     section.value = 'ints'
     expandedIntegrations.value.ifood = true
     ifoodResume.value = true
     ifoodModal.value = true
-  } else if (ifoodConnected.value && hasPendingIfoodAuth()) {
+  } else if ((ifoodConnected.value || ifoodConnectBlocked.value) && hasPendingIfoodAuth()) {
     clearPendingIfoodAuth()
   }
 })
@@ -595,17 +598,24 @@ onMounted(async () => {
                 </span>
                 <div style="flex: 1">
                   <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Conectar conta</div>
-                  <div :style="{ fontSize: '11px', color: UI.textSub }">
-                    Autorize o MenuBank no portal do iFood.
+                  <div :style="{ fontSize: '11px', color: ifoodConnectBlocked ? UI.amber2 : UI.textSub }">
+                    {{ ifoodConnectBlocked
+                      ? 'Integração em homologação pelo iFood — disponível em breve.'
+                      : 'Autorize o MenuBank no portal do iFood.' }}
                   </div>
                 </div>
-                <UIPill :color="ifoodConnected ? 'emerald' : 'gray'" size="sm" dot>
-                  {{ ifoodConnected ? 'Conectado' : 'Pendente' }}
+                <UIPill
+                  :color="ifoodConnected ? 'emerald' : ifoodConnectBlocked ? 'amber' : 'gray'"
+                  size="sm"
+                  dot
+                >
+                  {{ ifoodConnected ? 'Conectado' : ifoodConnectBlocked ? 'Em homologação' : 'Pendente' }}
                 </UIPill>
                 <UIBtn
                   :variant="ifoodConnected ? 'ghost' : 'primary'"
                   size="sm"
                   data-testid="ifood-stage-connect-action"
+                  :disabled="ifoodConnectBlocked"
                   @click="handleIfoodStage1Action"
                 >
                   {{ ifoodConnected ? 'Desconectar' : 'Conectar' }}

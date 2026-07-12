@@ -42,6 +42,8 @@ export interface IfoodStatusResponse {
   /** ISO date-time of the last catalog import, or null when never imported. */
   catalogImportedAt: string | null
   orderSyncEnabled: boolean
+  /** False while the integration awaits iFood homologation — linking is blocked server-side. */
+  connectionEnabled: boolean
 }
 
 export const ifoodAuthService = {
