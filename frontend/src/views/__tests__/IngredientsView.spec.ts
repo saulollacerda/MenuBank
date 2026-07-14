@@ -44,6 +44,11 @@ vi.mock('@/services/ingredientService', () => ({
   },
 }))
 
+const showToastMock = vi.fn()
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ showToast: showToastMock }),
+}))
+
 import IngredientsView from '@/views/IngredientsView.vue'
 import { ingredientService } from '@/services/ingredientService'
 import { includeService } from '@/services/includeService'
@@ -68,6 +73,7 @@ describe('IngredientsView', () => {
     routeMock.query = {}
     routerMock.replace.mockClear()
     routerMock.push.mockClear()
+    showToastMock.mockClear()
   })
 
   it('should submit ingredient with default quantity', async () => {
@@ -235,8 +241,22 @@ describe('IngredientsView', () => {
       },
     ]
     vi.mocked(ingredientService.fetchUsages).mockResolvedValue([
-      { includeId: 'inc-1', productId: 'p-1', productName: 'Pizza Calabresa', quantity: 120 },
-      { includeId: 'inc-2', productId: 'p-2', productName: 'Pizza Portuguesa', quantity: 90 },
+      {
+        includeId: 'inc-1',
+        productId: 'p-1',
+        productName: 'Pizza Calabresa',
+        quantity: 120,
+        cost: 32.5,
+        totalCost: 3900,
+      },
+      {
+        includeId: 'inc-2',
+        productId: 'p-2',
+        productName: 'Pizza Portuguesa',
+        quantity: 90,
+        cost: 32.5,
+        totalCost: 2925,
+      },
     ])
 
     const wrapper = mount(IngredientsView)
@@ -266,5 +286,34 @@ describe('IngredientsView', () => {
       quantity: 90,
     })
     expect(includeService.update).not.toHaveBeenCalled()
+  })
+
+  it('should show a success toast after creating an ingredient', async () => {
+    const wrapper = mount(IngredientsView)
+
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
+    await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Morango')
+    await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
+    await wrapper.get('[data-testid="ingredient-cost-per-unit-input"]').setValue('0.05')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(showToastMock).toHaveBeenCalledWith('Ingrediente criado com sucesso!')
+  })
+
+  it('should not show a toast when ingredient creation fails', async () => {
+    ingredientStoreMock.create = vi.fn().mockRejectedValue(new Error('boom'))
+    const wrapper = mount(IngredientsView)
+
+    await wrapper.get('[data-testid="new-ingredient-button"]').trigger('click')
+    await wrapper.get('input[placeholder="Nome do ingrediente"]').setValue('Morango')
+    await wrapper.get('input[placeholder="Ex: kg, L, un"]').setValue('g')
+    await wrapper.get('[data-testid="ingredient-cost-per-unit-input"]').setValue('0.05')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(showToastMock).not.toHaveBeenCalled()
   })
 })

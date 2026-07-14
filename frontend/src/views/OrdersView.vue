@@ -32,8 +32,10 @@ import type {
 } from '@/types/Order'
 import type { IncludeResponse } from '@/types/Product'
 import { includeService } from '@/services/includeService'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
+const { showToast } = useToast()
 const authStore = useAuthStore()
 const orderStore = useOrderStore()
 const customerStore = useCustomerStore()
@@ -267,6 +269,7 @@ async function handleSubmit() {
       await orderStore.update(editingOrderId.value, payload)
     } else {
       await orderStore.create(payload)
+      showToast('Pedido criado com sucesso!')
     }
     closeModal()
   } catch {

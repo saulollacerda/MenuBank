@@ -26,10 +26,12 @@ import type { ProductResponse } from '@/types/Product'
 import { ingredientService } from '@/services/ingredientService'
 import { productService } from '@/services/productService'
 import { includeService } from '@/services/includeService'
+import { useToast } from '@/composables/useToast'
 
 const store = useIngredientStore()
 const route = useRoute()
 const router = useRouter()
+const { showToast } = useToast()
 
 const showModal = ref(false)
 const editing = ref<IngredientResponse | null>(null)
@@ -203,6 +205,7 @@ async function handleSubmit() {
       await store.update(editing.value.id, form.value)
     } else {
       await store.create(form.value)
+      showToast('Ingrediente criado com sucesso!')
     }
   } catch (err: unknown) {
     submitError.value = extractErrorMessage(err)
