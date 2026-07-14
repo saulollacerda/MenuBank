@@ -51,8 +51,14 @@ vi.mock('@/services/includeService', () => ({
 
 import OrdersView from '@/views/OrdersView.vue'
 
+const showToastMock = vi.fn()
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ showToast: showToastMock }),
+}))
+
 describe('OrdersView', () => {
   beforeEach(() => {
+    showToastMock.mockClear()
     orderStoreMock = {
       items: [],
       loading: false,
@@ -168,6 +174,37 @@ describe('OrdersView', () => {
     })
     const payload = orderStoreMock.create.mock.calls[0][0]
     expect(payload.customerName).toBeUndefined()
+  })
+
+  it('should show a success toast after creating an order', async () => {
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('jo')
+    await wrapper.get('[data-testid="combo-option-c1"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+    await wrapper.get('[data-testid="order-item-0-quantity-input"]').setValue('1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(orderStoreMock.create).toHaveBeenCalledTimes(1)
+    expect(showToastMock).toHaveBeenCalledWith('Pedido criado com sucesso!')
+  })
+
+  it('should not show a toast when order creation fails', async () => {
+    orderStoreMock.create = vi.fn().mockRejectedValue(new Error('boom'))
+    const wrapper = mount(OrdersView)
+
+    await wrapper.get('[data-testid="new-order-button"]').trigger('click')
+    await wrapper.get('[data-testid="order-customer-input"]').setValue('jo')
+    await wrapper.get('[data-testid="combo-option-c1"]').trigger('click')
+    await wrapper.get('[data-testid="order-item-0-product-select"]').setValue('p1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(showToastMock).not.toHaveBeenCalled()
   })
 
   it('should list the product ficha técnica as checked insumos when a product is selected', async () => {
