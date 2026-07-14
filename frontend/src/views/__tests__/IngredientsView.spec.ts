@@ -45,6 +45,8 @@ vi.mock('@/services/ingredientService', () => ({
 }))
 
 import IngredientsView from '@/views/IngredientsView.vue'
+import { ingredientService } from '@/services/ingredientService'
+import { includeService } from '@/services/includeService'
 
 describe('IngredientsView', () => {
   beforeEach(() => {
@@ -219,5 +221,50 @@ describe('IngredientsView', () => {
       defaultQuantity: 5,
     })
     expect(ingredientStoreMock.update).not.toHaveBeenCalled()
+  })
+
+  it('should copy product-specific quantities from the source ingredient when duplicating', async () => {
+    ingredientStoreMock.items = [
+      {
+        id: 'ing-1',
+        name: 'Queijo Mussarela',
+        unit: 'kg',
+        costPerUnit: 32.5,
+        defaultQuantity: 5,
+        status: 'ACTIVE',
+      },
+    ]
+    vi.mocked(ingredientService.fetchUsages).mockResolvedValue([
+      { includeId: 'inc-1', productId: 'p-1', productName: 'Pizza Calabresa', quantity: 120 },
+      { includeId: 'inc-2', productId: 'p-2', productName: 'Pizza Portuguesa', quantity: 90 },
+    ])
+
+    const wrapper = mount(IngredientsView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="duplicate-ingredient-button"]').trigger('click')
+    await flushPromises()
+
+    // Usages of the source ingredient are fetched and shown in the modal
+    expect(ingredientService.fetchUsages).toHaveBeenCalledWith('ing-1')
+    expect(wrapper.text()).toContain('Pizza Calabresa')
+    expect(wrapper.text()).toContain('Pizza Portuguesa')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    // The copy adds NEW includes on each product; it must never update the
+    // source ingredient's existing includes
+    expect(includeService.add).toHaveBeenCalledWith('p-1', {
+      name: 'Queijo Mussarela (cópia)',
+      cost: 32.5,
+      quantity: 120,
+    })
+    expect(includeService.add).toHaveBeenCalledWith('p-2', {
+      name: 'Queijo Mussarela (cópia)',
+      cost: 32.5,
+      quantity: 90,
+    })
+    expect(includeService.update).not.toHaveBeenCalled()
   })
 })

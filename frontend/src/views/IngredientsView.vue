@@ -164,6 +164,18 @@ async function openDuplicate(ing: IngredientResponse) {
   form.value.unit = ing.unit
   form.value.costPerUnit = ing.costPerUnit
   form.value.defaultQuantity = ing.defaultQuantity ?? 0
+  try {
+    const usages: IngredientProductUsageResponse[] = await ingredientService.fetchUsages(ing.id)
+    // No includeId: submitting must create new includes for the copy, never
+    // touch the source ingredient's existing ones
+    specificGrammages.value = usages.map((u) => ({
+      productId: u.productId,
+      productName: u.productName,
+      quantity: u.quantity,
+    }))
+  } catch {
+    /* non-critical */
+  }
 }
 function closeModal() {
   showModal.value = false
