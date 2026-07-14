@@ -20,10 +20,12 @@ import {
 } from '@/design'
 import type { ProductRequest, ProductResponse, IncludeRequest } from '@/types/Product'
 import { catalogOriginLabel, catalogOriginPillColor } from '@/types/Category'
+import { useToast } from '@/composables/useToast'
 
 const productStore = useProductStore()
 const categoryStore = useCategoryStore()
 const anotaAIStore = useAnotaAIStore()
+const { showToast } = useToast()
 
 const syncClearRecipes = ref(false)
 
@@ -101,6 +103,7 @@ async function handleSubmit() {
       await productStore.update(editing.value.id, form.value)
     } else {
       await productStore.create(form.value)
+      showToast('Produto criado com sucesso!')
     }
     closeModal()
   } catch {

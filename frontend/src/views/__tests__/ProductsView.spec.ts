@@ -20,6 +20,11 @@ vi.mock('@/stores/anotaAIStore', () => ({
   useAnotaAIStore: () => anotaAIStoreMock,
 }))
 
+const showToastMock = vi.fn()
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ showToast: showToastMock }),
+}))
+
 import ProductsView from '@/views/ProductsView.vue'
 
 function stubMatchMedia(matches: boolean) {
@@ -88,6 +93,8 @@ describe('ProductsView', () => {
       syncCatalog: vi.fn(),
       clearResult: vi.fn(),
     }
+
+    showToastMock.mockClear()
   })
 
   it('should render category column with categoryName for each product', () => {
@@ -113,6 +120,31 @@ describe('ProductsView', () => {
       price: 25.9,
       categoryId: 'cat2',
     })
+  })
+
+  it('should show a success toast after creating a product', async () => {
+    const wrapper = mount(ProductsView)
+
+    await wrapper.get('[data-testid="new-product-button"]').trigger('click')
+    await wrapper.get('[data-testid="product-name-input"]').setValue('X-Burguer')
+    await wrapper.get('[data-testid="product-price-input"]').setValue('25.9')
+    await wrapper.get('[data-testid="product-category-select"]').setValue('cat2')
+
+    await wrapper.get('[data-testid="product-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(showToastMock).toHaveBeenCalledWith('Produto criado com sucesso!')
+  })
+
+  it('should not show a toast when editing an existing product', async () => {
+    const wrapper = mount(ProductsView)
+
+    await wrapper.get('[data-testid="product-p1-edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="product-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(productStoreMock.update).toHaveBeenCalled()
+    expect(showToastMock).not.toHaveBeenCalled()
   })
 
   it('should preselect the current category when editing a product', async () => {
