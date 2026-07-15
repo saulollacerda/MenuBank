@@ -33,8 +33,7 @@
         </div>
 
         <h1 class="lp-hero-h1">
-          Quanto sua loja ganha<br>
-          <span class="lp-accent">de verdade</span> em cada pedido?
+          Quanto sua loja ganha<br><span class="lp-accent"> de verdade</span> em cada pedido?
         </h1>
         <p class="lp-hero-sub">
           MenuBank calcula o custo por ingrediente, importa seus pedidos do Anota.AI / iFood
@@ -56,7 +55,7 @@
         </div>
 
         <!-- Dashboard preview -->
-        <div style="margin-top:60px;position:relative;">
+        <div class="lp-hero-preview">
           <!-- Floating chip left -->
           <div class="lp-chip lp-float-l" style="left:-10px;top:80px;">
             <div class="lp-chip-icon" style="background:#ecfdf5;color:#059669;">
@@ -276,7 +275,7 @@
 
         <div class="lp-how-steps">
           <!-- Step 01 -->
-          <div class="lp-how-step" style="grid-template-columns:1fr 1.2fr;">
+          <div class="lp-how-step">
             <div>
               <div class="lp-step-badge">Passo 01</div>
               <h3 class="lp-step-title">Cadastre seus ingredientes</h3>
@@ -306,13 +305,13 @@
           </div>
 
           <!-- Step 02 -->
-          <div class="lp-how-step" style="grid-template-columns:1.2fr 1fr;">
-            <div style="order:1;">
+          <div class="lp-how-step lp-how-step--flip">
+            <div>
               <div class="lp-step-badge">Passo 02</div>
               <h3 class="lp-step-title">Monte a ficha técnica dos produtos</h3>
               <p class="lp-step-body">Ligue cada produto aos ingredientes que ele usa. O custo total do produto e a margem aparecem na hora.</p>
             </div>
-            <div style="order:0;" class="lp-how-visual">
+            <div class="lp-how-visual">
               <div class="lp-visual-label">Ficha técnica</div>
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
                 <div style="font-size:16px;font-weight:600;">Açaí 400 ml</div>
@@ -335,7 +334,7 @@
           </div>
 
           <!-- Step 03 -->
-          <div class="lp-how-step" style="grid-template-columns:1fr 1.2fr;">
+          <div class="lp-how-step">
             <div>
               <div class="lp-step-badge">Passo 03</div>
               <h3 class="lp-step-title">Conecte seus canais de venda</h3>
@@ -440,7 +439,7 @@
       <div class="lp-container-sm">
         <div class="lp-section-header">
           <div class="lp-eyebrow">FAQ</div>
-          <h2 class="lp-section-h2" style="font-size:36px;letter-spacing:-1px;">Perguntas frequentes</h2>
+          <h2 class="lp-section-h2">Perguntas frequentes</h2>
         </div>
         <div class="lp-faq-list">
           <div
@@ -461,7 +460,7 @@
 
     <!-- CTA BAND -->
     <section class="lp-cta-section">
-      <div style="padding:0 32px;">
+      <div class="lp-cta-wrap">
         <div class="lp-cta-band">
           <div class="lp-cta-glow-1"></div>
           <div class="lp-cta-glow-2"></div>
@@ -508,45 +507,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { h, ref, type FunctionalComponent } from 'vue'
 
 // ── Inline SVG icon components ──────────────────────────────────────────────
-const IconArrow = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`
+// Render functions instead of template strings: the CSP (script-src 'self',
+// no unsafe-eval) blocks Vue's runtime template compilation in the browser.
+interface IconProps { size?: number | string; color?: string }
+
+type IconNodes = (color: string) => ReturnType<typeof h>[]
+
+function makeIcon(
+  nodes: IconNodes,
+  strokeWidth = 1.6,
+  svgAttrs: (color: string) => Record<string, unknown> = (color) => ({ fill: 'none', stroke: color }),
+): FunctionalComponent<IconProps> {
+  return (props) => {
+    const color = props.color ?? 'currentColor'
+    return h('svg', {
+      width: props.size ?? 16, height: props.size ?? 16, viewBox: '0 0 24 24',
+      'stroke-width': strokeWidth, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      ...svgAttrs(color),
+    }, nodes(color))
+  }
 }
-const IconCheck = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`
-}
-const IconChart = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 6-6" stroke-width="1.8"/></svg>`
-}
-const IconBell = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1112 0v4l2 4H4l2-4V9z"/><path d="M9 21c.5 1.2 1.6 2 3 2s2.5-.8 3-2"/></svg>`
-}
-const IconCalc = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="4" rx="1" :fill="color"/><circle cx="8.5" cy="13.5" r="1" :fill="color"/><circle cx="12" cy="13.5" r="1" :fill="color"/><circle cx="15.5" cy="13.5" r="1" :fill="color"/><circle cx="8.5" cy="17" r="1" :fill="color"/><circle cx="12" cy="17" r="1" :fill="color"/><circle cx="15.5" cy="17" r="1" :fill="color"/></svg>`
-}
-const IconLayers = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 18l9 5 9-5"/></svg>`
-}
-const IconSync = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0114-5l2 2"/><path d="M20 12a8 8 0 01-14 5l-2-2"/><path d="M16 4v4h4M8 20v-4H4"/></svg>`
-}
-const IconStar = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" :fill="color" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z"/></svg>`
-}
-const IconPlug = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 01-10 0V8zM12 17v5"/></svg>`
-}
+
+const IconArrow = makeIcon(() => [h('path', { d: 'M5 12h14M13 6l6 6-6 6' })], 2)
+const IconCheck = makeIcon(() => [h('path', { d: 'M4 12l5 5L20 6' })], 2.2)
+const IconChart = makeIcon(() => [
+  h('path', { d: 'M3 3v18h18' }),
+  h('path', { d: 'M7 14l4-4 3 3 6-6', 'stroke-width': 1.8 }),
+])
+const IconBell = makeIcon(() => [
+  h('path', { d: 'M6 9a6 6 0 1112 0v4l2 4H4l2-4V9z' }),
+  h('path', { d: 'M9 21c.5 1.2 1.6 2 3 2s2.5-.8 3-2' }),
+])
+const IconCalc = makeIcon((color) => [
+  h('rect', { x: 4, y: 3, width: 16, height: 18, rx: 2 }),
+  h('rect', { x: 7, y: 6, width: 10, height: 4, rx: 1, fill: color }),
+  ...[[8.5, 13.5], [12, 13.5], [15.5, 13.5], [8.5, 17], [12, 17], [15.5, 17]].map(
+    ([cx, cy]) => h('circle', { cx, cy, r: 1, fill: color }),
+  ),
+])
+const IconLayers = makeIcon(() => [
+  h('path', { d: 'M12 3l9 5-9 5-9-5 9-5z' }),
+  h('path', { d: 'M3 13l9 5 9-5M3 18l9 5 9-5' }),
+])
+const IconSync = makeIcon(() => [
+  h('path', { d: 'M4 12a8 8 0 0114-5l2 2' }),
+  h('path', { d: 'M20 12a8 8 0 01-14 5l-2-2' }),
+  h('path', { d: 'M16 4v4h4M8 20v-4H4' }),
+])
+const IconStar = makeIcon(
+  () => [h('path', { d: 'M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z' })],
+  1.6,
+  (color) => ({ fill: color, stroke: color }),
+)
+const IconPlug = makeIcon(() => [h('path', { d: 'M9 2v6M15 2v6M7 8h10v4a5 5 0 01-10 0V8zM12 17v5' })])
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 const topProducts = [
@@ -744,6 +760,7 @@ function toggleFaq(i: number) {
   font-size: 12.5px; color: #94a3b8; flex-wrap: wrap;
 }
 .lp-hero-bullets span { display: inline-flex; align-items: center; gap: 6px; }
+.lp-hero-preview { margin-top: 60px; position: relative; }
 
 /* ── Floating chips ─────────────────────────────────────────── */
 @keyframes lp-float-l { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
@@ -862,7 +879,7 @@ function toggleFaq(i: number) {
 
 /* ── Stats ──────────────────────────────────────────────────── */
 .lp-stats { padding: 40px 0; background: #fff; border-bottom: 1px solid #eef0f3; }
-.lp-stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 32px; }
+.lp-stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 32px; }
 .lp-stat-item { text-align: center; padding: 8px 0; }
 .lp-stat-item:not(:last-child) { border-right: 1px solid #eef0f3; }
 .lp-stat-value { font-size: 32px; font-weight: 700; color: #0f172a; letter-spacing: -1px; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -887,9 +904,11 @@ function toggleFaq(i: number) {
 .lp-how { padding: 90px 0; background: #fff; }
 .lp-how-steps { display: flex; flex-direction: column; gap: 24px; }
 .lp-how-step {
-  display: grid; gap: 40px; align-items: center;
+  display: grid; grid-template-columns: 1fr 1.2fr; gap: 40px; align-items: center;
   padding: 32px; background: #f6f7f9; border-radius: 18px;
 }
+.lp-how-step--flip { grid-template-columns: 1.2fr 1fr; }
+.lp-how-step--flip .lp-how-visual { order: -1; }
 .lp-step-badge {
   display: inline-flex; align-items: center;
   background: #0c1626; color: #fff;
@@ -971,6 +990,7 @@ function toggleFaq(i: number) {
 
 /* ── FAQ ────────────────────────────────────────────────────── */
 .lp-faq { padding: 90px 0; background: #f6f7f9; }
+.lp-faq .lp-section-h2 { font-size: 36px; letter-spacing: -1px; }
 .lp-faq-list { background: #fff; border: 1px solid #e8eaee; border-radius: 14px; overflow: hidden; }
 .lp-faq-item { border-bottom: 1px solid #eef0f3; }
 .lp-faq-item:last-child { border-bottom: none; }
@@ -993,6 +1013,7 @@ function toggleFaq(i: number) {
 
 /* ── CTA Band ───────────────────────────────────────────────── */
 .lp-cta-section { padding: 90px 0; background: #fff; }
+.lp-cta-wrap { padding: 0 32px; }
 .lp-cta-band {
   background: linear-gradient(135deg, #0c1626 0%, #0a1322 100%);
   border-radius: 24px; padding: 60px 56px;
@@ -1030,4 +1051,60 @@ function toggleFaq(i: number) {
 /* ── Scroll reveal ──────────────────────────────────────────── */
 @keyframes lp-fadeup { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .lp-root section { animation: lp-fadeup .6s ease both; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .lp-hero-h1 { font-size: 48px; letter-spacing: -1.4px; }
+  .lp-section-h2 { font-size: 34px; }
+  .lp-three-col, .lp-feat-grid { grid-template-columns: repeat(2, 1fr); }
+  .lp-footer-grid { grid-template-columns: repeat(3, 1fr); }
+  .lp-mini-row { grid-template-columns: 1.4fr 1fr; }
+}
+
+@media (max-width: 860px) {
+  .lp-nav-links { display: none; }
+  .lp-nav-inner { gap: 16px; }
+  .lp-how-step, .lp-how-step--flip { grid-template-columns: 1fr; gap: 24px; }
+  .lp-how-step--flip .lp-how-visual { order: 0; }
+  .lp-step-body { max-width: none; }
+  .lp-chip { display: none; }
+  .lp-mini-sidebar { display: none; }
+  .lp-mini-dash { height: 480px; }
+  .lp-quote-text { font-size: 22px; }
+  .lp-cta-h2 { font-size: 32px; }
+}
+
+@media (max-width: 640px) {
+  .lp-hero { padding: 48px 20px 40px; }
+  .lp-hero-h1 { font-size: 34px; letter-spacing: -1px; }
+  .lp-hero-h1 br { display: none; }
+  .lp-hero-sub { font-size: 16px; }
+  .lp-hero-ctas { flex-direction: column; align-items: stretch; }
+  .lp-hero-ctas .lp-btn { justify-content: center; }
+  .lp-hero-bullets { gap: 10px 16px; }
+  .lp-hero-preview { margin-top: 40px; }
+  .lp-container-md, .lp-container-sm { padding: 0 20px; }
+  .lp-section-header { margin-bottom: 36px; }
+  .lp-section-h2, .lp-faq .lp-section-h2 { font-size: 28px; letter-spacing: -.8px; }
+  .lp-stats-grid { grid-template-columns: 1fr; gap: 20px; }
+  .lp-stat-item:not(:last-child) { border-right: none; border-bottom: 1px solid #eef0f3; padding-bottom: 20px; }
+  .lp-three-col, .lp-feat-grid { grid-template-columns: 1fr; }
+  .lp-problem { padding: 56px 0 40px; }
+  .lp-how, .lp-features, .lp-pricing, .lp-faq, .lp-cta-section { padding: 56px 0; }
+  .lp-how-step { padding: 20px; }
+  .lp-mini-dash { height: 420px; }
+  .lp-mini-kpis { grid-template-columns: repeat(2, 1fr); }
+  .lp-mini-row { grid-template-columns: 1fr; }
+  .lp-mini-sidebar-card { display: none; }
+  .lp-quote { padding: 56px 20px; }
+  .lp-cta-wrap { padding: 0 16px; }
+  .lp-cta-band { padding: 40px 24px; border-radius: 18px; }
+  .lp-cta-h2 { font-size: 28px; }
+  .lp-cta-sub { font-size: 15px; }
+  .lp-pricing-card { padding: 24px; }
+  .lp-pricing-amount { font-size: 36px; }
+  .lp-footer-grid { grid-template-columns: 1fr 1fr; }
+  .lp-footer-inner { padding: 40px 20px 24px; }
+  .lp-footer-bottom { flex-direction: column; align-items: flex-start; }
+}
 </style>
