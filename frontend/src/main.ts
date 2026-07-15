@@ -12,7 +12,10 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Restore the persisted session before mounting so the router guard sees auth state.
+// Restore the persisted session before mounting so the first paint already has
+// auth state (no login-layout flash). The router guard also awaits this same
+// single-flight init(), which is what actually protects the initial navigation —
+// app.use(router) starts navigating before this await settles.
 await useAuthStore(pinia).init()
 
 app.mount('#app')
