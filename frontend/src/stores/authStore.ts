@@ -13,15 +13,20 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
   const awaitingEmailConfirmation = ref(false)
   const passwordResetEmailSent = ref(false)
-  let initialized = false
+  // Single-flight: the router guard and main.ts both await init(); concurrent
+  // callers must share the in-flight restore instead of resolving early.
+  let initPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => !!session.value)
   const restaurantName = computed(() => currentUser.value?.merchantName ?? '')
 
-  /** Loads the persisted session and subscribes to auth changes. */
-  async function init() {
-    if (initialized) return
-    initialized = true
+  /** Loads the persisted session and subscribes to auth changes. Idempotent. */
+  function init(): Promise<void> {
+    if (!initPromise) initPromise = doInit()
+    return initPromise
+  }
+
+  async function doInit() {
     session.value = await authProvider.init()
     authProvider.onAuthChange(async (newSession) => {
       const wasAuthenticated = !!session.value
