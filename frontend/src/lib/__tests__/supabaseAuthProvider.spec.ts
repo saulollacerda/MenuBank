@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   getSession,
+  refreshSession,
   onAuthStateChange,
   signInWithPassword,
   signUp,
@@ -10,6 +11,7 @@ const {
   updateUser,
 } = vi.hoisted(() => ({
   getSession: vi.fn(),
+  refreshSession: vi.fn(),
   onAuthStateChange: vi.fn(),
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
       getSession,
+      refreshSession,
       onAuthStateChange,
       signInWithPassword,
       signUp,
@@ -31,6 +34,24 @@ vi.mock('@/lib/supabase', () => ({
     },
   },
 }))
+
+// jsdom's global localStorage is unreliable across suites; inject a clean in-memory one.
+const memoryStore = new Map<string, string>()
+vi.stubGlobal('localStorage', {
+  get length() {
+    return memoryStore.size
+  },
+  key: (index: number) => Array.from(memoryStore.keys())[index] ?? null,
+  getItem: (key: string) => memoryStore.get(key) ?? null,
+  setItem: (key: string, value: string) => void memoryStore.set(key, value),
+  removeItem: (key: string) => void memoryStore.delete(key),
+  clear: () => memoryStore.clear(),
+})
+
+/** Epoch seconds `delta` seconds from now. */
+function epoch(delta: number): number {
+  return Math.floor(Date.now() / 1000) + delta
+}
 
 import { supabaseAuthProvider } from '@/lib/supabaseAuthProvider'
 import { AuthError } from '@/lib/authTypes'
@@ -53,6 +74,7 @@ const signUpForm = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  memoryStore.clear()
 })
 
 describe('supabaseAuthProvider', () => {
@@ -183,6 +205,130 @@ describe('supabaseAuthProvider', () => {
       await expect(supabaseAuthProvider.updatePassword('novaSenha1')).rejects.toMatchObject({
         code: 'unknown',
       })
+    })
+  })
+
+  describe('getAccessToken', () => {
+    it('retorna o token em cache sem chamar getSession quando ainda está válido', async () => {
+      getSession.mockResolvedValue({
+        data: { session: { access_token: 'fresh', expires_at: epoch(3600), user: supabaseUser } },
+      })
+      await supabaseAuthProvider.init()
+      getSession.mockClear()
+
+      const token = await supabaseAuthProvider.getAccessToken()
+
+      expect(token).toBe('fresh')
+      expect(getSession).not.toHaveBeenCalled()
+    })
+
+    it('chama getSession uma vez perto da expiração e atualiza o cache', async () => {
+      getSession.mockResolvedValue({
+        data: { session: { access_token: 'stale', expires_at: epoch(10), user: supabaseUser } },
+      })
+      await supabaseAuthProvider.init()
+      getSession.mockClear()
+      getSession.mockResolvedValue({
+        data: { session: { access_token: 'renewed', expires_at: epoch(3600), user: supabaseUser } },
+      })
+
+      const token = await supabaseAuthProvider.getAccessToken()
+
+      expect(token).toBe('renewed')
+      expect(getSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('chamadas concorrentes compartilham uma única chamada a getSession', async () => {
+      getSession.mockResolvedValue({
+        data: { session: { access_token: 'stale', expires_at: epoch(10), user: supabaseUser } },
+      })
+      await supabaseAuthProvider.init()
+      getSession.mockClear()
+
+      let resolveGetSession!: (value: unknown) => void
+      getSession.mockReturnValue(
+        new Promise((resolve) => {
+          resolveGetSession = resolve
+        }),
+      )
+
+      const p1 = supabaseAuthProvider.getAccessToken()
+      const p2 = supabaseAuthProvider.getAccessToken()
+      resolveGetSession({
+        data: { session: { access_token: 'renewed', expires_at: epoch(3600), user: supabaseUser } },
+      })
+      const [t1, t2] = await Promise.all([p1, p2])
+
+      expect(t1).toBe('renewed')
+      expect(t2).toBe('renewed')
+      expect(getSession).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('refreshSession', () => {
+    it('atualiza o cache e retorna o novo token em caso de sucesso', async () => {
+      refreshSession.mockResolvedValue({
+        data: { session: { access_token: 'refreshed', expires_at: epoch(3600), user: supabaseUser } },
+        error: null,
+      })
+
+      const token = await supabaseAuthProvider.refreshSession()
+
+      expect(token).toBe('refreshed')
+      // Cache is fresh now: getAccessToken must not fall back to getSession.
+      expect(await supabaseAuthProvider.getAccessToken()).toBe('refreshed')
+      expect(getSession).not.toHaveBeenCalled()
+    })
+
+    it('retorna null quando o refresh falha, sem lançar', async () => {
+      refreshSession.mockResolvedValue({ data: { session: null }, error: { message: 'invalid' } })
+
+      await expect(supabaseAuthProvider.refreshSession()).resolves.toBeNull()
+    })
+
+    it('retorna null quando o refresh rejeita, sem lançar', async () => {
+      refreshSession.mockRejectedValue(new Error('network'))
+
+      await expect(supabaseAuthProvider.refreshSession()).resolves.toBeNull()
+    })
+  })
+
+  describe('signOut', () => {
+    it('usa scope local e limpa cache e chaves sb-*-auth-token mesmo com erro retornado', async () => {
+      signInWithPassword.mockResolvedValue({
+        data: { session: { access_token: 'tok', expires_at: epoch(3600), user: supabaseUser } },
+        error: null,
+      })
+      await supabaseAuthProvider.signIn('a@b.com', 'senha123')
+      getSession.mockResolvedValue({ data: { session: null } })
+      localStorage.setItem('sb-abc-auth-token', 'x')
+      localStorage.setItem('sb-abc-auth-token-user', 'y')
+      localStorage.setItem('outra-chave', 'z')
+      signOut.mockResolvedValue({ error: { message: 'network down' } })
+
+      await supabaseAuthProvider.signOut()
+
+      expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
+      expect(localStorage.getItem('sb-abc-auth-token')).toBeNull()
+      expect(localStorage.getItem('sb-abc-auth-token-user')).toBeNull()
+      expect(localStorage.getItem('outra-chave')).toBe('z')
+      expect(await supabaseAuthProvider.getAccessToken()).toBeNull()
+    })
+
+    it('limpa cache e chaves mesmo quando o signOut do Supabase rejeita', async () => {
+      signInWithPassword.mockResolvedValue({
+        data: { session: { access_token: 'tok', expires_at: epoch(3600), user: supabaseUser } },
+        error: null,
+      })
+      await supabaseAuthProvider.signIn('a@b.com', 'senha123')
+      getSession.mockResolvedValue({ data: { session: null } })
+      localStorage.setItem('sb-abc-auth-token', 'x')
+      signOut.mockRejectedValue(new Error('network'))
+
+      await expect(supabaseAuthProvider.signOut()).resolves.toBeUndefined()
+
+      expect(localStorage.getItem('sb-abc-auth-token')).toBeNull()
+      expect(await supabaseAuthProvider.getAccessToken()).toBeNull()
     })
   })
 })

@@ -101,6 +101,26 @@ describe('localAuthProvider', () => {
     expect(await localAuthProvider.init()).toBeNull()
   })
 
+  describe('refreshSession', () => {
+    it('retorna o token válido armazenado (não há refresh remoto no modo local)', async () => {
+      const valid = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) + 3600 })
+      memoryStore.set(TOKEN_KEY, valid)
+
+      expect(await localAuthProvider.refreshSession()).toBe(valid)
+    })
+
+    it('retorna null quando não há token armazenado', async () => {
+      expect(await localAuthProvider.refreshSession()).toBeNull()
+    })
+
+    it('retorna null e remove um token expirado', async () => {
+      const expired = fakeJwt({ email: 'dev@example.com', exp: Math.floor(Date.now() / 1000) - 60 })
+      memoryStore.set(TOKEN_KEY, expired)
+
+      expect(await localAuthProvider.refreshSession()).toBeNull()
+    })
+  })
+
   describe('recuperação de senha (não suportada no modo local)', () => {
     it('requestPasswordReset lança AuthError not_supported', async () => {
       await expect(localAuthProvider.requestPasswordReset('a@b.com')).rejects.toMatchObject({

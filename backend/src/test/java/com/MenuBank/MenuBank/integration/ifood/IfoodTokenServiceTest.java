@@ -124,8 +124,9 @@ class IfoodTokenServiceTest {
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
         given(authClient.requestUserCode("client-id")).willReturn(userCodeResponse());
         given(authClient.exchangeCode(any(), any(), any(), any())).willReturn(tokenResponse);
-        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(
-                List.of(Merchant.builder().ifoodMerchantId("already-known-id").build()));
+        Merchant alreadyConnected = Merchant.builder().build();
+        alreadyConnected.setIfoodMerchantId("already-known-id");
+        given(merchantRepository.findAllByIfoodMerchantIdIsNotNull()).willReturn(List.of(alreadyConnected));
 
         service.startAuthorization(merchantId);
 

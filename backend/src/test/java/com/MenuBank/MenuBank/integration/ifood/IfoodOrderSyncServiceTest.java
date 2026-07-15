@@ -49,9 +49,9 @@ class IfoodOrderSyncServiceTest {
     void setUp() {
         merchant = Merchant.builder()
                 .id(UUID.randomUUID())
-                .ifoodMerchantId("ifood-m1")
-                .ifoodOrderSyncEnabled(true)
                 .build();
+        merchant.setIfoodMerchantId("ifood-m1");
+        merchant.setIfoodOrderSyncEnabled(true);
         lenient().when(merchantRepository.findAllByIfoodMerchantIdIsNotNullAndIfoodOrderSyncEnabledTrue())
                 .thenReturn(List.of(merchant));
         lenient().when(tokenService.getAccessToken()).thenReturn("token-1");

@@ -75,8 +75,8 @@ class OrderIngredientBackfillServiceTest {
 
         merchantWithApiKey = Merchant.builder()
                 .id(merchantId)
-                .anotaAiApiKey(API_KEY)
                 .build();
+        merchantWithApiKey.setAnotaAiApiKey(API_KEY);
 
         ingredient = Ingredient.builder()
                 .id(ingredientId)
@@ -163,7 +163,7 @@ class OrderIngredientBackfillServiceTest {
         @Test
         @DisplayName("não deve chamar AnotaAIClient quando apiKey é null")
         void whenMerchantHasNoApiKey_shouldSkipBackfill() {
-            Merchant merchantNoKey = Merchant.builder().id(merchantId).anotaAiApiKey(null).build();
+            Merchant merchantNoKey = Merchant.builder().id(merchantId).build();
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchantNoKey));
             lenient().when(ingredientRepository.findById(ingredientId)).thenReturn(Optional.of(ingredient));
 
@@ -176,7 +176,8 @@ class OrderIngredientBackfillServiceTest {
         @Test
         @DisplayName("não deve chamar AnotaAIClient quando apiKey é string vazia")
         void whenMerchantHasBlankApiKey_shouldSkipBackfill() {
-            Merchant merchantBlankKey = Merchant.builder().id(merchantId).anotaAiApiKey("   ").build();
+            Merchant merchantBlankKey = Merchant.builder().id(merchantId).build();
+            merchantBlankKey.setAnotaAiApiKey("   ");
             given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchantBlankKey));
             lenient().when(ingredientRepository.findById(ingredientId)).thenReturn(Optional.of(ingredient));
 
