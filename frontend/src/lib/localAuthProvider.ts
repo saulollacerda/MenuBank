@@ -119,6 +119,11 @@ export const localAuthProvider: AuthProvider = {
     return readValidToken()
   },
 
+  // No remote refresh concept in local dev — just re-read the persisted valid token.
+  async refreshSession() {
+    return readValidToken()
+  },
+
   // No email delivery in local dev — failing loudly beats faking a sent email.
   async requestPasswordReset() {
     throw new AuthError('not_supported')

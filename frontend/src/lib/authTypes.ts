@@ -58,6 +58,8 @@ export interface AuthProvider {
   signOut(): Promise<void>
   /** Current access token for the Authorization header (null if signed out). */
   getAccessToken(): Promise<string | null>
+  /** Forces a session refresh; resolves the new access token, or null when refresh is impossible/fails. */
+  refreshSession(): Promise<string | null>
   /** Emails a password-recovery link; throws {@link AuthError} on failure. */
   requestPasswordReset(email: string): Promise<void>
   /** Sets a new password for the authenticated user (e.g. after a recovery link). */
