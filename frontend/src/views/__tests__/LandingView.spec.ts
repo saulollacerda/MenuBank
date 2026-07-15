@@ -139,6 +139,27 @@ describe('LandingView — layout responsivo', () => {
   })
 })
 
+describe('LandingView — ícones', () => {
+  it('renderiza os ícones como SVG (sem template strings que dependem do compilador em runtime)', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    expect(wrapper.find('.lp-hero-pill svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-hero-bullets svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-problem-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-feat-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-channel-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-pricing-features svg').exists()).toBe(true)
+  })
+
+  it('aplica tamanho e cor recebidos por props', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const bulletIcon = wrapper.find('.lp-hero-bullets svg')
+    expect(bulletIcon.attributes('width')).toBe('14')
+    expect(bulletIcon.attributes('stroke')).toBe('#059669')
+  })
+})
+
 describe('LandingView — rodapé', () => {
   it('exibe o CNPJ correto e o país sem cidade', () => {
     const wrapper = mount(LandingView, GLOBAL)

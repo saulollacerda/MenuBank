@@ -507,45 +507,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { h, ref, type FunctionalComponent } from 'vue'
 
 // ── Inline SVG icon components ──────────────────────────────────────────────
-const IconArrow = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`
+// Render functions instead of template strings: the CSP (script-src 'self',
+// no unsafe-eval) blocks Vue's runtime template compilation in the browser.
+interface IconProps { size?: number | string; color?: string }
+
+type IconNodes = (color: string) => ReturnType<typeof h>[]
+
+function makeIcon(
+  nodes: IconNodes,
+  strokeWidth = 1.6,
+  svgAttrs: (color: string) => Record<string, unknown> = (color) => ({ fill: 'none', stroke: color }),
+): FunctionalComponent<IconProps> {
+  return (props) => {
+    const color = props.color ?? 'currentColor'
+    return h('svg', {
+      width: props.size ?? 16, height: props.size ?? 16, viewBox: '0 0 24 24',
+      'stroke-width': strokeWidth, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      ...svgAttrs(color),
+    }, nodes(color))
+  }
 }
-const IconCheck = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`
-}
-const IconChart = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 6-6" stroke-width="1.8"/></svg>`
-}
-const IconBell = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1112 0v4l2 4H4l2-4V9z"/><path d="M9 21c.5 1.2 1.6 2 3 2s2.5-.8 3-2"/></svg>`
-}
-const IconCalc = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="4" rx="1" :fill="color"/><circle cx="8.5" cy="13.5" r="1" :fill="color"/><circle cx="12" cy="13.5" r="1" :fill="color"/><circle cx="15.5" cy="13.5" r="1" :fill="color"/><circle cx="8.5" cy="17" r="1" :fill="color"/><circle cx="12" cy="17" r="1" :fill="color"/><circle cx="15.5" cy="17" r="1" :fill="color"/></svg>`
-}
-const IconLayers = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 18l9 5 9-5"/></svg>`
-}
-const IconSync = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0114-5l2 2"/><path d="M20 12a8 8 0 01-14 5l-2-2"/><path d="M16 4v4h4M8 20v-4H4"/></svg>`
-}
-const IconStar = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" :fill="color" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z"/></svg>`
-}
-const IconPlug = {
-  props: { size: { default: 16 }, color: { default: 'currentColor' } },
-  template: `<svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" :stroke="color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 01-10 0V8zM12 17v5"/></svg>`
-}
+
+const IconArrow = makeIcon(() => [h('path', { d: 'M5 12h14M13 6l6 6-6 6' })], 2)
+const IconCheck = makeIcon(() => [h('path', { d: 'M4 12l5 5L20 6' })], 2.2)
+const IconChart = makeIcon(() => [
+  h('path', { d: 'M3 3v18h18' }),
+  h('path', { d: 'M7 14l4-4 3 3 6-6', 'stroke-width': 1.8 }),
+])
+const IconBell = makeIcon(() => [
+  h('path', { d: 'M6 9a6 6 0 1112 0v4l2 4H4l2-4V9z' }),
+  h('path', { d: 'M9 21c.5 1.2 1.6 2 3 2s2.5-.8 3-2' }),
+])
+const IconCalc = makeIcon((color) => [
+  h('rect', { x: 4, y: 3, width: 16, height: 18, rx: 2 }),
+  h('rect', { x: 7, y: 6, width: 10, height: 4, rx: 1, fill: color }),
+  ...[[8.5, 13.5], [12, 13.5], [15.5, 13.5], [8.5, 17], [12, 17], [15.5, 17]].map(
+    ([cx, cy]) => h('circle', { cx, cy, r: 1, fill: color }),
+  ),
+])
+const IconLayers = makeIcon(() => [
+  h('path', { d: 'M12 3l9 5-9 5-9-5 9-5z' }),
+  h('path', { d: 'M3 13l9 5 9-5M3 18l9 5 9-5' }),
+])
+const IconSync = makeIcon(() => [
+  h('path', { d: 'M4 12a8 8 0 0114-5l2 2' }),
+  h('path', { d: 'M20 12a8 8 0 01-14 5l-2-2' }),
+  h('path', { d: 'M16 4v4h4M8 20v-4H4' }),
+])
+const IconStar = makeIcon(
+  () => [h('path', { d: 'M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z' })],
+  1.6,
+  (color) => ({ fill: color, stroke: color }),
+)
+const IconPlug = makeIcon(() => [h('path', { d: 'M9 2v6M15 2v6M7 8h10v4a5 5 0 01-10 0V8zM12 17v5' })])
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 const topProducts = [
