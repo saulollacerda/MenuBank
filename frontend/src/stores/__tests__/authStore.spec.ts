@@ -228,6 +228,27 @@ describe('authStore', () => {
     expect(store.currentUser).toEqual(merchant)
   })
 
+  it('init concorrente compartilha a mesma restauração (2ª chamada só resolve com a sessão pronta)', async () => {
+    let resolveProviderInit!: (session: unknown) => void
+    init.mockImplementation(() => new Promise((resolve) => (resolveProviderInit = resolve)))
+    getMe.mockResolvedValue(merchant)
+
+    const store = useAuthStore()
+    const first = store.init()
+    let secondSettled = false
+    const second = store.init().then(() => (secondSettled = true))
+
+    // Flush microtasks: the provider restore is still pending, so neither call may settle.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(secondSettled).toBe(false)
+
+    resolveProviderInit(sessionWith())
+    await Promise.all([first, second])
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(init).toHaveBeenCalledTimes(1)
+  })
+
   it('register normaliza o CNPJ para somente dígitos antes de enviar', async () => {
     signUp.mockResolvedValue({ session: null })
 

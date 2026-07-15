@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
 const router = createRouter({
@@ -97,8 +97,18 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+/**
+ * Auth guard for every navigation. Exported for tests.
+ *
+ * The initial navigation starts at `app.use(router)`, before main.ts finishes
+ * awaiting the session restore — so on a page refresh this guard would see a
+ * not-yet-hydrated store and bounce a logged-in user to /login while the token
+ * is still in storage. Awaiting init() (single-flight, idempotent) guarantees
+ * the persisted session is loaded before any redirect decision.
+ */
+export async function authGuard(to: RouteLocationNormalized) {
   const auth = useAuthStore()
+  await auth.init()
   const isPublic = to.meta.public === true
 
   if (!auth.isAuthenticated && !isPublic) {
@@ -129,6 +139,8 @@ router.beforeEach((to) => {
       return { name: 'forgot-password' }
     }
   }
-})
+}
+
+router.beforeEach(authGuard)
 
 export default router
