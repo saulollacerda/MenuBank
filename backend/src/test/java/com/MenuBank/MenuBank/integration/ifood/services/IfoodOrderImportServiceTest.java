@@ -64,7 +64,8 @@ class IfoodOrderImportServiceTest {
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
-        merchant = Merchant.builder().id(merchantId).ifoodMerchantId("ifood-m1").build();
+        merchant = Merchant.builder().id(merchantId).build();
+        merchant.setIfoodMerchantId("ifood-m1");
 
         product = Product.builder()
                 .id(UUID.randomUUID())

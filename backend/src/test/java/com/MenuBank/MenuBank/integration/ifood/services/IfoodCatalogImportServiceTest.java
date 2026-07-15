@@ -61,7 +61,8 @@ class IfoodCatalogImportServiceTest {
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
-        merchant = Merchant.builder().id(merchantId).ifoodMerchantId("ifood-m1").build();
+        merchant = Merchant.builder().id(merchantId).build();
+        merchant.setIfoodMerchantId("ifood-m1");
         lenient().when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
         lenient().when(tokenService.getAccessToken()).thenReturn("token-1");
         lenient().when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

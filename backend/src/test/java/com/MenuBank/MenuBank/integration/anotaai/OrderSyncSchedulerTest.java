@@ -41,8 +41,8 @@ class OrderSyncSchedulerTest {
         merchantId = UUID.randomUUID();
         merchant = Merchant.builder()
                 .id(merchantId)
-                .anotaAiApiKey("key-123")
                 .build();
+        merchant.setAnotaAiApiKey("key-123");
     }
 
     @Test
@@ -134,7 +134,8 @@ class OrderSyncSchedulerTest {
     @DisplayName("exception in one merchant sync does not stop others")
     void exceptionDoesNotPropagate() throws Exception {
         UUID secondId = UUID.randomUUID();
-        Merchant second = Merchant.builder().id(secondId).anotaAiApiKey("key-456").build();
+        Merchant second = Merchant.builder().id(secondId).build();
+        second.setAnotaAiApiKey("key-456");
 
         ZonedDateTime openNow = ZonedDateTime.now(ZoneId.of("America/Sao_Paulo"))
                 .withHour(14).withMinute(0);

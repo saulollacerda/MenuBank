@@ -76,8 +76,8 @@ class AnotaAISyncServiceTest {
         merchantId = UUID.randomUUID();
         merchant = Merchant.builder()
                 .id(merchantId)
-                .anotaAiApiKey("test-api-key")
                 .build();
+        merchant.setAnotaAiApiKey("test-api-key");
         // Default: cálculo de custo retorna ZERO — testes que verificam profit/cost específico sobrescrevem
         org.mockito.Mockito.lenient()
                 .when(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
@@ -465,7 +465,7 @@ class AnotaAISyncServiceTest {
     @Test
     @DisplayName("syncOrders deve lançar exceção se usuário não tiver API key")
     void syncOrders_shouldFailIfNoApiKey() {
-        Merchant userWithoutKey = Merchant.builder().id(merchantId).anotaAiApiKey(null).build();
+        Merchant userWithoutKey = Merchant.builder().id(merchantId).build();
         given(merchantRepository.findById(merchantId)).willReturn(Optional.of(userWithoutKey));
 
         assertThatThrownBy(() -> syncService.syncOrders(merchantId))
