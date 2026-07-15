@@ -83,6 +83,83 @@ describe('LandingView — depoimento', () => {
   })
 })
 
+describe('LandingView — layout responsivo', () => {
+  it('não usa grid-template-columns inline nos passos de "Como funciona"', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const steps = wrapper.findAll('.lp-how-step')
+    expect(steps).toHaveLength(3)
+    for (const step of steps) {
+      expect(step.attributes('style') ?? '').not.toContain('grid-template-columns')
+    }
+  })
+
+  it('marca o passo com visual à esquerda com a classe modificadora', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const steps = wrapper.findAll('.lp-how-step')
+    expect(steps[1]!.classes()).toContain('lp-how-step--flip')
+    expect(steps[0]!.classes()).not.toContain('lp-how-step--flip')
+    expect(steps[2]!.classes()).not.toContain('lp-how-step--flip')
+  })
+
+  it('não usa "order" inline dentro dos passos', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const inlineOrdered = wrapper
+      .findAll('.lp-how-step [style]')
+      .filter((el) => /(^|;)\s*order\s*:/.test(el.attributes('style') ?? ''))
+    expect(inlineOrdered).toHaveLength(0)
+  })
+
+  it('envolve o preview do dashboard em .lp-hero-preview sem estilos inline', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const preview = wrapper.find('.lp-hero-preview')
+    expect(preview.exists()).toBe(true)
+    expect(preview.attributes('style')).toBeUndefined()
+    expect(preview.find('.lp-browser-frame').exists()).toBe(true)
+  })
+
+  it('não define font-size inline no título do FAQ', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const h2 = wrapper.find('#faq .lp-section-h2')
+    expect(h2.exists()).toBe(true)
+    expect(h2.attributes('style') ?? '').not.toContain('font-size')
+  })
+
+  it('envolve a faixa de CTA em .lp-cta-wrap sem padding inline', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const wrap = wrapper.find('.lp-cta-wrap')
+    expect(wrap.exists()).toBe(true)
+    expect(wrap.attributes('style')).toBeUndefined()
+    expect(wrap.find('.lp-cta-band').exists()).toBe(true)
+  })
+})
+
+describe('LandingView — ícones', () => {
+  it('renderiza os ícones como SVG (sem template strings que dependem do compilador em runtime)', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    expect(wrapper.find('.lp-hero-pill svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-hero-bullets svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-problem-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-feat-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-channel-icon svg').exists()).toBe(true)
+    expect(wrapper.find('.lp-pricing-features svg').exists()).toBe(true)
+  })
+
+  it('aplica tamanho e cor recebidos por props', () => {
+    const wrapper = mount(LandingView, GLOBAL)
+
+    const bulletIcon = wrapper.find('.lp-hero-bullets svg')
+    expect(bulletIcon.attributes('width')).toBe('14')
+    expect(bulletIcon.attributes('stroke')).toBe('#059669')
+  })
+})
+
 describe('LandingView — rodapé', () => {
   it('exibe o CNPJ correto e o país sem cidade', () => {
     const wrapper = mount(LandingView, GLOBAL)
