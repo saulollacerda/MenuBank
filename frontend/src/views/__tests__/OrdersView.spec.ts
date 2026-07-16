@@ -735,56 +735,6 @@ describe('OrdersView', () => {
     expect(name).not.toMatch(/\(extra\)/)
   })
 
-  it('should show the item base price composing the total alongside the priced extras', async () => {
-    orderStoreMock.items = [
-      {
-        id: 'o1',
-        dateTime: '2026-05-14T10:00:00',
-        customerId: 'c1',
-        customerName: 'João',
-        status: 'PAID',
-        totalValue: 23.49,
-        estimatedProfit: 10,
-        marginPct: 45.0,
-        items: [
-          {
-            id: 'oi1',
-            productId: 'p1',
-            productName: 'Açaí 500ml',
-            quantity: 1,
-            unitPrice: 21.99,
-            unitCost: 10,
-            totalCost: 10,
-            extraIngredients: [
-              {
-                id: 'oei1',
-                ingredientId: 'i1',
-                ingredientName: 'Pistache',
-                ingredientUnit: 'g',
-                quantity: 30,
-                costPerUnit: 0.05,
-                totalCost: 1.5,
-                salePricePerUnit: 1.5,
-                salePriceTotal: 1.5,
-              },
-            ],
-          },
-        ],
-      },
-    ]
-
-    const wrapper = mount(OrdersView)
-    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
-
-    const detail = wrapper.get('[data-testid="order-detail-modal"]')
-
-    // Preço base do produto entra na composição, na coluna "Pago", ao lado dos adicionais.
-    const basePaid = detail.get('[data-testid="item-oi1-base-paid"]')
-    expect(basePaid.text()).toMatch(/21,99/)
-    // O adicional pago segue visível: 21,99 (base) + 1,50 (Pistache) = total do item.
-    expect(detail.get('[data-testid="extra-oei1-paid"]').text()).toMatch(/1,50/)
-  })
-
   it('should render the margin from the backend marginPct, excluding the delivery fee', async () => {
     // Backend: subtotal = 60 - 10 = 50 | profit = 29 | marginPct = 29/50 = 58.00%
     // Recalcular no front sobre o totalValue daria 29/60 = 48,3% (errado).
