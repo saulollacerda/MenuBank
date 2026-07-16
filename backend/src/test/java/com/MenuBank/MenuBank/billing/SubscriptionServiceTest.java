@@ -45,12 +45,14 @@ class SubscriptionServiceTest {
     }
 
     private SubscriptionService serviceWithDefaultPlanName(String defaultPlanName) {
+        // The real resolver is used on purpose: it reads the mocked PlanRepository, so the
+        // "must not look the plan up" assertions below stay just as strict as before.
         return new SubscriptionService(
                 subscriptionRepository,
                 planRepository,
                 revenueReportRepository,
                 invoiceRepository,
-                defaultPlanName);
+                new DefaultPlanResolver(planRepository, defaultPlanName));
     }
 
     // -------------------------------------------------------------------------
