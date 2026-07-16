@@ -33,6 +33,17 @@ export interface OrderItemRequest {
   excludedIncludeIds?: string[]
 }
 
+export interface OrderItemUnmatchedSubItemResponse {
+  id: string
+  /** Nome exato do subItem no payload — usado para pré-preencher o cadastro do ingrediente. */
+  rawName: string
+  quantity: number
+  /** Preço unitário pago pelo cliente. Pode ser `0`/ausente para complemento base. */
+  salePricePerUnit?: number | null
+  /** Valor total pago pelo cliente. Pode ser `0`/ausente para complemento base. */
+  salePriceTotal?: number | null
+}
+
 export interface OrderItemInsumoResponse {
   id: string
   productId: string
@@ -52,6 +63,11 @@ export interface OrderItemResponse {
   totalCost: number
   insumos?: OrderItemInsumoResponse[]
   extraIngredients?: OrderItemExtraIngredientResponse[]
+  /**
+   * SubItems importados que não casaram com nenhum ingrediente cadastrado. Cada um é exibido
+   * com um botão para cadastrar o ingrediente faltante; some assim que o ingrediente existe.
+   */
+  unmatchedSubItems?: OrderItemUnmatchedSubItemResponse[]
   /** Ids dos includes da ficha técnica desmarcados neste item (pedido manual). */
   excludedIncludeIds?: string[]
 }

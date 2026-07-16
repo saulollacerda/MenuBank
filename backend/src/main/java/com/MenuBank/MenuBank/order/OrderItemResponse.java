@@ -35,6 +35,14 @@ public class OrderItemResponse {
     private List<OrderItemExtraIngredientResponse> extraIngredients = List.of();
 
     /**
+     * SubItems importados que não casaram com nenhum ingrediente cadastrado. A UI mostra cada
+     * um com um botão para cadastrar o ingrediente faltante. Some da resposta assim que um
+     * ingrediente com o mesmo nome canônico passa a existir.
+     */
+    @Builder.Default
+    private List<OrderItemUnmatchedSubItemResponse> unmatchedSubItems = List.of();
+
+    /**
      * Ids dos includes da ficha técnica desmarcados neste item (pedido manual).
      * Usado pela UI para restaurar os checkboxes na edição.
      */

@@ -774,6 +774,56 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("deve expor subItems não-casados enquanto não houver ingrediente cadastrado")
+        void shouldExposeUnmatchedSubItemsWhenNoIngredientExists() {
+            OrderItemUnmatchedSubItem unmatched = OrderItemUnmatchedSubItem.builder()
+                    .id(UUID.randomUUID())
+                    .rawName("Nutella")
+                    .canonicalName("nutella")
+                    .quantity(2)
+                    .salePricePerUnit(new BigDecimal("3.00"))
+                    .salePriceTotal(new BigDecimal("6.00"))
+                    .build();
+            order.getItems().get(0).setUnmatchedSubItems(new ArrayList<>(List.of(unmatched)));
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            // Nenhum ingrediente com o nome canônico existe ainda.
+            given(ingredientRepository.findExistingCanonicalNames(eq(merchantId), anyCollection()))
+                    .willReturn(List.of());
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            List<OrderItemUnmatchedSubItemResponse> responses =
+                    result.getItems().get(0).getUnmatchedSubItems();
+            assertThat(responses).hasSize(1);
+            OrderItemUnmatchedSubItemResponse response = responses.get(0);
+            assertThat(response.getRawName()).isEqualTo("Nutella");
+            assertThat(response.getQuantity()).isEqualTo(2);
+            assertThat(response.getSalePriceTotal()).isEqualByComparingTo("6.00");
+        }
+
+        @Test
+        @DisplayName("deve esconder o subItem não-casado (botão some) depois que o ingrediente é cadastrado")
+        void shouldHideUnmatchedSubItemOnceIngredientIsRegistered() {
+            OrderItemUnmatchedSubItem unmatched = OrderItemUnmatchedSubItem.builder()
+                    .id(UUID.randomUUID())
+                    .rawName("Nutella")
+                    .canonicalName("nutella")
+                    .quantity(1)
+                    .build();
+            order.getItems().get(0).setUnmatchedSubItems(new ArrayList<>(List.of(unmatched)));
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            // O ingrediente já existe: o nome canônico volta na consulta e o registro é filtrado.
+            given(ingredientRepository.findExistingCanonicalNames(eq(merchantId), anyCollection()))
+                    .willReturn(List.of("nutella"));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            assertThat(result.getItems().get(0).getUnmatchedSubItems()).isEmpty();
+        }
+
+        @Test
         @DisplayName("deve popular insumos do item com os Includes da ficha técnica do produto")
         void shouldPopulateItemInsumosFromProductIncludes() {
             given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
