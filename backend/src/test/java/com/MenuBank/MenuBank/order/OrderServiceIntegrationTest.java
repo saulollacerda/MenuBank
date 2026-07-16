@@ -41,6 +41,8 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     @Autowired private IngredientRepository ingredientRepository;
     @Autowired private IncludeRepository includeRepository;
     @Autowired private FeeRepository feeRepository;
+    @Autowired private OrderFichaLineRepository orderFichaLineRepository;
+    @Autowired private OrderFichaService orderFichaService;
 
     private Merchant merchant;
     private Customer customer;
@@ -269,5 +271,159 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
                 .items(List.of(OrderItemRequest.builder()
                         .productId(product.getId()).quantity(1).build()))
                 .build();
+    }
+
+    // -------------------------------------------------------------------------
+    // Ficha do pedido — insumos cobrados UMA vez por pedido
+    // -------------------------------------------------------------------------
+
+    /** Configura a ficha do pedido do lojista: 1 sacola (0.80) + 2 guardanapos (0.03). */
+    private void givenOrderFichaConfigured() {
+        Ingredient sacola = ingredientRepository.save(Ingredient.builder()
+                .merchant(merchant).name("sacola").canonicalName("sacola")
+                .unit("un").costPerUnit(new BigDecimal("0.80"))
+                .status(IngredientStatus.ACTIVE).build());
+        Ingredient guardanapo = ingredientRepository.save(Ingredient.builder()
+                .merchant(merchant).name("guardanapo").canonicalName("guardanapo")
+                .unit("un").costPerUnit(new BigDecimal("0.03"))
+                .status(IngredientStatus.ACTIVE).build());
+        orderFichaService.replace(merchant.getId(), OrderFichaRequest.builder()
+                .lines(List.of(
+                        OrderFichaLineRequest.builder().ingredientId(sacola.getId())
+                                .quantity(BigDecimal.ONE).build(),
+                        OrderFichaLineRequest.builder().ingredientId(guardanapo.getId())
+                                .quantity(new BigDecimal("2")).build()))
+                .build());
+    }
+
+    @Test
+    @DisplayName("ficha do pedido é cobrada UMA vez num pedido com 3 itens e quantidade > 1")
+    void orderFicha_isChargedExactlyOnceForMultiItemOrder() {
+        // 3 produtos distintos, todos com PACKAGING de 1.00, pedidos em quantidades diferentes
+        Product p2 = productRepository.save(Product.builder()
+                .merchant(merchant).name("Açaí 300ml").price(new BigDecimal("15.00"))
+                .status(ProductStatus.ACTIVE).build());
+        Product p3 = productRepository.save(Product.builder()
+                .merchant(merchant).name("Açaí 700ml").price(new BigDecimal("25.00"))
+                .status(ProductStatus.ACTIVE).build());
+        for (Product p : List.of(product, p2, p3)) {
+            includeRepository.save(Include.builder()
+                    .product(p).name("copo").cost(new BigDecimal("1.00")).quantity(BigDecimal.ONE)
+                    .kind(IncludeKind.PACKAGING).build());
+        }
+        givenOrderFichaConfigured();
+
+        // quantidades 2, 3 e 1 = 6 unidades no total
+        OrderResponse response = orderService.create(merchant.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(
+                        OrderItemRequest.builder().productId(product.getId()).quantity(2).build(),
+                        OrderItemRequest.builder().productId(p2.getId()).quantity(3).build(),
+                        OrderItemRequest.builder().productId(p3.getId()).quantity(1).build()))
+                .build());
+
+        Order persisted = orderRepository.findByIdAndMerchantId(response.getId(), merchant.getId()).orElseThrow();
+
+        // copos: 6 unidades × 1.00 = 6.00 (por item, correto)
+        // ficha do pedido: (1 × 0.80) + (2 × 0.03) = 0.86 — UMA vez, não 3× nem 6×
+        assertThat(persisted.getTotalCost()).isEqualByComparingTo("6.86");
+        assertThat(persisted.getOrderFicha()).hasSize(2);
+        assertThat(response.getOrderFichaCost()).isEqualByComparingTo("0.86");
+        assertThat(response.getOrderFicha()).extracting(OrderFichaIngredientResponse::getIngredientName)
+                .containsExactly("sacola", "guardanapo");
+    }
+
+    @Test
+    @DisplayName("lojista sem ficha do pedido: custo idêntico ao de antes — no-op estrito")
+    void orderFicha_absentIsStrictNoOp() {
+        includeRepository.save(Include.builder()
+                .product(product).name("copo").cost(new BigDecimal("1.00")).quantity(BigDecimal.ONE)
+                .kind(IncludeKind.PACKAGING).build());
+
+        OrderResponse response = orderService.create(merchant.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(2).build()))
+                .build());
+
+        Order persisted = orderRepository.findByIdAndMerchantId(response.getId(), merchant.getId()).orElseThrow();
+        assertThat(persisted.getTotalCost()).isEqualByComparingTo("2.00"); // 2 × 1.00, inalterado
+        assertThat(persisted.getOrderFicha()).isEmpty();
+        assertThat(response.getOrderFichaCost()).isEqualByComparingTo("0");
+        assertThat(response.getOrderFicha()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("snapshot: alterar a ficha depois NÃO muda o custo de um pedido já criado")
+    void orderFicha_snapshotIsFrozenAfterOrderCreation() {
+        givenOrderFichaConfigured();
+
+        OrderResponse created = orderService.create(merchant.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(1).build()))
+                .build());
+        assertThat(created.getOrderFichaCost()).isEqualByComparingTo("0.86");
+
+        // o lojista troca a ficha inteira por um insumo muito mais caro
+        Ingredient caixa = ingredientRepository.save(Ingredient.builder()
+                .merchant(merchant).name("caixa térmica").canonicalName("caixa termica")
+                .unit("un").costPerUnit(new BigDecimal("50.00"))
+                .status(IngredientStatus.ACTIVE).build());
+        orderFichaService.replace(merchant.getId(), OrderFichaRequest.builder()
+                .lines(List.of(OrderFichaLineRequest.builder()
+                        .ingredientId(caixa.getId()).quantity(BigDecimal.ONE).build()))
+                .build());
+
+        // pedido já fechado mantém o custo com que foi calculado
+        Order persisted = orderRepository.findByIdAndMerchantId(created.getId(), merchant.getId()).orElseThrow();
+        assertThat(persisted.getTotalCost()).isEqualByComparingTo(created.getTotalCost());
+        assertThat(persisted.getOrderFicha()).hasSize(2);
+
+        OrderResponse reloaded = orderService.findById(merchant.getId(), created.getId());
+        assertThat(reloaded.getOrderFichaCost()).isEqualByComparingTo("0.86");
+        assertThat(reloaded.getOrderFicha()).extracting(OrderFichaIngredientResponse::getIngredientName)
+                .containsExactly("sacola", "guardanapo");
+    }
+
+    @Test
+    @DisplayName("snapshot: reajustar o custo do ingrediente não muda o custo de pedidos passados")
+    void orderFicha_snapshotSurvivesIngredientCostChange() {
+        givenOrderFichaConfigured();
+
+        OrderResponse created = orderService.create(merchant.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(1).build()))
+                .build());
+
+        Ingredient sacola = ingredientRepository.findAllByMerchantId(merchant.getId()).stream()
+                .filter(i -> i.getName().equals("sacola")).findFirst().orElseThrow();
+        sacola.setCostPerUnit(new BigDecimal("99.00"));
+        ingredientRepository.save(sacola);
+
+        OrderResponse reloaded = orderService.findById(merchant.getId(), created.getId());
+        assertThat(reloaded.getOrderFichaCost()).isEqualByComparingTo("0.86");
+    }
+
+    @Test
+    @DisplayName("ficha do pedido persiste as linhas em order_ficha_ingredients (cascade)")
+    void orderFicha_snapshotRowsArePersisted() {
+        givenOrderFichaConfigured();
+
+        OrderResponse created = orderService.create(merchant.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(1).build()))
+                .build());
+
+        Order persisted = orderRepository.findByIdAndMerchantId(created.getId(), merchant.getId()).orElseThrow();
+        var line = persisted.getOrderFicha().stream()
+                .filter(l -> l.getIngredientName().equals("sacola")).findFirst().orElseThrow();
+        assertThat(line.getId()).isNotNull();
+        assertThat(line.getIngredientUnit()).isEqualTo("un");
+        assertThat(line.getQuantity()).isEqualByComparingTo("1");
+        assertThat(line.getCostPerUnit()).isEqualByComparingTo("0.80");
+        assertThat(line.getIngredient()).isNotNull();
     }
 }

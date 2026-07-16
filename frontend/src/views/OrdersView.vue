@@ -32,7 +32,9 @@ import type {
   OrderOrigin,
 } from '@/types/Order'
 import type { IncludeResponse } from '@/types/Product'
+import type { OrderFichaLineRequest } from '@/types/OrderFicha'
 import { includeService } from '@/services/includeService'
+import { orderFichaService } from '@/services/orderFichaService'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
@@ -117,6 +119,109 @@ function toggleInsumo(item: OrderItemRequest, includeId: string, included: boole
 function ensureExtras(item: OrderItemRequest): OrderItemExtraIngredientRequest[] {
   if (!item.extraIngredients) item.extraIngredients = []
   return item.extraIngredients
+}
+
+// ---------------------------------------------------------------------------
+// Configurar pedidos — ficha do pedido
+//
+// Insumos cobrados UMA vez por pedido (sacola, guardanapo), independentemente de
+// quantos itens ele tenha. A ficha técnica do produto continua sendo por item e
+// multiplicada pela quantidade — correto para copo/colher, errado para a sacola.
+// Mover a sacola da ficha do produto para cá é decisão do lojista: nada é migrado
+// automaticamente, senão o custo dele seria reescrito sem pedir.
+// ---------------------------------------------------------------------------
+const showFichaModal = ref(false)
+const loadingFicha = ref(false)
+const savingFicha = ref(false)
+const fichaError = ref<string | null>(null)
+const fichaLines = ref<OrderFichaLineRequest[]>([])
+
+const ingredientOptions = computed(() =>
+  ingredientStore.items.map((i) => ({ id: i.id, label: `${i.name} (${i.unit})` })),
+)
+
+function ingredientById(id: string) {
+  return ingredientStore.items.find((i) => i.id === id)
+}
+
+/** Custo por pedido calculado ao vivo, para o lojista ver o efeito antes de salvar. */
+const fichaTotalCost = computed(() =>
+  fichaLines.value.reduce((acc, line) => {
+    const ingredient = ingredientById(line.ingredientId)
+    return acc + (ingredient ? Number(ingredient.costPerUnit) * Number(line.quantity || 0) : 0)
+  }, 0),
+)
+
+async function openFichaModal() {
+  showFichaModal.value = true
+  fichaError.value = null
+  loadingFicha.value = true
+  try {
+    const ficha = await orderFichaService.find()
+    fichaLines.value = ficha.lines.map((l) => ({
+      ingredientId: l.ingredientId,
+      quantity: Number(l.quantity),
+    }))
+  } catch {
+    fichaError.value = 'Não foi possível carregar a ficha do pedido.'
+  } finally {
+    loadingFicha.value = false
+  }
+}
+
+function closeFichaModal() {
+  showFichaModal.value = false
+  fichaError.value = null
+}
+
+function addFichaLine() {
+  fichaLines.value.push({ ingredientId: '', quantity: 1 })
+}
+
+function removeFichaLine(index: number) {
+  fichaLines.value.splice(index, 1)
+}
+
+/** Preenche a quantidade sugerida do ingrediente ao selecioná-lo. */
+function onFichaIngredientChange(index: number) {
+  const line = fichaLines.value[index]
+  if (!line) return
+  const ingredient = ingredientById(line.ingredientId)
+  if (ingredient?.defaultQuantity) line.quantity = Number(ingredient.defaultQuantity)
+}
+
+async function saveFicha() {
+  fichaError.value = null
+
+  if (fichaLines.value.some((l) => !l.ingredientId)) {
+    fichaError.value = 'Selecione o insumo em todas as linhas.'
+    return
+  }
+  if (fichaLines.value.some((l) => !(Number(l.quantity) > 0))) {
+    fichaError.value = 'A quantidade deve ser maior que zero.'
+    return
+  }
+  const ids = fichaLines.value.map((l) => l.ingredientId)
+  if (new Set(ids).size !== ids.length) {
+    fichaError.value = 'Cada insumo pode aparecer só uma vez — some a quantidade numa linha só.'
+    return
+  }
+
+  savingFicha.value = true
+  try {
+    await orderFichaService.replace({
+      lines: fichaLines.value.map((l) => ({
+        ingredientId: l.ingredientId,
+        quantity: Number(l.quantity),
+      })),
+    })
+    showFichaModal.value = false
+    showToast('Ficha do pedido salva. Vale para os próximos pedidos.', 'success')
+  } catch {
+    fichaError.value = 'Não foi possível salvar a ficha do pedido.'
+  } finally {
+    savingFicha.value = false
+  }
 }
 
 function formatDateTime(s: string): string {
@@ -346,6 +451,14 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       :subtitle="`${counts.total} pedidos no total`"
     >
       <template #actions>
+        <UIBtn
+          icon="gear"
+          variant="secondary"
+          data-testid="configure-orders-button"
+          @click="openFichaModal"
+        >
+          Configurar pedidos
+        </UIBtn>
         <UIBtn icon="plus" variant="dark" data-testid="new-order-button" @click="openCreate">
           Novo Pedido
         </UIBtn>
@@ -687,6 +800,165 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
         </div>
       </div>
     </div>
+
+    <!-- Configurar pedidos — ficha do pedido (insumos cobrados uma vez por pedido) -->
+    <UIModal
+      v-if="showFichaModal"
+      title="Configurar pedidos"
+      subtitle="Insumos cobrados uma vez por pedido, não por item"
+      :width="640"
+      data-testid="order-ficha-modal"
+      @close="closeFichaModal"
+    >
+      <div v-if="loadingFicha" style="padding: 40px; text-align: center; color: #94a3b8">
+        Carregando…
+      </div>
+      <div v-else style="display: flex; flex-direction: column; gap: 16px">
+        <div
+          :style="{
+            background: UI.bg,
+            border: `1px solid ${UI.border}`,
+            borderRadius: '10px',
+            padding: '12px',
+            fontSize: '12.5px',
+            color: UI.textSub,
+            display: 'flex',
+            gap: '10px',
+          }"
+        >
+          <UIIcon name="info" :size="16" />
+          <div>
+            Use para o que sai <strong>uma vez por pedido</strong> — sacola de entrega,
+            guardanapo, cupom. O que é consumido por item (copo, colher) deve continuar na
+            ficha técnica do produto, para ser multiplicado pela quantidade.
+            <br />
+            Se hoje a sacola está na ficha do produto, mova-a para cá: senão ela vai
+            continuar sendo contada uma vez por item.
+          </div>
+        </div>
+
+        <div
+          v-if="fichaError"
+          data-testid="order-ficha-error"
+          :style="{
+            background: UI.roseBg,
+            color: UI.rose2,
+            border: `1px solid ${UI.rose}22`,
+            borderRadius: '9px',
+            padding: '10px 12px',
+            fontSize: '12.5px',
+          }"
+        >
+          {{ fichaError }}
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div
+            v-for="(line, i) in fichaLines"
+            :key="i"
+            style="display: flex; gap: 8px; align-items: center"
+          >
+            <UISelect
+              :model-value="line.ingredientId"
+              width="100%"
+              :data-testid="`order-ficha-line-${i}-ingredient-select`"
+              @update:model-value="
+                (v) => {
+                  line.ingredientId = v as string
+                  onFichaIngredientChange(i)
+                }
+              "
+            >
+              <option value="">Selecione o insumo…</option>
+              <option v-for="opt in ingredientOptions" :key="opt.id" :value="opt.id">
+                {{ opt.label }}
+              </option>
+            </UISelect>
+            <UIInput
+              v-model.number="line.quantity"
+              type="number"
+              step="any"
+              :width="90"
+              :data-testid="`order-ficha-line-${i}-quantity-input`"
+            />
+            <span
+              :style="{ fontSize: '12px', color: UI.textMute, minWidth: '64px', textAlign: 'right' }"
+              :data-testid="`order-ficha-line-${i}-cost`"
+            >
+              {{
+                brl(
+                  Number(ingredientById(line.ingredientId)?.costPerUnit ?? 0) *
+                    Number(line.quantity || 0),
+                )
+              }}
+            </span>
+            <div
+              :style="{
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: UI.rose2,
+              }"
+              :data-testid="`order-ficha-line-${i}-remove-button`"
+              @click="removeFichaLine(i)"
+            >
+              <UIIcon name="trash" :size="15" />
+            </div>
+          </div>
+
+          <div v-if="!fichaLines.length" :style="{ fontSize: '12.5px', color: UI.textMute }">
+            Nenhum insumo por pedido configurado — os pedidos seguem custando o mesmo de hoje.
+          </div>
+
+          <UIBtn
+            icon="plus"
+            variant="secondary"
+            data-testid="order-ficha-add-line-button"
+            @click="addFichaLine"
+          >
+            Adicionar insumo
+          </UIBtn>
+        </div>
+
+        <div
+          :style="{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px',
+            background: UI.bg,
+            border: `1px solid ${UI.border}`,
+            borderRadius: '10px',
+          }"
+        >
+          <span :style="{ fontSize: '12.5px', color: UI.textSub, fontWeight: 600 }">
+            Custo adicionado a cada pedido
+          </span>
+          <span
+            data-testid="order-ficha-total-cost"
+            :style="{ fontSize: '17px', fontWeight: 700 }"
+          >
+            {{ brl(fichaTotalCost) }}
+          </span>
+        </div>
+      </div>
+
+      <template #footer>
+        <UIBtn variant="secondary" @click="closeFichaModal">Cancelar</UIBtn>
+        <UIBtn
+          variant="primary"
+          icon="check"
+          :disabled="savingFicha"
+          data-testid="order-ficha-save-button"
+          @click="saveFicha"
+        >
+          Salvar
+        </UIBtn>
+      </template>
+    </UIModal>
 
     <!-- Create/Edit modal -->
     <UIModal
@@ -1121,6 +1393,47 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
           <span v-if="selectedOrder.feeName" :style="{ color: UI.textSub }">
             · {{ selectedOrder.feeName }} ({{ selectedOrder.feeRate }}%)
           </span>
+        </div>
+
+        <!-- Ficha do pedido: torna explicável a parcela do custo que não vem dos itens -->
+        <div
+          v-if="selectedOrder.orderFicha && selectedOrder.orderFicha.length"
+          data-testid="order-detail-ficha"
+        >
+          <div :style="{ fontSize: '13px', fontWeight: 700, color: UI.text, marginBottom: '10px' }">
+            Ficha do pedido ·
+            <span :style="{ color: UI.textSub, fontWeight: 600 }">
+              {{ brl(Number(selectedOrder.orderFichaCost ?? 0)) }}
+            </span>
+          </div>
+          <div
+            :style="{
+              background: UI.bgSoft,
+              border: `1px solid ${UI.border}`,
+              borderRadius: '11px',
+              padding: '10px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }"
+          >
+            <div :style="{ fontSize: '11px', color: UI.textMute }">
+              Cobrado uma vez neste pedido, independentemente da quantidade de itens.
+            </div>
+            <div
+              v-for="line in selectedOrder.orderFicha"
+              :key="line.id"
+              :style="{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }"
+            >
+              <span>
+                {{ line.ingredientName }}
+                <span :style="{ color: UI.textMute }">
+                  · {{ line.quantity }} {{ line.ingredientUnit }}
+                </span>
+              </span>
+              <span :style="{ color: UI.textSub }">{{ brl(Number(line.totalCost)) }}</span>
+            </div>
+          </div>
         </div>
 
         <div>

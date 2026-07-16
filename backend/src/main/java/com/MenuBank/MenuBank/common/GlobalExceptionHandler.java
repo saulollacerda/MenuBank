@@ -106,6 +106,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
+    @ExceptionHandler(com.MenuBank.MenuBank.order.DuplicateOrderFichaIngredientException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateOrderFichaIngredient(
+            com.MenuBank.MenuBank.order.DuplicateOrderFichaIngredientException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflito de dados");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(CategoryNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleCategoryNotFound(CategoryNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

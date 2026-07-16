@@ -64,6 +64,7 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
     @Autowired private OrderRepository orderRepository;
     @Autowired private NotificationRepository notificationRepository;
     @Autowired private ExternalOrderRawPayloadRepository rawPayloadRepository;
+    @Autowired private com.MenuBank.MenuBank.order.OrderFichaLineRepository orderFichaLineRepository;
 
     private Merchant merchant;
     private String apiKey;
@@ -291,5 +292,60 @@ class AnotaAISyncServiceIntegrationTest extends IntegrationTestBase {
                 .defaultQuantity(defaultQty)
                 .status(IngredientStatus.ACTIVE)
                 .build());
+    }
+
+    @Test
+    @DisplayName("syncOrders — ficha do pedido entra UMA vez no pedido importado (Anota.AI)")
+    void syncOrders_shouldApplyOrderFichaOncePerImportedOrder() {
+        Category category = persistCategory("Açaí");
+        Product acai = persistProduct("Açaí 500ml", "anota-ficha", category,
+                new BigDecimal("20.00"));
+        // Ficha do pedido do lojista: 1 sacola a 0.50 por pedido
+        Ingredient sacola = persistIngredient("sacola", "un",
+                new BigDecimal("0.50"), BigDecimal.ONE);
+        orderFichaLineRepository.save(com.MenuBank.MenuBank.order.OrderFichaLine.builder()
+                .merchant(merchant).ingredient(sacola).quantity(BigDecimal.ONE).sortOrder(0).build());
+
+        given(anotaAIClient.getOrderList(apiKey)).willReturn(orderListWith("ord-ficha"));
+        AnotaAIOrderDetailResponse detail = AnotaAIFixtures.load(
+                "order_detail_simple.json", AnotaAIOrderDetailResponse.class);
+        detail.getInfo().setId("ord-ficha");
+        detail.getInfo().getItems().get(0).setInternalId("anota-ficha");
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-ficha")).willReturn(raw(detail));
+
+        syncService.syncOrders(merchant.getId());
+
+        Order order = orderRepository.findByExternalOrderIdAndMerchantId(
+                "ord-ficha", merchant.getId()).orElseThrow();
+
+        // snapshot gravado no pedido, uma linha só
+        assertThat(order.getOrderFicha()).hasSize(1);
+        var line = order.getOrderFicha().get(0);
+        assertThat(line.getIngredientName()).isEqualTo("sacola");
+        assertThat(line.getIngredientUnit()).isEqualTo("un");
+        assertThat(line.getCostPerUnit()).isEqualByComparingTo("0.50");
+        // o produto não tem PACKAGING, então todo o custo do pedido vem da ficha do pedido
+        assertThat(order.getTotalCost()).isEqualByComparingTo("0.50");
+    }
+
+    @Test
+    @DisplayName("syncOrders — lojista sem ficha do pedido: custo inalterado (no-op)")
+    void syncOrders_withoutOrderFichaKeepsCostUnchanged() {
+        Category category = persistCategory("Açaí");
+        persistProduct("Açaí 500ml", "anota-noficha", category, new BigDecimal("20.00"));
+
+        given(anotaAIClient.getOrderList(apiKey)).willReturn(orderListWith("ord-noficha"));
+        AnotaAIOrderDetailResponse detail = AnotaAIFixtures.load(
+                "order_detail_simple.json", AnotaAIOrderDetailResponse.class);
+        detail.getInfo().setId("ord-noficha");
+        detail.getInfo().getItems().get(0).setInternalId("anota-noficha");
+        given(anotaAIClient.getOrderDetail(apiKey, "ord-noficha")).willReturn(raw(detail));
+
+        syncService.syncOrders(merchant.getId());
+
+        Order order = orderRepository.findByExternalOrderIdAndMerchantId(
+                "ord-noficha", merchant.getId()).orElseThrow();
+        assertThat(order.getOrderFicha()).isEmpty();
+        assertThat(order.getTotalCost()).isEqualByComparingTo("0.00");
     }
 }

@@ -64,6 +64,7 @@ class AnotaAISyncServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private com.MenuBank.MenuBank.product.OrderCostCalculatorService orderCostCalculatorService;
     @Mock private ExternalOrderRawPayloadService rawPayloadService;
+    @Mock private com.MenuBank.MenuBank.order.OrderFichaService orderFichaService;
 
     @InjectMocks
     private AnotaAISyncService syncService;

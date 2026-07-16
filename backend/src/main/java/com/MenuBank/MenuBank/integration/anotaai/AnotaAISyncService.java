@@ -59,7 +59,8 @@ public class AnotaAISyncService {
                                IncludeRepository includeRepository,
                                NotificationService notificationService,
                                OrderCostCalculatorService orderCostCalculatorService,
-                               ExternalOrderRawPayloadService rawPayloadService) {
+                               ExternalOrderRawPayloadService rawPayloadService,
+                               com.MenuBank.MenuBank.order.OrderFichaService orderFichaService) {
         this.anotaAIClient = anotaAIClient;
         this.merchantRepository = merchantRepository;
         this.orderRepository = orderRepository;
@@ -77,7 +78,8 @@ public class AnotaAISyncService {
 
         this.orderImportService = new AnotaAIOrderImportService(
                 merchantRepository, orderRepository, feeRepository, includeRepository,
-                orderCostCalculatorService, customerResolver, productResolver, extraIngredientResolver);
+                orderCostCalculatorService, customerResolver, productResolver, extraIngredientResolver,
+                orderFichaService);
     }
 
     @Transactional

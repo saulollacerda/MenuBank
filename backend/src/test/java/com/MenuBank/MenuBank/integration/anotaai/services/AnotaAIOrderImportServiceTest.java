@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AnotaAIOrderImportServiceTest {
 
     private final AnotaAIOrderImportService service =
-            new AnotaAIOrderImportService(null, null, null, null, null, null, null, null);
+            new AnotaAIOrderImportService(null, null, null, null, null, null, null, null, null);
 
     @Test
     @DisplayName("deve converter instante UTC para horário de Brasília mesmo com timezone do servidor em UTC (ex.: Railway)")

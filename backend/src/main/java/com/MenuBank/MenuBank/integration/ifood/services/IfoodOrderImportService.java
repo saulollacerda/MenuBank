@@ -68,6 +68,7 @@ public class IfoodOrderImportService {
     private final NotificationService notificationService;
     private final OrderCostCalculatorService orderCostCalculatorService;
     private final ExternalOrderRawPayloadService rawPayloadService;
+    private final com.MenuBank.MenuBank.order.OrderFichaService orderFichaService;
 
     public IfoodOrderImportService(MerchantRepository merchantRepository,
                                    OrderRepository orderRepository,
@@ -77,7 +78,8 @@ public class IfoodOrderImportService {
                                    IncludeRepository includeRepository,
                                    NotificationService notificationService,
                                    OrderCostCalculatorService orderCostCalculatorService,
-                                   ExternalOrderRawPayloadService rawPayloadService) {
+                                   ExternalOrderRawPayloadService rawPayloadService,
+                                   com.MenuBank.MenuBank.order.OrderFichaService orderFichaService) {
         this.merchantRepository = merchantRepository;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
@@ -87,6 +89,7 @@ public class IfoodOrderImportService {
         this.notificationService = notificationService;
         this.orderCostCalculatorService = orderCostCalculatorService;
         this.rawPayloadService = rawPayloadService;
+        this.orderFichaService = orderFichaService;
     }
 
     /**
@@ -147,6 +150,13 @@ public class IfoodOrderImportService {
                 .build();
 
         items.forEach(item -> item.setOrder(order));
+
+        // Ficha do pedido: insumos cobrados UMA vez por pedido (sacola, guardanapo),
+        // independentemente da quantidade de itens. Vazia = custo inalterado.
+        List<com.MenuBank.MenuBank.order.OrderFichaIngredient> orderFicha =
+                orderFichaService.buildSnapshot(merchantId);
+        orderFicha.forEach(line -> line.setOrder(order));
+        order.setOrderFicha(orderFicha);
 
         BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
         order.setTotalCost(totalCost);

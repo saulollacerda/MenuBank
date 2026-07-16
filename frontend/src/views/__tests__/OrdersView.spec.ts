@@ -49,6 +49,16 @@ vi.mock('@/services/includeService', () => ({
   },
 }))
 
+const orderFichaFindMock = vi.fn()
+const orderFichaReplaceMock = vi.fn()
+
+vi.mock('@/services/orderFichaService', () => ({
+  orderFichaService: {
+    find: (...args: unknown[]) => orderFichaFindMock(...args),
+    replace: (...args: unknown[]) => orderFichaReplaceMock(...args),
+  },
+}))
+
 import OrdersView from '@/views/OrdersView.vue'
 
 const showToastMock = vi.fn()
@@ -59,6 +69,21 @@ vi.mock('@/composables/useToast', () => ({
 describe('OrdersView', () => {
   beforeEach(() => {
     showToastMock.mockClear()
+    orderFichaFindMock.mockReset()
+    orderFichaReplaceMock.mockReset()
+    orderFichaFindMock.mockResolvedValue({ lines: [], totalCost: 0 })
+    orderFichaReplaceMock.mockImplementation(async (req: { lines: { ingredientId: string; quantity: number }[] }) => ({
+      lines: req.lines.map((l, idx) => ({
+        id: `l${idx}`,
+        ingredientId: l.ingredientId,
+        ingredientName: l.ingredientId === 'i1' ? 'Granola' : 'Leite Ninho',
+        ingredientUnit: 'g',
+        quantity: l.quantity,
+        costPerUnit: 0.05,
+        totalCost: l.quantity * 0.05,
+      })),
+      totalCost: req.lines.reduce((acc, l) => acc + l.quantity * 0.05, 0),
+    }))
     orderStoreMock = {
       items: [],
       loading: false,
@@ -779,8 +804,182 @@ describe('OrdersView', () => {
     )
     expect((quantityInput.element as HTMLInputElement).value).toBe('1')
   })
+
+  // -------------------------------------------------------------------------
+  // Configurar pedidos — ficha do pedido (insumos cobrados uma vez por pedido)
+  // -------------------------------------------------------------------------
+
+  describe('Configurar pedidos', () => {
+    it('should render the Configurar pedidos button next to Novo Pedido', () => {
+      const wrapper = mount(OrdersView)
+      expect(wrapper.find('[data-testid="configure-orders-button"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="configure-orders-button"]').text()).toContain(
+        'Configurar pedidos',
+      )
+    })
+
+    it('should open the modal and load the current ficha', async () => {
+      orderFichaFindMock.mockResolvedValue({
+        lines: [
+          {
+            id: 'l1',
+            ingredientId: 'i1',
+            ingredientName: 'Granola',
+            ingredientUnit: 'g',
+            quantity: 2,
+            costPerUnit: 0.05,
+            totalCost: 0.1,
+          },
+        ],
+        totalCost: 0.1,
+      })
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      expect(orderFichaFindMock).toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="order-ficha-modal"]').exists()).toBe(true)
+      const qty = wrapper.get('[data-testid="order-ficha-line-0-quantity-input"]')
+      expect((qty.element as HTMLInputElement).value).toBe('2')
+    })
+
+    it('should show the resulting per-order cost', async () => {
+      orderFichaFindMock.mockResolvedValue({
+        lines: [
+          {
+            id: 'l1',
+            ingredientId: 'i1',
+            ingredientName: 'Granola',
+            ingredientUnit: 'g',
+            quantity: 2,
+            costPerUnit: 0.05,
+            totalCost: 0.1,
+          },
+        ],
+        totalCost: 0.1,
+      })
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="order-ficha-total-cost"]').text()).toContain('0,10')
+    })
+
+    it('should add a line and save it', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-0-ingredient-select"]').setValue('i1')
+      await wrapper.get('[data-testid="order-ficha-line-0-quantity-input"]').setValue('3')
+
+      await wrapper.get('[data-testid="order-ficha-save-button"]').trigger('click')
+      await flushPromises()
+
+      expect(orderFichaReplaceMock).toHaveBeenCalledWith({
+        lines: [{ ingredientId: 'i1', quantity: 3 }],
+      })
+    })
+
+    it('should remove a line', async () => {
+      orderFichaFindMock.mockResolvedValue({
+        lines: [
+          {
+            id: 'l1',
+            ingredientId: 'i1',
+            ingredientName: 'Granola',
+            ingredientUnit: 'g',
+            quantity: 2,
+            costPerUnit: 0.05,
+            totalCost: 0.1,
+          },
+        ],
+        totalCost: 0.1,
+      })
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-line-0-remove-button"]').trigger('click')
+      expect(wrapper.find('[data-testid="order-ficha-line-0-quantity-input"]').exists()).toBe(false)
+
+      await wrapper.get('[data-testid="order-ficha-save-button"]').trigger('click')
+      await flushPromises()
+
+      // lista vazia limpa a ficha — custo volta a zero
+      expect(orderFichaReplaceMock).toHaveBeenCalledWith({ lines: [] })
+    })
+
+    it('should not save a line without an ingredient selected', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-save-button"]').trigger('click')
+      await flushPromises()
+
+      expect(orderFichaReplaceMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="order-ficha-error"]').text()).toBeTruthy()
+    })
+
+    it('should reject the same ingredient twice', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-0-ingredient-select"]').setValue('i1')
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-1-ingredient-select"]').setValue('i1')
+
+      await wrapper.get('[data-testid="order-ficha-save-button"]').trigger('click')
+      await flushPromises()
+
+      expect(orderFichaReplaceMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="order-ficha-error"]').text()).toBeTruthy()
+    })
+
+    it('should show the order ficha cost in the order detail', async () => {
+      orderStoreMock.items = [
+        {
+          id: 'o1',
+          dateTime: '2026-07-15T12:00:00',
+          customerId: 'c1',
+          customerName: 'João',
+          status: 'PAID',
+          totalValue: 40,
+          estimatedProfit: 30,
+          totalCost: 6.86,
+          orderFichaCost: 0.86,
+          orderFicha: [
+            {
+              id: 'f1',
+              ingredientId: 'i1',
+              ingredientName: 'Sacola',
+              ingredientUnit: 'un',
+              quantity: 1,
+              costPerUnit: 0.8,
+              totalCost: 0.8,
+            },
+          ],
+          items: [],
+          origin: 'MENUBANK',
+        },
+      ]
+
+      const wrapper = mount(OrdersView)
+      await flushPromises()
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await flushPromises()
+
+      const ficha = wrapper.get('[data-testid="order-detail-ficha"]')
+      expect(ficha.text()).toContain('Sacola')
+      expect(ficha.text()).toContain('0,86')
+    })
+  })
 })
-
-
-
-

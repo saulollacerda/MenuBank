@@ -1,3 +1,5 @@
+import type { OrderFichaIngredientResponse } from './OrderFicha'
+
 export type OrderStatus = 'PENDING' | 'READY' | 'DELIVERED' | 'PAID' | 'CANCELLED' | 'TEST'
 export type OrderOrigin = 'MENUBANK' | 'ANOTA_AI' | 'IFOOD'
 
@@ -82,5 +84,12 @@ export interface OrderResponse {
   feeRate?: number
   items: OrderItemResponse[]
   origin?: OrderOrigin
+  /**
+   * Insumos cobrados uma vez neste pedido (ficha do pedido), como gravados na criação.
+   * Vazio para lojistas sem ficha configurada e para pedidos anteriores à V17.
+   */
+  orderFicha?: OrderFichaIngredientResponse[]
+  /** Parcela do `totalCost` que veio da ficha do pedido. Zero quando não há ficha. */
+  orderFichaCost?: number
 }
 

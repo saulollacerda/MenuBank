@@ -52,6 +52,7 @@ class IfoodOrderImportServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private OrderCostCalculatorService orderCostCalculatorService;
     @Mock private com.MenuBank.MenuBank.integration.rawpayload.ExternalOrderRawPayloadService rawPayloadService;
+    @Mock private com.MenuBank.MenuBank.order.OrderFichaService orderFichaService;
 
     private IfoodOrderImportService importService;
 
@@ -78,7 +79,7 @@ class IfoodOrderImportServiceTest {
         importService = new IfoodOrderImportService(
                 merchantRepository, orderRepository, customerRepository, productRepository,
                 ingredientRepository, includeRepository, notificationService, orderCostCalculatorService,
-                rawPayloadService);
+                rawPayloadService, orderFichaService);
 
         lenient().when(merchantRepository.findByIfoodMerchantId("ifood-m1")).thenReturn(Optional.of(merchant));
         lenient().when(merchantRepository.getReferenceById(merchantId)).thenReturn(merchant);
@@ -650,6 +651,50 @@ class IfoodOrderImportServiceTest {
 
             assertThat(handled).isFalse();
             then(orderRepository).should(never()).save(any(Order.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("ficha do pedido")
+    class OrderFicha {
+
+        @Test
+        @DisplayName("pedido importado recebe o snapshot da ficha do pedido uma única vez")
+        void importedOrderGetsOrderFichaSnapshotOnce() {
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+            given(orderFichaService.buildSnapshot(merchantId)).willReturn(new java.util.ArrayList<>(List.of(
+                    com.MenuBank.MenuBank.order.OrderFichaIngredient.builder()
+                            .quantity(BigDecimal.ONE).costPerUnit(new BigDecimal("0.50"))
+                            .ingredientName("Sacola").ingredientUnit("un").build())));
+
+            importService.importOrder(baseDetail(), OrderStatus.PAID, RAW_JSON);
+
+            org.mockito.ArgumentCaptor<Order> captor = org.mockito.ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            Order saved = captor.getValue();
+            // item.quantity = 2, mas a ficha do pedido entra uma vez só
+            assertThat(saved.getOrderFicha()).hasSize(1);
+            assertThat(saved.getOrderFicha().get(0).getIngredientName()).isEqualTo("Sacola");
+            assertThat(saved.getOrderFicha().get(0).getOrder()).isSameAs(saved);
+        }
+
+        @Test
+        @DisplayName("lojista sem ficha do pedido: pedido importado sem linhas — no-op")
+        void importedOrderWithoutOrderFichaIsNoOp() {
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+            given(orderFichaService.buildSnapshot(merchantId)).willReturn(new java.util.ArrayList<>());
+
+            importService.importOrder(baseDetail(), OrderStatus.PAID, RAW_JSON);
+
+            org.mockito.ArgumentCaptor<Order> captor = org.mockito.ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            assertThat(captor.getValue().getOrderFicha()).isEmpty();
         }
     }
 }
