@@ -1,5 +1,8 @@
 package com.MenuBank.MenuBank.billing;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,32 +14,69 @@ import java.util.UUID;
 @Service
 public class SubscriptionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
+
     private final SubscriptionRepository subscriptionRepository;
     private final PlanRepository planRepository;
     private final RevenueReportRepository revenueReportRepository;
     private final InvoiceRepository invoiceRepository;
 
+    /**
+     * Name of the plan auto-assigned on sign-up, or blank to disable the behaviour.
+     * Only the dev profile sets it (see application-dev.properties); prod leaves it
+     * unset, so new accounts keep going through the regular billing flow.
+     */
+    private final String defaultPlanName;
+
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PlanRepository planRepository,
                                RevenueReportRepository revenueReportRepository,
-                               InvoiceRepository invoiceRepository) {
+                               InvoiceRepository invoiceRepository,
+                               @Value("${app.billing.default-plan-name:}") String defaultPlanName) {
         this.subscriptionRepository = subscriptionRepository;
         this.planRepository = planRepository;
         this.revenueReportRepository = revenueReportRepository;
         this.invoiceRepository = invoiceRepository;
+        this.defaultPlanName = defaultPlanName;
     }
 
+    /**
+     * Creates the sign-up subscription for a merchant.
+     *
+     * <p>By default (prod) the subscription has no plan and status PENDING, which the
+     * frontend treats as "choose a plan" — the merchant must pay before using the app.
+     *
+     * <p>When {@code app.billing.default-plan-name} is configured (dev only), the named
+     * plan is assigned with status ACTIVE and no period end, so a freshly registered dev
+     * account is immediately usable without going through billing. Assigning the plan
+     * alone would not be enough: the frontend gate keys off the status, not the plan.
+     * If the configured plan is missing, this degrades to the default behaviour.
+     */
     @Transactional
     public void createPendingSubscription(UUID merchantId) {
         LocalDateTime now = LocalDateTime.now();
+        Plan defaultPlan = resolveDefaultPlan();
         Subscription subscription = Subscription.builder()
                 .merchantId(merchantId)
-                .plan(null)
-                .status(SubscriptionStatus.PENDING)
+                .plan(defaultPlan)
+                .status(defaultPlan != null ? SubscriptionStatus.ACTIVE : SubscriptionStatus.PENDING)
+                .currentPeriodStart(defaultPlan != null ? now : null)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
         subscriptionRepository.save(subscription);
+    }
+
+    private Plan resolveDefaultPlan() {
+        if (defaultPlanName == null || defaultPlanName.isBlank()) {
+            return null;
+        }
+        return planRepository.findByName(defaultPlanName)
+                .orElseGet(() -> {
+                    log.warn("Plano padrão '{}' não encontrado — nova assinatura criada sem plano (PENDING)",
+                            defaultPlanName);
+                    return null;
+                });
     }
 
     public List<PlanResponse> listActivePlans() {
