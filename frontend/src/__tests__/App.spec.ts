@@ -40,7 +40,6 @@ const router = createRouter({
     },
     { path: '/orders', component: { template: '<div>Orders</div>' } },
     { path: '/products', component: { template: '<div>Products</div>' } },
-    { path: '/categories', component: { template: '<div>Categories</div>' } },
     { path: '/ingredients', component: { template: '<div>Ingredients</div>' } },
     { path: '/customers', component: { template: '<div>Customers</div>' } },
   ],
@@ -66,9 +65,24 @@ describe('App', () => {
     expect(wrapper.text()).toContain('Dashboard')
     expect(wrapper.text()).toContain('Pedidos')
     expect(wrapper.text()).toContain('Produtos')
-    expect(wrapper.text()).toContain('Categorias')
     expect(wrapper.text()).toContain('Ingredientes')
     expect(wrapper.text()).toContain('Clientes')
+    expect(wrapper.text()).toContain('Taxas')
+    expect(wrapper.text()).toContain('Configurações')
+  })
+
+  it('does not render a Categorias navigation link', async () => {
+    router.push('/')
+    await router.isReady()
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia(), router],
+      },
+    })
+
+    expect(wrapper.text()).not.toContain('Categorias')
+    expect(wrapper.find('a[href="/categories"]').exists()).toBe(false)
   })
 
   it('has the correct layout structure when authenticated', async () => {
