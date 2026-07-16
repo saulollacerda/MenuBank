@@ -35,7 +35,6 @@ import type {
 import type { IngredientRequest } from '@/types/Ingredient'
 import type { IncludeResponse } from '@/types/Product'
 import type { OrderFichaLineRequest } from '@/types/OrderFicha'
-import type { IngredientRequest } from '@/types/Ingredient'
 import { includeService } from '@/services/includeService'
 import { orderFichaService } from '@/services/orderFichaService'
 import { useToast } from '@/composables/useToast'
