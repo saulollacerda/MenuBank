@@ -73,11 +73,23 @@ public final class OrderCalculations {
                                                        BigDecimal deliveryFee,
                                                        BigDecimal totalCost,
                                                        BigDecimal feeRate) {
-        BigDecimal subtotal = nz(totalValue).subtract(nz(deliveryFee));
+        BigDecimal subtotal = calculateProductsSubtotal(totalValue, deliveryFee);
         BigDecimal feeAmount = subtotal
                 .multiply(nz(feeRate))
                 .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
         return subtotal.subtract(nz(totalCost)).subtract(feeAmount);
+    }
+
+    /**
+     * Subtotal dos produtos do pedido = {@code totalValue − deliveryFee}.
+     * <p>
+     * É a base sobre a qual o lucro é apurado, e portanto também o denominador
+     * da margem: a taxa de entrega é repassada e não é receita do restaurante,
+     * logo não pode inflar o denominador enquanto o numerador (lucro) já a exclui.
+     * Ambos os campos podem ser {@code null}; tratados como zero.
+     */
+    public static BigDecimal calculateProductsSubtotal(BigDecimal totalValue, BigDecimal deliveryFee) {
+        return nz(totalValue).subtract(nz(deliveryFee));
     }
 
     private static BigDecimal nz(BigDecimal value) {

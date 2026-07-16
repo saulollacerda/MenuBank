@@ -316,16 +316,22 @@ public class OrderService {
                 .feeRate(fee != null ? fee.getFeeRate() : null)
                 .items(itemResponses)
                 .origin(order.getOrigin())
-                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue()))
+                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue(), order.getDeliveryFee()))
                 .build();
     }
 
-    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue) {
-        if (totalValue == null || totalValue.signum() == 0 || profit == null) {
+    /**
+     * Margem (%) do pedido sobre o subtotal dos produtos ({@code totalValue − deliveryFee}),
+     * mesma base usada no cálculo do lucro. A taxa de entrega é excluída do denominador
+     * porque já está excluída do numerador.
+     */
+    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue, BigDecimal deliveryFee) {
+        BigDecimal base = OrderCalculations.calculateProductsSubtotal(totalValue, deliveryFee);
+        if (base.signum() == 0 || profit == null) {
             return null;
         }
         return profit
-                .divide(totalValue, 4, RoundingMode.HALF_UP)
+                .divide(base, 4, RoundingMode.HALF_UP)
                 .multiply(new BigDecimal("100"))
                 .setScale(2, RoundingMode.HALF_UP);
     }

@@ -9,6 +9,7 @@ import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.ingredient.IngredientNotFoundException;
 import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.ingredient.IngredientStatus;
+import com.MenuBank.MenuBank.fee.Fee;
 import com.MenuBank.MenuBank.fee.FeeRepository;
 import com.MenuBank.MenuBank.product.Product;
 import com.MenuBank.MenuBank.product.ProductRepository;
@@ -854,6 +855,84 @@ class OrderServiceTest {
                     .build();
 
             given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(zeroOrder));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            assertThat(result.getMarginPct()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve calcular marginPct sobre (totalValue − deliveryFee), ignorando a taxa de entrega")
+        void shouldExcludeDeliveryFeeFromMarginBase() {
+            // totalValue 60.00 (inclui 10.00 de entrega) | deliveryFee 10.00 | totalCost 20.00 | feeRate 2%
+            // subtotal   = 60.00 - 10.00              = 50.00
+            // feeAmount  = 50.00 × 2%                 =  1.00
+            // profit     = 50.00 - 20.00 - 1.00       = 29.00
+            // marginPct  = 29.00 / 50.00 × 100        = 58.00  (e NÃO 29.00 / 60.00 = 48.33)
+            Order deliveryOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PAID)
+                    .totalValue(new BigDecimal("60.00"))
+                    .deliveryFee(new BigDecimal("10.00"))
+                    .totalCost(new BigDecimal("20.00"))
+                    .fee(Fee.builder().name("Pix").feeRate(new BigDecimal("2.00")).build())
+                    .items(new ArrayList<>())
+                    .build();
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(deliveryOrder));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("29.00"));
+            assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("58.00"));
+        }
+
+        @Test
+        @DisplayName("deve manter marginPct inalterado em pedido sem taxa de entrega")
+        void shouldKeepMarginUnchangedWhenThereIsNoDeliveryFee() {
+            // Sem taxa de entrega o denominador continua sendo o totalValue integral.
+            // profit    = 60.00 - 20.00       = 40.00
+            // marginPct = 40.00 / 60.00 × 100 = 66.67
+            Order noDeliveryOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PAID)
+                    .totalValue(new BigDecimal("60.00"))
+                    .deliveryFee(null)
+                    .totalCost(new BigDecimal("20.00"))
+                    .items(new ArrayList<>())
+                    .build();
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(noDeliveryOrder));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("40.00"));
+            assertThat(result.getMarginPct()).isEqualByComparingTo(new BigDecimal("66.67"));
+        }
+
+        @Test
+        @DisplayName("deve retornar marginPct null quando totalValue é igual à taxa de entrega")
+        void shouldReturnNullMarginWhenTotalValueEqualsDeliveryFee() {
+            // subtotal = 15.00 - 15.00 = 0 -> denominador zero, sem divisão
+            Order feeOnlyOrder = Order.builder()
+                    .id(orderId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .dateTime(LocalDateTime.now())
+                    .customer(customer)
+                    .status(OrderStatus.PENDING)
+                    .totalValue(new BigDecimal("15.00"))
+                    .deliveryFee(new BigDecimal("15.00"))
+                    .totalCost(new BigDecimal("5.00"))
+                    .items(new ArrayList<>())
+                    .build();
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(feeOnlyOrder));
 
             OrderResponse result = orderService.findById(merchantId, orderId);
 
