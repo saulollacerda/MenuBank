@@ -197,6 +197,28 @@ describe('ProductsView', () => {
     expect(wrapper.text()).toContain('Copo')
   })
 
+  it('should list insumos (PACKAGING) before ingredients (INGREDIENT) in the ficha', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Açaí Base', cost: 2.5, quantity: 1, totalCost: 2.5, kind: 'INGREDIENT' },
+      { id: 'i2', productId: 'p1', name: 'Granola', cost: 0.4, quantity: 1, totalCost: 0.4, kind: 'INGREDIENT' },
+      { id: 'i3', productId: 'p1', name: 'Copo', cost: 0.35, quantity: 1, totalCost: 0.35, kind: 'PACKAGING' },
+      { id: 'i4', productId: 'p1', name: 'Tampa', cost: 0.2, quantity: 1, totalCost: 0.2, kind: 'PACKAGING' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    const text = wrapper.text()
+    // The Embalagens & Insumos section must render before the Ingredientes section.
+    expect(text.indexOf('Embalagens')).toBeLessThan(text.indexOf('Ingredientes'))
+    // And individual insumo rows must come before ingredient rows in DOM order.
+    expect(text.indexOf('Copo')).toBeLessThan(text.indexOf('Açaí Base'))
+    // Stable order is preserved within each group.
+    expect(text.indexOf('Copo')).toBeLessThan(text.indexOf('Tampa'))
+    expect(text.indexOf('Açaí Base')).toBeLessThan(text.indexOf('Granola'))
+  })
+
   it('should render grouped sections even when there are only PACKAGING items', async () => {
     productStoreMock.includes = [
       { id: 'i3', productId: 'p1', name: 'Copo', cost: 0.35, quantity: 1, totalCost: 0.35, kind: 'PACKAGING' },
