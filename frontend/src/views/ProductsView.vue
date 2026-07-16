@@ -818,117 +818,12 @@ onMounted(() => {
           </div>
 
           <template v-else>
-            <!-- seção Ingredientes -->
+            <!-- seção Embalagens & Insumos (insumos listados antes dos ingredientes) -->
             <template v-if="hasMultipleKinds">
               <div
                 :style="{
                   padding: '7px 14px',
                   background: UI.bgSoft,
-                  borderBottom: `1px solid ${UI.border}`,
-                  fontSize: '10px',
-                  color: UI.textMute,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.6px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                }"
-              >
-                <span>Ingredientes</span>
-                <span :style="{ fontVariantNumeric: 'tabular-nums' }">{{ brl(ingredientSubtotal) }}</span>
-              </div>
-            </template>
-            <template v-for="(it, i) in ingredientIncludes" :key="it.id">
-              <!-- edit mode -->
-              <div
-                v-if="editingIncludeId === it.id"
-                :style="{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 90px 110px 80px',
-                  gap: '8px',
-                  padding: '8px 14px',
-                  alignItems: 'center',
-                  borderBottom:
-                    !hasMultipleKinds && i === ingredientIncludes.length - 1
-                      ? 'none'
-                      : `1px solid ${UI.borderSub}`,
-                  background: UI.blueBg,
-                }"
-              >
-                <UIInput
-                  v-model="editForm.name"
-                  :data-testid="`include-${it.id}-name-input`"
-                  placeholder="Nome"
-                />
-                <UIInput
-                  v-model.number="editForm.quantity"
-                  type="number"
-                  :data-testid="`include-${it.id}-quantity-input`"
-                  placeholder="Qtd"
-                />
-                <UIInput
-                  v-model.number="editForm.cost"
-                  type="number"
-                  :data-testid="`include-${it.id}-cost-input`"
-                  placeholder="Custo"
-                />
-                <span style="display: flex; gap: 4px; justify-content: flex-end">
-                  <UIRowAction
-                    icon="check"
-                    color="blue"
-                    :data-testid="`include-${it.id}-confirm-button`"
-                    @click="handleUpdateRecipeItem(it.id, it.kind)"
-                  />
-                  <UIRowAction
-                    icon="x"
-                    color="gray"
-                    :data-testid="`include-${it.id}-cancel-button`"
-                    @click="handleCancelEdit"
-                  />
-                </span>
-              </div>
-              <!-- view mode -->
-              <div
-                v-else
-                :style="{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 90px 110px 80px',
-                  gap: '10px',
-                  padding: '11px 14px',
-                  alignItems: 'center',
-                  fontSize: '13px',
-                  borderBottom:
-                    !hasMultipleKinds && i === ingredientIncludes.length - 1
-                      ? 'none'
-                      : `1px solid ${UI.borderSub}`,
-                }"
-              >
-                <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
-                <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
-                  {{ it.quantity }}
-                </span>
-                <span :style="{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }">
-                  {{ brl(Number(it.totalCost)) }}
-                </span>
-                <span style="display: flex; gap: 4px; justify-content: flex-end">
-                  <UIRowAction
-                    icon="edit"
-                    color="blue"
-                    :data-testid="`include-${it.id}-edit-button`"
-                    @click="handleStartEdit(it)"
-                  />
-                  <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
-                </span>
-              </div>
-            </template>
-
-            <!-- seção Embalagens & Insumos -->
-            <template v-if="hasMultipleKinds">
-              <div
-                :style="{
-                  padding: '7px 14px',
-                  background: UI.bgSoft,
-                  borderTop: `1px solid ${UI.border}`,
                   borderBottom: `1px solid ${UI.border}`,
                   fontSize: '10px',
                   color: UI.textMute,
@@ -1019,6 +914,107 @@ onMounted(() => {
                   </span>
                 </div>
               </template>
+            </template>
+
+            <!-- seção Ingredientes -->
+            <template v-if="hasMultipleKinds">
+              <div
+                :style="{
+                  padding: '7px 14px',
+                  background: UI.bgSoft,
+                  borderTop: `1px solid ${UI.border}`,
+                  borderBottom: `1px solid ${UI.border}`,
+                  fontSize: '10px',
+                  color: UI.textMute,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }"
+              >
+                <span>Ingredientes</span>
+                <span :style="{ fontVariantNumeric: 'tabular-nums' }">{{ brl(ingredientSubtotal) }}</span>
+              </div>
+            </template>
+            <template v-for="(it, i) in ingredientIncludes" :key="it.id">
+              <!-- edit mode -->
+              <div
+                v-if="editingIncludeId === it.id"
+                :style="{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 90px 110px 80px',
+                  gap: '8px',
+                  padding: '8px 14px',
+                  alignItems: 'center',
+                  borderBottom:
+                    i === ingredientIncludes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+                  background: UI.blueBg,
+                }"
+              >
+                <UIInput
+                  v-model="editForm.name"
+                  :data-testid="`include-${it.id}-name-input`"
+                  placeholder="Nome"
+                />
+                <UIInput
+                  v-model.number="editForm.quantity"
+                  type="number"
+                  :data-testid="`include-${it.id}-quantity-input`"
+                  placeholder="Qtd"
+                />
+                <UIInput
+                  v-model.number="editForm.cost"
+                  type="number"
+                  :data-testid="`include-${it.id}-cost-input`"
+                  placeholder="Custo"
+                />
+                <span style="display: flex; gap: 4px; justify-content: flex-end">
+                  <UIRowAction
+                    icon="check"
+                    color="blue"
+                    :data-testid="`include-${it.id}-confirm-button`"
+                    @click="handleUpdateRecipeItem(it.id, it.kind)"
+                  />
+                  <UIRowAction
+                    icon="x"
+                    color="gray"
+                    :data-testid="`include-${it.id}-cancel-button`"
+                    @click="handleCancelEdit"
+                  />
+                </span>
+              </div>
+              <!-- view mode -->
+              <div
+                v-else
+                :style="{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 90px 110px 80px',
+                  gap: '10px',
+                  padding: '11px 14px',
+                  alignItems: 'center',
+                  fontSize: '13px',
+                  borderBottom:
+                    i === ingredientIncludes.length - 1 ? 'none' : `1px solid ${UI.borderSub}`,
+                }"
+              >
+                <span :style="{ fontWeight: 600 }">{{ it.name }}</span>
+                <span :style="{ textAlign: 'right', color: UI.textSub, fontVariantNumeric: 'tabular-nums' }">
+                  {{ it.quantity }}
+                </span>
+                <span :style="{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }">
+                  {{ brl(Number(it.totalCost)) }}
+                </span>
+                <span style="display: flex; gap: 4px; justify-content: flex-end">
+                  <UIRowAction
+                    icon="edit"
+                    color="blue"
+                    :data-testid="`include-${it.id}-edit-button`"
+                    @click="handleStartEdit(it)"
+                  />
+                  <UIRowAction icon="trash" color="rose" @click="handleRemoveRecipeItem(it.id)" />
+                </span>
+              </div>
             </template>
           </template>
         </div>
