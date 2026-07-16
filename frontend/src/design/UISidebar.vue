@@ -39,7 +39,6 @@ const NAV = [
   { id: 'dashboard', to: '/dashboard', ic: 'home', label: 'Dashboard' },
   { id: 'orders', to: '/orders', ic: 'cart', label: 'Pedidos' },
   { id: 'products', to: '/products', ic: 'burger', label: 'Produtos' },
-  { id: 'categories', to: '/categories', ic: 'folder', label: 'Categorias' },
   { id: 'ingredients', to: '/ingredients', ic: 'leaf', label: 'Ingredientes' },
   { id: 'customers', to: '/customers', ic: 'user', label: 'Clientes' },
   { id: 'fees', to: '/fees', ic: 'card', label: 'Taxas' },
