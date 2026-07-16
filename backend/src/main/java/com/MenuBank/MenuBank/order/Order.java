@@ -72,5 +72,17 @@ public class Order {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private List<OrderItem> items;
+
+    /**
+     * Snapshot da ficha do pedido: insumos cobrados UMA VEZ neste pedido, independentemente
+     * da quantidade de itens (sacola, guardanapo). Copiado de {@link OrderFichaLine} na
+     * criação/importação. Vazio/nulo em pedidos anteriores à V17 e em lojistas sem ficha
+     * do pedido configurada — nesse caso o custo do pedido não muda.
+     */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 30)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<OrderFichaIngredient> orderFicha;
 }
 

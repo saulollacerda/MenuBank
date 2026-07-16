@@ -28,5 +28,12 @@ public class OrderResponse {
     private List<OrderItemResponse> items;
     private OrderOrigin origin;
     private BigDecimal marginPct;
+    /**
+     * Insumos cobrados uma vez neste pedido (ficha do pedido), como gravados na criação.
+     * Vazio para pedidos sem ficha configurada e para pedidos anteriores à V17.
+     */
+    private List<OrderFichaIngredientResponse> orderFicha;
+    /** Parcela do {@link #totalCost} que veio da ficha do pedido. Zero quando não há ficha. */
+    private BigDecimal orderFichaCost;
 }
 

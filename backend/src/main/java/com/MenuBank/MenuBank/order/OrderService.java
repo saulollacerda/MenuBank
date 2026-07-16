@@ -48,6 +48,7 @@ public class OrderService {
     private final MerchantRepository merchantRepository;
     private final IncludeRepository includeRepository;
     private final OrderCostCalculatorService orderCostCalculatorService;
+    private final OrderFichaService orderFichaService;
 
     public OrderService(OrderRepository orderRepository,
                         CustomerRepository customerRepository,
@@ -56,7 +57,8 @@ public class OrderService {
                         FeeRepository feeRepository,
                         MerchantRepository merchantRepository,
                         IncludeRepository includeRepository,
-                        OrderCostCalculatorService orderCostCalculatorService) {
+                        OrderCostCalculatorService orderCostCalculatorService,
+                        OrderFichaService orderFichaService) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
@@ -65,6 +67,7 @@ public class OrderService {
         this.merchantRepository = merchantRepository;
         this.includeRepository = includeRepository;
         this.orderCostCalculatorService = orderCostCalculatorService;
+        this.orderFichaService = orderFichaService;
     }
 
     @Transactional
@@ -90,13 +93,26 @@ public class OrderService {
 
         items.forEach(item -> item.setOrder(order));
 
-        // Cálculo via service (requer order.items setado)
+        // Ficha do pedido: insumos cobrados UMA vez, fora do laço dos itens.
+        attachOrderFicha(order, merchantId);
+
+        // Cálculo via service (requer order.items e order.orderFicha setados)
         BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
         order.setTotalCost(totalCost);
         order.setEstimatedProfit(OrderCalculations.calculateEstimatedProfit(order));
 
         Order saved = orderRepository.save(order);
         return toResponse(saved);
+    }
+
+    /**
+     * Copia a ficha do pedido do lojista para o pedido (snapshot). Sem ficha configurada
+     * a lista fica vazia e o custo não muda — no-op para quem não usa a funcionalidade.
+     */
+    private void attachOrderFicha(Order order, UUID merchantId) {
+        List<OrderFichaIngredient> ficha = orderFichaService.buildSnapshot(merchantId);
+        ficha.forEach(line -> line.setOrder(order));
+        order.setOrderFicha(ficha);
     }
 
     public OrderResponse findById(UUID merchantId, UUID id) {
@@ -168,6 +184,9 @@ public class OrderService {
         }
         order.getItems().clear();
         order.getItems().addAll(newItems);
+
+        // A ficha do pedido NÃO é re-snapshotada aqui: o pedido conserva a ficha com que
+        // foi criado. Editar um pedido antigo não pode importar a ficha de hoje.
 
         // Cálculo via service (requer order.items atualizado)
         BigDecimal totalCost = orderCostCalculatorService.computeOrderTotalCost(order);
@@ -290,11 +309,17 @@ public class OrderService {
                 .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin()))
                 .toList();
 
+        List<OrderFichaIngredientResponse> orderFichaResponses = toOrderFichaResponses(order);
+        BigDecimal orderFichaCost = orderCostCalculatorService.computeOrderFichaCost(order);
+        if (orderFichaCost == null) orderFichaCost = BigDecimal.ZERO;
+
         Fee fee = order.getFee();
-        // totalCost: snapshot persistido tem prioridade; pedidos antigos (null) caem no fallback legado
+        // totalCost: snapshot persistido tem prioridade; pedidos antigos (null) caem no fallback legado.
+        // O fallback soma a ficha do pedido para não perder essa parcela caso o snapshot de
+        // totalCost falte — pedidos pré-V17 não têm ficha, então continuam idênticos.
         BigDecimal totalCost = order.getTotalCost() != null
                 ? order.getTotalCost()
-                : OrderCalculations.calculateTotalCost(items);
+                : OrderCalculations.calculateTotalCost(items).add(orderFichaCost);
         // Lucro: recalcula sempre a partir dos valores do pedido para refletir a fórmula atual,
         // usando o totalCost resolvido acima (snapshot ou fallback) e a taxa de meio de pagamento.
         BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
@@ -317,7 +342,34 @@ public class OrderService {
                 .items(itemResponses)
                 .origin(order.getOrigin())
                 .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue(), order.getDeliveryFee()))
+                .orderFicha(orderFichaResponses)
+                .orderFichaCost(orderFichaCost)
                 .build();
+    }
+
+    /**
+     * Linhas da ficha do pedido gravadas NO pedido. Sempre do snapshot — nunca da
+     * configuração atual do lojista —, para que o detalhe mostre o que foi cobrado.
+     */
+    private List<OrderFichaIngredientResponse> toOrderFichaResponses(Order order) {
+        if (order.getOrderFicha() == null) {
+            return List.of();
+        }
+        return order.getOrderFicha().stream()
+                .map(line -> {
+                    BigDecimal quantity = line.getQuantity() != null ? line.getQuantity() : BigDecimal.ZERO;
+                    BigDecimal costPerUnit = line.getCostPerUnit() != null ? line.getCostPerUnit() : BigDecimal.ZERO;
+                    return OrderFichaIngredientResponse.builder()
+                            .id(line.getId())
+                            .ingredientId(line.getIngredient() != null ? line.getIngredient().getId() : null)
+                            .ingredientName(line.getIngredientName())
+                            .ingredientUnit(line.getIngredientUnit())
+                            .quantity(quantity)
+                            .costPerUnit(costPerUnit)
+                            .totalCost(quantity.multiply(costPerUnit))
+                            .build();
+                })
+                .toList();
     }
 
     /**

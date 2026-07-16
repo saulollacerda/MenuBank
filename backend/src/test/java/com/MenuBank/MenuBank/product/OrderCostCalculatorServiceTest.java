@@ -3,6 +3,7 @@ package com.MenuBank.MenuBank.product;
 import com.MenuBank.MenuBank.merchant.Merchant;
 
 import com.MenuBank.MenuBank.order.Order;
+import com.MenuBank.MenuBank.order.OrderFichaIngredient;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,5 +104,97 @@ class OrderCostCalculatorServiceTest {
         assertThat(calc.computeOrderTotalCost(null)).isEqualByComparingTo("0");
         assertThat(calc.computeOrderTotalCost(Order.builder().merchant(Merchant.builder().id(merchantId).build()).items(List.of()).build()))
                 .isEqualByComparingTo("0");
+    }
+
+    // ---------------------------------------------------------------------
+    // Ficha do pedido — insumos cobrados UMA VEZ por pedido (sacola, guardanapo)
+    // ---------------------------------------------------------------------
+
+    private OrderFichaIngredient fichaLine(String name, BigDecimal qty, BigDecimal costPerUnit) {
+        return OrderFichaIngredient.builder()
+                .quantity(qty).costPerUnit(costPerUnit)
+                .ingredientName(name).ingredientUnit("un")
+                .build();
+    }
+
+    @Test
+    @DisplayName("ficha do pedido é cobrada UMA vez, mesmo com vários itens e quantidade > 1")
+    void orderFichaChargedExactlyOnceRegardlessOfItems() {
+        // 3 itens, somando 6 unidades — a sacola continua sendo uma só.
+        OrderItem a = item(3, new BigDecimal("2.00"), List.of());
+        OrderItem b = item(2, new BigDecimal("1.00"), List.of());
+        OrderItem c = item(1, new BigDecimal("4.00"), List.of());
+        Order order = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build())
+                .items(List.of(a, b, c))
+                .orderFicha(List.of(fichaLine("Sacola", BigDecimal.ONE, new BigDecimal("0.50"))))
+                .build();
+
+        // itens: (2×3) + (1×2) + (4×1) = 12.00; ficha do pedido: 1 × 0.50 = 0.50 (uma vez)
+        assertThat(calc.computeOrderTotalCost(order)).isEqualByComparingTo("12.50");
+    }
+
+    @Test
+    @DisplayName("ficha do pedido não escala com a quantidade do item")
+    void orderFichaDoesNotScaleWithItemQuantity() {
+        Order oneUnit = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build())
+                .items(List.of(item(1, new BigDecimal("2.00"), List.of())))
+                .orderFicha(List.of(fichaLine("Sacola", BigDecimal.ONE, new BigDecimal("0.50"))))
+                .build();
+        Order tenUnits = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build())
+                .items(List.of(item(10, new BigDecimal("2.00"), List.of())))
+                .orderFicha(List.of(fichaLine("Sacola", BigDecimal.ONE, new BigDecimal("0.50"))))
+                .build();
+
+        BigDecimal fichaOnOne = calc.computeOrderTotalCost(oneUnit).subtract(new BigDecimal("2.00"));
+        BigDecimal fichaOnTen = calc.computeOrderTotalCost(tenUnits).subtract(new BigDecimal("20.00"));
+
+        assertThat(fichaOnOne).isEqualByComparingTo(fichaOnTen).isEqualByComparingTo("0.50");
+    }
+
+    @Test
+    @DisplayName("computeOrderFichaCost soma quantity × costPerUnit de todas as linhas")
+    void orderFichaCostSumsAllLines() {
+        Order order = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build())
+                .items(List.of())
+                .orderFicha(List.of(
+                        fichaLine("Sacola", BigDecimal.ONE, new BigDecimal("0.50")),
+                        fichaLine("Guardanapo", new BigDecimal("2"), new BigDecimal("0.03"))))
+                .build();
+
+        // (1 × 0.50) + (2 × 0.03) = 0.56
+        assertThat(calc.computeOrderFichaCost(order)).isEqualByComparingTo("0.56");
+    }
+
+    @Test
+    @DisplayName("sem ficha do pedido (null/vazia) o custo é idêntico ao modelo anterior — no-op")
+    void orderFichaAbsentIsNoOp() {
+        OrderItem i = item(2, new BigDecimal("3.00"), List.of());
+        Order nullFicha = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build()).items(List.of(i)).build();
+        Order emptyFicha = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build()).items(List.of(i))
+                .orderFicha(List.of()).build();
+
+        assertThat(calc.computeOrderTotalCost(nullFicha)).isEqualByComparingTo("6.00");
+        assertThat(calc.computeOrderTotalCost(emptyFicha)).isEqualByComparingTo("6.00");
+        assertThat(calc.computeOrderFichaCost(nullFicha)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("computeOrderFichaCost trata quantity/costPerUnit nulos como zero")
+    void orderFichaCostHandlesNulls() {
+        Order order = Order.builder()
+                .merchant(Merchant.builder().id(merchantId).build()).items(List.of())
+                .orderFicha(java.util.Arrays.asList(
+                        fichaLine("Sacola", null, new BigDecimal("0.50")),
+                        fichaLine("Guardanapo", new BigDecimal("2"), null)))
+                .build();
+
+        assertThat(calc.computeOrderFichaCost(order)).isEqualByComparingTo("0");
+        assertThat(calc.computeOrderFichaCost(null)).isEqualByComparingTo("0");
     }
 }

@@ -19,6 +19,7 @@ import com.MenuBank.MenuBank.product.IncludeKind;
 import com.MenuBank.MenuBank.product.IncludeRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -63,6 +64,8 @@ class OrderServiceTest {
     @Mock
     private MerchantRepository merchantRepository;
 
+    @Mock
+    private OrderFichaService orderFichaService;
 
     @InjectMocks
     private OrderService orderService;
@@ -1235,6 +1238,103 @@ class OrderServiceTest {
                     .isInstanceOf(OrderNotFoundException.class);
 
             then(orderRepository).should(never()).deleteByIdAndMerchantId(any(), any());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Ficha do pedido — insumos cobrados uma vez por pedido
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("ficha do pedido")
+    class OrderFicha {
+
+        private OrderFichaIngredient sacolaSnapshot() {
+            return OrderFichaIngredient.builder()
+                    .ingredient(Ingredient.builder().id(UUID.randomUUID()).name("Sacola").build())
+                    .quantity(BigDecimal.ONE)
+                    .costPerUnit(new BigDecimal("0.50"))
+                    .ingredientName("Sacola")
+                    .ingredientUnit("un")
+                    .build();
+        }
+
+        @Test
+        @DisplayName("create pendura o snapshot da ficha do pedido no pedido")
+        void createAttachesOrderFichaSnapshot() {
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderFichaService.buildSnapshot(merchantId))
+                    .willReturn(new ArrayList<>(List.of(sacolaSnapshot())));
+            given(orderRepository.save(any(Order.class))).willAnswer(inv -> inv.getArgument(0));
+
+            orderService.create(merchantId, orderRequest);
+
+            ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            Order saved = captor.getValue();
+            assertThat(saved.getOrderFicha()).hasSize(1);
+            assertThat(saved.getOrderFicha().get(0).getIngredientName()).isEqualTo("Sacola");
+            // a linha precisa apontar de volta para o pedido, senão o cascade não persiste
+            assertThat(saved.getOrderFicha().get(0).getOrder()).isSameAs(saved);
+        }
+
+        @Test
+        @DisplayName("lojista sem ficha do pedido: nenhuma linha é gravada — no-op")
+        void createWithoutOrderFichaIsNoOp() {
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderFichaService.buildSnapshot(merchantId)).willReturn(new ArrayList<>());
+            given(orderRepository.save(any(Order.class))).willAnswer(inv -> inv.getArgument(0));
+
+            orderService.create(merchantId, orderRequest);
+
+            ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            assertThat(captor.getValue().getOrderFicha()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("update NÃO re-snapshota: o pedido mantém a ficha com que foi criado")
+        void updateKeepsOriginalSnapshot() {
+            OrderFichaIngredient original = sacolaSnapshot();
+            order.setOrderFicha(new ArrayList<>(List.of(original)));
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willAnswer(inv -> inv.getArgument(0));
+
+            orderService.update(merchantId, orderId, orderRequest);
+
+            then(orderFichaService).should(never()).buildSnapshot(any());
+            assertThat(order.getOrderFicha()).containsExactly(original);
+        }
+
+        @Test
+        @DisplayName("toResponse expõe o custo e as linhas da ficha do pedido")
+        void responseExposesOrderFicha() {
+            order.setOrderFicha(new ArrayList<>(List.of(sacolaSnapshot())));
+            order.setTotalCost(new BigDecimal("24.50"));
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(orderCostCalculatorService.computeOrderFichaCost(order)).willReturn(new BigDecimal("0.50"));
+
+            OrderResponse response = orderService.findById(merchantId, orderId);
+
+            assertThat(response.getOrderFichaCost()).isEqualByComparingTo("0.50");
+            assertThat(response.getOrderFicha()).hasSize(1);
+            assertThat(response.getOrderFicha().get(0).getIngredientName()).isEqualTo("Sacola");
+            assertThat(response.getOrderFicha().get(0).getTotalCost()).isEqualByComparingTo("0.50");
+        }
+
+        @Test
+        @DisplayName("pedido sem ficha: custo zero e lista vazia na resposta")
+        void responseWithoutOrderFicha() {
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse response = orderService.findById(merchantId, orderId);
+
+            assertThat(response.getOrderFichaCost()).isEqualByComparingTo("0");
+            assertThat(response.getOrderFicha()).isEmpty();
         }
     }
 }

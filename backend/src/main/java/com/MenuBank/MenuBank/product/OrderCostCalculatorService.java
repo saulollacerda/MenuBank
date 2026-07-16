@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.product;
 
 import com.MenuBank.MenuBank.order.Order;
+import com.MenuBank.MenuBank.order.OrderFichaIngredient;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
 import org.springframework.stereotype.Service;
@@ -13,10 +14,16 @@ import java.util.UUID;
  * <pre>
  *   item.unitCost   = ficha técnica (mandatory base) + sum(extras.quantity × extras.costPerUnit)
  *   item.totalCost  = item.unitCost × item.quantity
- *   order.totalCost = sum(item.totalCost)
+ *   order.totalCost = sum(item.totalCost) + fichaDoPedido
+ *   fichaDoPedido   = sum(orderFicha.quantity × orderFicha.costPerUnit)   // UMA vez por pedido
  * </pre>
  * O {@code OrderItem.unitCost} é gravado por {@link ProductCostCalculator} no momento
  * em que o pedido é criado/importado — este service não consulta {@code ProductIngredient}.
+ *
+ * <p>A ficha do PEDIDO ({@link OrderFichaIngredient}) entra uma única vez, fora do laço dos
+ * itens: são insumos consumidos por pedido e não por item (sacola, guardanapo). Ela é lida
+ * do snapshot gravado no pedido, nunca da configuração viva — pedidos já fechados mantêm o
+ * custo com que foram calculados.
  */
 @Service
 public class OrderCostCalculatorService {
@@ -25,11 +32,31 @@ public class OrderCostCalculatorService {
     }
 
     public BigDecimal computeOrderTotalCost(Order order) {
-        if (order == null || order.getItems() == null || order.getItems().isEmpty()) {
+        if (order == null) {
             return BigDecimal.ZERO;
         }
-        return order.getItems().stream()
-                .map(item -> computeItemTotalCost(item, order.getMerchant().getId()))
+        BigDecimal itemsCost = order.getItems() == null || order.getItems().isEmpty()
+                ? BigDecimal.ZERO
+                : order.getItems().stream()
+                        .map(item -> computeItemTotalCost(item, order.getMerchant().getId()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return itemsCost.add(computeOrderFichaCost(order));
+    }
+
+    /**
+     * Custo da ficha do PEDIDO: soma {@code quantity × costPerUnit} do snapshot
+     * ({@link OrderFichaIngredient}) gravado no pedido.
+     */
+    public BigDecimal computeOrderFichaCost(Order order) {
+        if (order == null || order.getOrderFicha() == null || order.getOrderFicha().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return order.getOrderFicha().stream()
+                .map(line -> {
+                    BigDecimal q = line.getQuantity() != null ? line.getQuantity() : BigDecimal.ZERO;
+                    BigDecimal c = line.getCostPerUnit() != null ? line.getCostPerUnit() : BigDecimal.ZERO;
+                    return q.multiply(c);
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
