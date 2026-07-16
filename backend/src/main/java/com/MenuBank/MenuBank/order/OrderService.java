@@ -344,6 +344,8 @@ public class OrderService {
                             .multiply(extra.getCostPerUnit())
                             .multiply(BigDecimal.valueOf(item.getQuantity()));
 
+                    // Preço pago é repassado como foi gravado, sem multiplicar por
+                    // item.quantity: o total do pedido já embute os valores dos subItems.
                     return OrderItemExtraIngredientResponse.builder()
                             .id(extra.getId())
                             .ingredientId(extra.getIngredient().getId())
@@ -352,6 +354,8 @@ public class OrderService {
                             .quantity(extra.getQuantity())
                             .costPerUnit(extra.getCostPerUnit())
                             .totalCost(totalCost)
+                            .salePricePerUnit(extra.getSalePricePerUnit())
+                            .salePriceTotal(extra.getSalePriceTotal())
                             .build();
                 }).toList()
                 : List.of();

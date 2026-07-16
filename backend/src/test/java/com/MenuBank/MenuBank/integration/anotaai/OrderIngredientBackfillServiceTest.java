@@ -135,6 +135,16 @@ class OrderIngredientBackfillServiceTest {
         return new RawJsonResponse<>(response, "{\"fixture\":\"raw\"}");
     }
 
+    private AnotaAIOrderDetailResponse buildDetailResponse(String productExternalId, String subItemName,
+                                                           int subItemQty, double price, double total) {
+        AnotaAIOrderDetailResponse response = buildDetailResponse(productExternalId, subItemName, subItemQty);
+        AnotaAIOrderDetailResponse.AnotaAISubItem subItem =
+                response.getInfo().getItems().get(0).getSubItems().get(0);
+        subItem.setPrice(price);
+        subItem.setTotal(total);
+        return response;
+    }
+
     private AnotaAIOrderDetailResponse buildDetailResponse(String productExternalId, String subItemName, int subItemQty) {
         AnotaAIOrderDetailResponse.AnotaAISubItem subItem = new AnotaAIOrderDetailResponse.AnotaAISubItem();
         subItem.setName(subItemName);
@@ -375,6 +385,60 @@ class OrderIngredientBackfillServiceTest {
 
         assertThat(item.getExtraIngredients()).hasSize(1);
         verify(orderRepository, never()).save(any());
+    }
+
+    // -------------------------------------------------------------------------
+    // Valor pago pelo cliente
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("deve gravar o valor pago do payload no extra criado pelo backfill")
+    void whenBackfillingPricedSubItem_shouldPersistSalePrice() {
+        Product product = buildProduct(EXTERNAL_PRODUCT_ID);
+        OrderItem item = buildItem(product, new BigDecimal("10.00"));
+        Order order = buildOrder("ext-order-123", new ArrayList<>(List.of(item)));
+
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchantWithApiKey));
+        given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+        given(orderRepository.findByMerchantIdAndOriginAndDateTimeBetween(
+                eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
+                .willReturn(List.of(order));
+        given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1, 5.0, 5.0)));
+
+        backfillService.onIngredientCreated(event);
+
+        assertThat(item.getExtraIngredients()).hasSize(1);
+        OrderItemExtraIngredient extra = item.getExtraIngredients().get(0);
+
+        // O extra criado pelo backfill deve carregar o preço igual ao criado na importação:
+        // é o mesmo payload, e sem isso o adicional apareceria sem valor pago no detalhe.
+        assertThat(extra.getSalePriceTotal()).isEqualByComparingTo("5.00");
+        assertThat(extra.getSalePricePerUnit()).isEqualByComparingTo("5.00");
+        // Custo continua vindo do catálogo local, e a gramatura continua sendo gramatura.
+        assertThat(extra.getCostPerUnit()).isEqualByComparingTo("0.05");
+        assertThat(extra.getQuantity()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    @DisplayName("backfill de complemento base (preço 0) deve gravar zero, não nulo")
+    void whenBackfillingZeroPricedSubItem_shouldPersistZero() {
+        Product product = buildProduct(EXTERNAL_PRODUCT_ID);
+        OrderItem item = buildItem(product, new BigDecimal("10.00"));
+        Order order = buildOrder("ext-order-123", new ArrayList<>(List.of(item)));
+
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchantWithApiKey));
+        given(ingredientRepository.findById(ingredientId)).willReturn(Optional.of(ingredient));
+        given(orderRepository.findByMerchantIdAndOriginAndDateTimeBetween(
+                eq(merchantId), eq(OrderOrigin.ANOTA_AI), any(), any()))
+                .willReturn(List.of(order));
+        given(anotaAIClient.getOrderDetail(API_KEY, "ext-order-123"))
+                .willReturn(raw(buildDetailResponse(EXTERNAL_PRODUCT_ID, "Açaí Zero", 1, 0.0, 0.0)));
+
+        backfillService.onIngredientCreated(event);
+
+        OrderItemExtraIngredient extra = item.getExtraIngredients().get(0);
+        assertThat(extra.getSalePriceTotal()).isEqualByComparingTo("0.00");
     }
 
     // -------------------------------------------------------------------------

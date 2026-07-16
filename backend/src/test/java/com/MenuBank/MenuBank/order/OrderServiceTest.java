@@ -716,6 +716,61 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("deve expor o valor pago pelo cliente ao lado do custo de produção do extra")
+        void shouldExposeSalePricePaidAlongsideProductionCost() {
+            OrderItemExtraIngredient extra = OrderItemExtraIngredient.builder()
+                    .id(UUID.randomUUID())
+                    .ingredient(ingredient)
+                    .quantity(new BigDecimal("100"))          // gramatura
+                    .costPerUnit(new BigDecimal("0.10"))      // custo do catálogo local
+                    .salePricePerUnit(new BigDecimal("1.5000"))
+                    .salePriceTotal(new BigDecimal("1.5000")) // valor pago (Pistache R$ 1,50)
+                    .ingredientName("Pistache")
+                    .ingredientUnit("g")
+                    .build();
+            order.getItems().get(0).setExtraIngredients(new ArrayList<>(List.of(extra)));
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            OrderItemExtraIngredientResponse response =
+                    result.getItems().get(0).getExtraIngredients().get(0);
+
+            // Valor pago: repassado como veio do payload, sem multiplicar por item.quantity (2).
+            assertThat(response.getSalePriceTotal()).isEqualByComparingTo("1.5000");
+            assertThat(response.getSalePricePerUnit()).isEqualByComparingTo("1.5000");
+            // Custo de produção: 100g × 0,10 × item.quantity (2) = 20,00 — número diferente do preço.
+            assertThat(response.getTotalCost()).isEqualByComparingTo("20.00");
+        }
+
+        @Test
+        @DisplayName("extras sem preço (pedidos manuais/importados antes da V16) devem tolerar valor nulo")
+        void shouldTolerateNullSalePriceForLegacyExtras() {
+            OrderItemExtraIngredient legacyExtra = OrderItemExtraIngredient.builder()
+                    .id(UUID.randomUUID())
+                    .ingredient(ingredient)
+                    .quantity(new BigDecimal("50"))
+                    .costPerUnit(new BigDecimal("0.10"))
+                    .ingredientName("Bacon")
+                    .ingredientUnit("g")
+                    .build();
+            order.getItems().get(0).setExtraIngredients(new ArrayList<>(List.of(legacyExtra)));
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+
+            OrderResponse result = orderService.findById(merchantId, orderId);
+
+            OrderItemExtraIngredientResponse response =
+                    result.getItems().get(0).getExtraIngredients().get(0);
+
+            assertThat(response.getSalePriceTotal()).isNull();
+            assertThat(response.getSalePricePerUnit()).isNull();
+            // O custo continua sendo calculado normalmente.
+            assertThat(response.getTotalCost()).isEqualByComparingTo("10.00");
+        }
+
+        @Test
         @DisplayName("deve popular insumos do item com os Includes da ficha técnica do produto")
         void shouldPopulateItemInsumosFromProductIncludes() {
             given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));

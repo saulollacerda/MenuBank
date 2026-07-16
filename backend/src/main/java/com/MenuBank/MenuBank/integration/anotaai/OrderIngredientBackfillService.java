@@ -116,11 +116,16 @@ public class OrderIngredientBackfillService {
                         : BigDecimal.ONE;
                 BigDecimal qty = perUnit.multiply(BigDecimal.valueOf(subItem.getQuantity()));
 
+                // Mesmo payload da importação: o valor pago vem literalmente do subItem.
+                // Sem isto, um adicional pago só apareceria com valor quando resolvido na
+                // importação — e ficaria sem valor quando o ingrediente é cadastrado depois.
                 OrderItemExtraIngredient extra = OrderItemExtraIngredient.builder()
                         .orderItem(localItem)
                         .ingredient(ingredient)
                         .quantity(qty)
                         .costPerUnit(ingredient.getCostPerUnit())
+                        .salePricePerUnit(BigDecimal.valueOf(subItem.getPrice()))
+                        .salePriceTotal(BigDecimal.valueOf(subItem.getTotal()))
                         .ingredientName(ingredient.getName())
                         .ingredientUnit(ingredient.getUnit())
                         .build();
