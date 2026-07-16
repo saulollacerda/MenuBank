@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { reactive } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 
 let orderStoreMock: any
@@ -118,7 +119,8 @@ describe('OrdersView', () => {
     }
 
     ingredientStoreMock = {
-      items: [
+      // reactive so store mutations (e.g. inline create) propagate to computeds
+      items: reactive([
         { id: 'i1', name: 'Granola', unit: 'g', costPerUnit: 0.05, status: 'ACTIVE' },
         {
           id: 'i2',
@@ -128,10 +130,11 @@ describe('OrdersView', () => {
           defaultQuantity: 20,
           status: 'ACTIVE',
         },
-      ],
+      ]),
       loading: false,
       error: null,
       fetchAll: vi.fn(),
+      create: vi.fn(),
     }
 
     feeStoreMock = {
@@ -1173,6 +1176,98 @@ describe('OrdersView', () => {
       const ficha = wrapper.get('[data-testid="order-detail-ficha"]')
       expect(ficha.text()).toContain('Sacola')
       expect(ficha.text()).toContain('0,86')
+    })
+
+    it('should show a short one-sentence intro without the long detail', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      const intro = wrapper.get('[data-testid="order-ficha-intro"]')
+      // Keeps the core meaning...
+      expect(intro.text()).toContain('uma vez por pedido')
+      // ...but drops the long secondary paragraph.
+      expect(intro.text()).not.toContain('guardanapo')
+      expect(intro.text()).not.toContain('mova-a')
+    })
+
+    it('should reveal an inline insumo creation form from a row', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      expect(wrapper.find('[data-testid="order-ficha-create-name"]').exists()).toBe(false)
+
+      await wrapper.get('[data-testid="order-ficha-line-0-create-toggle"]').trigger('click')
+      expect(wrapper.find('[data-testid="order-ficha-create-name"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="order-ficha-create-unit"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="order-ficha-create-cost"]').exists()).toBe(true)
+    })
+
+    it('should create a new insumo inline and auto-select it in the row', async () => {
+      ingredientStoreMock.create = vi.fn(async (req: { name: string; unit: string; costPerUnit: number }) => {
+        const created = { id: 'i9', name: req.name, unit: req.unit, costPerUnit: req.costPerUnit, status: 'ACTIVE' }
+        ingredientStoreMock.items.push(created)
+        return created
+      })
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-0-create-toggle"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-create-name"]').setValue('Sacola')
+      await wrapper.get('[data-testid="order-ficha-create-unit"]').setValue('un')
+      await wrapper.get('[data-testid="order-ficha-create-cost"]').setValue('0.8')
+      await wrapper.get('[data-testid="order-ficha-create-submit"]').trigger('click')
+      await flushPromises()
+
+      expect(ingredientStoreMock.create).toHaveBeenCalledWith({
+        name: 'Sacola',
+        unit: 'un',
+        costPerUnit: 0.8,
+      })
+      const select = wrapper.get('[data-testid="order-ficha-line-0-ingredient-select"]')
+      expect((select.element as HTMLSelectElement).value).toBe('i9')
+      // form closes after a successful creation
+      expect(wrapper.find('[data-testid="order-ficha-create-name"]').exists()).toBe(false)
+    })
+
+    it('should show a pt-BR error and keep the row empty when inline creation fails', async () => {
+      ingredientStoreMock.create = vi.fn().mockRejectedValue(new Error('boom'))
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-0-create-toggle"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-create-name"]').setValue('Sacola')
+      await wrapper.get('[data-testid="order-ficha-create-unit"]').setValue('un')
+      await wrapper.get('[data-testid="order-ficha-create-cost"]').setValue('0.8')
+      await wrapper.get('[data-testid="order-ficha-create-submit"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="order-ficha-create-error"]').text()).toBeTruthy()
+      const select = wrapper.get('[data-testid="order-ficha-line-0-ingredient-select"]')
+      expect((select.element as HTMLSelectElement).value).toBe('')
+    })
+
+    it('should validate the inline insumo form before calling the store', async () => {
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="configure-orders-button"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="order-ficha-add-line-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-ficha-line-0-create-toggle"]').trigger('click')
+      // name/unit left blank
+      await wrapper.get('[data-testid="order-ficha-create-submit"]').trigger('click')
+      await flushPromises()
+
+      expect(ingredientStoreMock.create).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="order-ficha-create-error"]').text()).toBeTruthy()
     })
   })
 })
