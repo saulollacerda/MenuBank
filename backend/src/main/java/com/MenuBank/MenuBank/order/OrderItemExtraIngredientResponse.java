@@ -21,5 +21,18 @@ public class OrderItemExtraIngredientResponse {
     private BigDecimal quantity;
     private BigDecimal costPerUnit;
     private BigDecimal totalCost;
+
+    /**
+     * Preço unitário pago pelo cliente por este adicional. {@code 0} = complemento base.
+     * Nulo quando o extra não tem preço conhecido (pedido manual/iFood ou importado
+     * antes da migração V16).
+     */
+    private BigDecimal salePricePerUnit;
+
+    /**
+     * Valor total pago pelo cliente por este adicional, como veio do payload da Anota.AI.
+     * Independente de {@link #totalCost}, que é o custo de produção.
+     */
+    private BigDecimal salePriceTotal;
 }
 

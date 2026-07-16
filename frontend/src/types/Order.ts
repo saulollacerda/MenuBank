@@ -14,6 +14,13 @@ export interface OrderItemExtraIngredientResponse {
   quantity: number
   costPerUnit: number
   totalCost: number
+  /**
+   * Preço unitário pago pelo cliente por este adicional. `0` = complemento base.
+   * Ausente para extras sem preço conhecido (pedido manual/iFood ou importado antes da V16).
+   */
+  salePricePerUnit?: number | null
+  /** Valor total pago pelo cliente por este adicional. Não confundir com `totalCost` (custo). */
+  salePriceTotal?: number | null
 }
 
 export interface OrderItemRequest {

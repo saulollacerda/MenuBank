@@ -54,5 +54,34 @@ public class OrderItemExtraIngredient {
 
     @Column(nullable = false)
     private String ingredientUnit;
+
+    /**
+     * Preço de venda unitário pago pelo cliente por este adicional, copiado literalmente
+     * de {@code subItem.price} da Anota.AI. {@code 0.00} = complemento base (incluso, sem
+     * valor agregado). NÃO tem relação com {@link #costPerUnit}: preço é o que o cliente
+     * pagou, custo é o que a produção gasta.
+     *
+     * <p>Nulo para extras sem origem Anota.AI (pedidos manuais, iFood) e para pedidos
+     * importados antes da migração V16 — nunca houve backfill.
+     */
+    @Column(name = "sale_price_per_unit", precision = 19, scale = 4)
+    private BigDecimal salePricePerUnit;
+
+    /**
+     * Valor total pago pelo cliente por este adicional, copiado literalmente de
+     * {@code subItem.total} da Anota.AI (que equivale a {@code price × subItem.quantity}).
+     *
+     * <p><b>Nunca derive este valor de {@link #quantity}</b>: {@code quantity} é gramatura
+     * (g/ml), multiplicar por preço produziria reais × gramas.
+     *
+     * <p><b>Assunção documentada:</b> o valor é gravado como o payload entrega, sem
+     * multiplicar por {@code orderItem.quantity}. Todos os payloads observados até hoje
+     * têm {@code item.quantity == 1}, então não há evidência de como a Anota.AI escala
+     * o total do subItem quando o produto pai é pedido em múltiplas unidades. Como
+     * {@code item.total} já embute os totais dos subItems, multiplicar aqui arriscaria
+     * double-counting. Reavaliar quando surgir um pedido real com {@code item.quantity > 1}.
+     */
+    @Column(name = "sale_price_total", precision = 19, scale = 4)
+    private BigDecimal salePriceTotal;
 }
 

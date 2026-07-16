@@ -421,6 +421,149 @@ describe('OrdersView', () => {
     expect(detail.get('[data-testid="order-detail-margin"]').text()).toMatch(/43[,.]/)
   })
 
+  it('should render the price paid for a subitem alongside its production cost', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 21.99,
+        estimatedProfit: 10,
+        marginPct: 45.0,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 500ml',
+            quantity: 1,
+            unitPrice: 21.99,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Pistache',
+                ingredientUnit: 'g',
+                quantity: 30,
+                costPerUnit: 0.05,
+                totalCost: 1.5,
+                salePricePerUnit: 1.5,
+                salePriceTotal: 1.5,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    const paid = detail.get('[data-testid="extra-oei1-paid"]')
+
+    // Valor pago pelo cliente pelo adicional.
+    expect(paid.text()).toMatch(/1,50/)
+    // O custo de produção continua visível e separado.
+    expect(detail.get('[data-testid="extra-oei1-cost"]').text()).toMatch(/1,50/)
+  })
+
+  it('should mark a zero-priced subitem as a base complement, not a paid add-on', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 15,
+        estimatedProfit: 5,
+        marginPct: 33.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 330ml',
+            quantity: 1,
+            unitPrice: 15,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Leite Ninho',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.02,
+                totalCost: 1,
+                salePricePerUnit: 0,
+                salePriceTotal: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+
+    // Complemento base: incluso, sem valor agregado.
+    expect(detail.get('[data-testid="extra-oei1-paid"]').text()).toMatch(/Incluso/i)
+  })
+
+  it('should omit the paid value for extras without a known price', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 60,
+        estimatedProfit: 26,
+        marginPct: 43.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Hambúrguer',
+            quantity: 2,
+            unitPrice: 30,
+            unitCost: 17,
+            totalCost: 34,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Bacon',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.1,
+                totalCost: 10,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+
+    // Sem preço conhecido: nada de "R$ 0,00" enganoso, e o custo segue visível.
+    expect(detail.get('[data-testid="extra-oei1-paid"]').text()).toBe('—')
+    expect(detail.get('[data-testid="extra-oei1-cost"]').text()).toMatch(/10,00/)
+  })
+
   it('should render the margin from the backend marginPct, excluding the delivery fee', async () => {
     // Backend: subtotal = 60 - 10 = 50 | profit = 29 | marginPct = 29/50 = 58.00%
     // Recalcular no front sobre o totalValue daria 29/60 = 48,3% (errado).

@@ -34,6 +34,11 @@ import java.util.UUID;
  * <p>Para todo subItem que não casa com um PACKAGING, o extra usa
  * {@code Ingredient.defaultQuantity} (qty global) × {@code subItem.quantity} e o
  * {@code Ingredient.costPerUnit} global.
+ *
+ * <p><b>Preço × custo são independentes:</b> o custo vem sempre do catálogo local
+ * ({@code Ingredient.costPerUnit}); o preço pago pelo cliente ({@code salePricePerUnit} /
+ * {@code salePriceTotal}) vem literalmente do payload. Um subItem com preço {@code 0.0} é
+ * complemento base — incluso no produto, mas ainda assim com custo de produção.
  */
 public class AnotaAIExtraIngredientResolver {
 
@@ -82,10 +87,15 @@ public class AnotaAIExtraIngredientResolver {
             BigDecimal perUnitQuantity = resolveQuantityForProduct(productIncludes, canonical, ingredient);
             BigDecimal costPerUnit = ingredient.getCostPerUnit();
 
+            // Preço pago: copiado literalmente do payload. NÃO derivar de `quantity`
+            // (gramatura) — isso multiplicaria reais por gramas. Ver javadoc de
+            // OrderItemExtraIngredient.salePriceTotal.
             extras.add(OrderItemExtraIngredient.builder()
                     .ingredient(ingredient)
                     .quantity(perUnitQuantity.multiply(customerQuantity))
                     .costPerUnit(costPerUnit)
+                    .salePricePerUnit(BigDecimal.valueOf(subItem.getPrice()))
+                    .salePriceTotal(BigDecimal.valueOf(subItem.getTotal()))
                     .ingredientName(ingredient.getName())
                     .ingredientUnit(ingredient.getUnit())
                     .build());

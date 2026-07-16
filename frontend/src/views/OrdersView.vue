@@ -28,6 +28,7 @@ import type {
   OrderResponse,
   OrderItemRequest,
   OrderItemExtraIngredientRequest,
+  OrderItemExtraIngredientResponse,
   OrderOrigin,
 } from '@/types/Order'
 import type { IncludeResponse } from '@/types/Product'
@@ -135,6 +136,18 @@ function timeOf(iso: string): string {
 function marginLabel(o: OrderResponse): string {
   if (o.marginPct == null) return '—'
   return Number(o.marginPct).toFixed(1).replace('.', ',') + '%'
+}
+
+/**
+ * Valor pago pelo cliente por um adicional — não confundir com o custo de produção.
+ * Nulo/ausente = preço desconhecido (pedido manual/iFood ou importado antes da V16);
+ * 0 = complemento base, incluso no produto sem valor agregado.
+ */
+function paidLabel(ex: OrderItemExtraIngredientResponse): string {
+  if (ex.salePriceTotal == null) return '—'
+  const paid = Number(ex.salePriceTotal)
+  if (paid === 0) return 'Incluso'
+  return brl(paid)
 }
 
 const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue' | 'gray'; label: string }> = {
@@ -1178,11 +1191,30 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px">
                   <div
+                    :style="{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 70px 90px 90px',
+                      gap: '10px',
+                      padding: '0 0 4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.4px',
+                      color: UI.textMute,
+                      borderBottom: `1px solid ${UI.border}`,
+                    }"
+                  >
+                    <span>Item</span>
+                    <span>Qtd</span>
+                    <span style="text-align: right">Pago</span>
+                    <span style="text-align: right">Custo</span>
+                  </div>
+                  <div
                     v-for="ins in item.insumos ?? []"
                     :key="'i' + ins.id"
                     :style="{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 80px 100px',
+                      gridTemplateColumns: '1fr 70px 90px 90px',
                       gap: '10px',
                       padding: '6px 0',
                       fontSize: '12px',
@@ -1201,6 +1233,8 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                       {{ ins.name }}
                     </span>
                     <span :style="{ color: UI.textSub }">{{ ins.quantity }}</span>
+                    <!-- Insumos da ficha técnica não são cobrados à parte: já estão no preço do produto. -->
+                    <span :style="{ textAlign: 'right', color: UI.textMute }">Incluso</span>
                     <span
                       :style="{
                         textAlign: 'right',
@@ -1216,7 +1250,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                     :key="'e' + ex.id"
                     :style="{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 80px 100px',
+                      gridTemplateColumns: '1fr 70px 90px 90px',
                       gap: '10px',
                       padding: '6px 0',
                       fontSize: '12px',
@@ -1238,6 +1272,18 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                       {{ ex.quantity }} {{ ex.ingredientUnit }}
                     </span>
                     <span
+                      :data-testid="'extra-' + ex.id + '-paid'"
+                      :style="{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: Number(ex.salePriceTotal) > 0 ? UI.emerald : UI.textMute,
+                        fontWeight: Number(ex.salePriceTotal) > 0 ? 600 : 400,
+                      }"
+                    >
+                      {{ paidLabel(ex) }}
+                    </span>
+                    <span
+                      :data-testid="'extra-' + ex.id + '-cost'"
                       :style="{
                         textAlign: 'right',
                         fontVariantNumeric: 'tabular-nums',
