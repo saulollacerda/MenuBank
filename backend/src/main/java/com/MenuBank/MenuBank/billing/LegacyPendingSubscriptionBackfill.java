@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.merchant.MerchantRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,19 +25,33 @@ import java.util.stream.Collectors;
  * <p>This backfill assigns a PENDING subscription (no plan yet) to every
  * merchant that lacks one, so they hit the "choose a plan" gate instead of a
  * 404. It is idempotent: merchants that already have a subscription are skipped.
+ *
+ * <p>Where a default plan is configured (dev only, see {@link DefaultPlanResolver}) the
+ * created subscription follows the same rule as a fresh sign-up — the default plan with
+ * status ACTIVE — otherwise a legacy dev merchant would just get a brand-new blocked
+ * subscription at startup. Production has no default plan, so the PENDING behaviour is
+ * unchanged there.
+ *
+ * <p>Runs after {@link BasicPlanSeeder} (see {@link Order}), which seeds that plan.
  */
 @Component
+@Order(LegacyPendingSubscriptionBackfill.ORDER)
 class LegacyPendingSubscriptionBackfill implements CommandLineRunner {
+
+    static final int ORDER = BasicPlanSeeder.ORDER + 1;
 
     private static final Logger log = LoggerFactory.getLogger(LegacyPendingSubscriptionBackfill.class);
 
     private final SubscriptionRepository subscriptionRepository;
     private final MerchantRepository merchantRepository;
+    private final DefaultPlanResolver defaultPlanResolver;
 
     LegacyPendingSubscriptionBackfill(SubscriptionRepository subscriptionRepository,
-                                      MerchantRepository merchantRepository) {
+                                      MerchantRepository merchantRepository,
+                                      DefaultPlanResolver defaultPlanResolver) {
         this.subscriptionRepository = subscriptionRepository;
         this.merchantRepository = merchantRepository;
+        this.defaultPlanResolver = defaultPlanResolver;
     }
 
     @Override
@@ -46,24 +61,31 @@ class LegacyPendingSubscriptionBackfill implements CommandLineRunner {
                 .map(Subscription::getMerchantId)
                 .collect(Collectors.toSet());
 
-        LocalDateTime now = LocalDateTime.now();
-        List<Subscription> toCreate = merchantRepository.findAll().stream()
+        List<UUID> merchantsWithoutSubscription = merchantRepository.findAll().stream()
                 .map(Merchant::getId)
                 .filter(merchantId -> !merchantsWithSubscription.contains(merchantId))
+                .toList();
+
+        if (merchantsWithoutSubscription.isEmpty()) {
+            return;
+        }
+
+        // Resolved once for the whole batch: it hits the database and may log a warning.
+        Plan defaultPlan = defaultPlanResolver.resolve();
+        LocalDateTime now = LocalDateTime.now();
+        List<Subscription> toCreate = merchantsWithoutSubscription.stream()
                 .map(merchantId -> Subscription.builder()
                         .merchantId(merchantId)
-                        .plan(null)
-                        .status(SubscriptionStatus.PENDING)
+                        .plan(defaultPlan)
+                        .status(defaultPlan != null ? SubscriptionStatus.ACTIVE : SubscriptionStatus.PENDING)
+                        .currentPeriodStart(defaultPlan != null ? now : null)
                         .createdAt(now)
                         .updatedAt(now)
                         .build())
                 .toList();
 
-        if (toCreate.isEmpty()) {
-            return;
-        }
-
         subscriptionRepository.saveAll(toCreate);
-        log.info("Backfill: {} lojistas legados receberam assinatura PENDING", toCreate.size());
+        log.info("Backfill: {} lojistas legados receberam assinatura {}",
+                toCreate.size(), defaultPlan != null ? "'" + defaultPlan.getName() + "' (ACTIVE)" : "PENDING");
     }
 }

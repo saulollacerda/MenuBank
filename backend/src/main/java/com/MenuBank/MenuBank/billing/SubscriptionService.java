@@ -1,8 +1,5 @@
 package com.MenuBank.MenuBank.billing;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,30 +11,28 @@ import java.util.UUID;
 @Service
 public class SubscriptionService {
 
-    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
-
     private final SubscriptionRepository subscriptionRepository;
     private final PlanRepository planRepository;
     private final RevenueReportRepository revenueReportRepository;
     private final InvoiceRepository invoiceRepository;
 
     /**
-     * Name of the plan auto-assigned on sign-up, or blank to disable the behaviour.
-     * Only the dev profile sets it (see application-dev.properties); prod leaves it
+     * Resolves the plan auto-assigned on sign-up, or null when the behaviour is disabled.
+     * Only the dev profile enables it (see application-dev.properties); prod leaves it
      * unset, so new accounts keep going through the regular billing flow.
      */
-    private final String defaultPlanName;
+    private final DefaultPlanResolver defaultPlanResolver;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PlanRepository planRepository,
                                RevenueReportRepository revenueReportRepository,
                                InvoiceRepository invoiceRepository,
-                               @Value("${app.billing.default-plan-name:}") String defaultPlanName) {
+                               DefaultPlanResolver defaultPlanResolver) {
         this.subscriptionRepository = subscriptionRepository;
         this.planRepository = planRepository;
         this.revenueReportRepository = revenueReportRepository;
         this.invoiceRepository = invoiceRepository;
-        this.defaultPlanName = defaultPlanName;
+        this.defaultPlanResolver = defaultPlanResolver;
     }
 
     /**
@@ -55,7 +50,7 @@ public class SubscriptionService {
     @Transactional
     public void createPendingSubscription(UUID merchantId) {
         LocalDateTime now = LocalDateTime.now();
-        Plan defaultPlan = resolveDefaultPlan();
+        Plan defaultPlan = defaultPlanResolver.resolve();
         Subscription subscription = Subscription.builder()
                 .merchantId(merchantId)
                 .plan(defaultPlan)
@@ -65,18 +60,6 @@ public class SubscriptionService {
                 .updatedAt(now)
                 .build();
         subscriptionRepository.save(subscription);
-    }
-
-    private Plan resolveDefaultPlan() {
-        if (defaultPlanName == null || defaultPlanName.isBlank()) {
-            return null;
-        }
-        return planRepository.findByName(defaultPlanName)
-                .orElseGet(() -> {
-                    log.warn("Plano padrão '{}' não encontrado — nova assinatura criada sem plano (PENDING)",
-                            defaultPlanName);
-                    return null;
-                });
     }
 
     public List<PlanResponse> listActivePlans() {
