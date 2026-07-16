@@ -6,6 +6,8 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAIOrderDetailResponse;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
+import com.MenuBank.MenuBank.order.OrderItemUnmatchedSubItem;
+import com.MenuBank.MenuBank.order.ResolvedSubItems;
 import com.MenuBank.MenuBank.product.Include;
 import com.MenuBank.MenuBank.product.IncludeKind;
 
@@ -51,14 +53,17 @@ public class AnotaAIExtraIngredientResolver {
         this.notificationService = notificationService;
     }
 
-    public List<OrderItemExtraIngredient> resolve(
+    public ResolvedSubItems resolve(
             List<AnotaAIOrderDetailResponse.AnotaAISubItem> subItems,
             List<Include> productIncludes,
             UUID merchantId,
             Set<String> missingIngredientNames) {
-        if (subItems == null || subItems.isEmpty()) return new ArrayList<>();
+        if (subItems == null || subItems.isEmpty()) {
+            return new ResolvedSubItems(new ArrayList<>(), new ArrayList<>());
+        }
 
         List<OrderItemExtraIngredient> extras = new ArrayList<>();
+        List<OrderItemUnmatchedSubItem> unmatched = new ArrayList<>();
         Set<String> notifiedMissing = new java.util.HashSet<>();
 
         for (AnotaAIOrderDetailResponse.AnotaAISubItem subItem : subItems) {
@@ -80,6 +85,15 @@ public class AnotaAIExtraIngredientResolver {
                 if (notifiedMissing.add(canonical)) {
                     notificationService.createMissingIngredient(rawName, canonical, merchantId);
                 }
+                // Grava o subItem não-casado para aparecer no detalhe do pedido com um botão
+                // de cadastro, em vez de sumir. Preço/qtd copiados literalmente do payload.
+                unmatched.add(OrderItemUnmatchedSubItem.builder()
+                        .rawName(rawName)
+                        .canonicalName(canonical)
+                        .quantity(subItem.getQuantity())
+                        .salePricePerUnit(BigDecimal.valueOf(subItem.getPrice()))
+                        .salePriceTotal(BigDecimal.valueOf(subItem.getTotal()))
+                        .build());
                 continue;
             }
             Ingredient ingredient = match.get();
@@ -100,7 +114,7 @@ public class AnotaAIExtraIngredientResolver {
                     .ingredientUnit(ingredient.getUnit())
                     .build());
         }
-        return extras;
+        return new ResolvedSubItems(extras, unmatched);
     }
 
     /**

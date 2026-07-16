@@ -14,7 +14,9 @@ import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderCalculations;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
+import com.MenuBank.MenuBank.order.OrderItemUnmatchedSubItem;
 import com.MenuBank.MenuBank.order.OrderOrigin;
+import com.MenuBank.MenuBank.order.ResolvedSubItems;
 import com.MenuBank.MenuBank.order.OrderRepository;
 import com.MenuBank.MenuBank.order.OrderStatus;
 import com.MenuBank.MenuBank.product.Include;
@@ -254,10 +256,12 @@ public class IfoodOrderImportService {
                     .unitCost(unitCost)
                     .build();
 
-            List<OrderItemExtraIngredient> extras =
+            ResolvedSubItems resolved =
                     resolveExtras(remoteItem.getOptions(), productIncludes, merchantId);
-            extras.forEach(extra -> extra.setOrderItem(item));
-            item.setExtraIngredients(extras);
+            resolved.extras().forEach(extra -> extra.setOrderItem(item));
+            item.setExtraIngredients(resolved.extras());
+            resolved.unmatched().forEach(unmatched -> unmatched.setOrderItem(item));
+            item.setUnmatchedSubItems(resolved.unmatched());
             items.add(item);
         }
         return items;
@@ -290,11 +294,12 @@ public class IfoodOrderImportService {
      * resolvidas contra o catálogo de ingredientes por nome canônico. Sem match,
      * gera notificação MISSING_INGREDIENT e o complemento é pulado.
      */
-    private List<OrderItemExtraIngredient> resolveExtras(List<IfoodOrderDetailResponse.Option> options,
-                                                         List<Include> productIncludes,
-                                                         UUID merchantId) {
+    private ResolvedSubItems resolveExtras(List<IfoodOrderDetailResponse.Option> options,
+                                           List<Include> productIncludes,
+                                           UUID merchantId) {
         List<OrderItemExtraIngredient> extras = new ArrayList<>();
-        if (options == null || options.isEmpty()) return extras;
+        List<OrderItemUnmatchedSubItem> unmatched = new ArrayList<>();
+        if (options == null || options.isEmpty()) return new ResolvedSubItems(extras, unmatched);
 
         Set<String> notifiedMissing = new HashSet<>();
 
@@ -313,6 +318,16 @@ public class IfoodOrderImportService {
                 if (notifiedMissing.add(canonical)) {
                     notificationService.createMissingIngredient(rawName, canonical, merchantId);
                 }
+                // Grava a option não-casada para aparecer no detalhe do pedido com um botão
+                // de cadastro, em vez de sumir. Preço/qtd copiados literalmente do payload.
+                int quantity = option.getQuantity() != null ? option.getQuantity().intValue() : 1;
+                unmatched.add(OrderItemUnmatchedSubItem.builder()
+                        .rawName(rawName)
+                        .canonicalName(canonical)
+                        .quantity(quantity)
+                        .salePricePerUnit(option.getUnitPrice())
+                        .salePriceTotal(option.getPrice())
+                        .build());
                 continue;
             }
 
@@ -328,7 +343,7 @@ public class IfoodOrderImportService {
                     .ingredientUnit(ingredient.getUnit())
                     .build());
         }
-        return extras;
+        return new ResolvedSubItems(extras, unmatched);
     }
 
     private boolean matchesPackagingInclude(List<Include> productIncludes, String canonical) {

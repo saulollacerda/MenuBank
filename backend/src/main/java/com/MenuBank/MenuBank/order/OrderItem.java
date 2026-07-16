@@ -53,6 +53,18 @@ public class OrderItem {
     private List<OrderItemExtraIngredient> extraIngredients = new ArrayList<>();
 
     /**
+     * SubItems/options of an imported order that matched no registered ingredient. Kept so
+     * the order details can offer a "create ingredient" action instead of silently dropping
+     * them. Empty for manual orders and for imports where every subItem matched.
+     */
+    @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 30)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @Builder.Default
+    private List<OrderItemUnmatchedSubItem> unmatchedSubItems = new ArrayList<>();
+
+    /**
      * Ids dos {@link com.MenuBank.MenuBank.product.Include}s da ficha técnica que o
      * operador desmarcou neste item (pedido manual). Vazio = ficha completa.
      */

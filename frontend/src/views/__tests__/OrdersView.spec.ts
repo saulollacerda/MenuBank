@@ -1002,6 +1002,107 @@ describe('OrdersView', () => {
   })
 
   // -------------------------------------------------------------------------
+  // SubItems não-casados — cadastrar ingrediente faltante
+  // -------------------------------------------------------------------------
+
+  describe('Unmatched subitems', () => {
+    function orderWithUnmatched(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'o1',
+        dateTime: '2026-07-15T12:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 30,
+        estimatedProfit: 10,
+        origin: 'ANOTA_AI',
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 500ml',
+            quantity: 1,
+            unitPrice: 30,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [],
+            unmatchedSubItems: [
+              {
+                id: 'u1',
+                rawName: 'Nutella',
+                quantity: 2,
+                salePricePerUnit: 3,
+                salePriceTotal: 6,
+              },
+            ],
+          },
+        ],
+        ...overrides,
+      }
+    }
+
+    it('should render an unmatched subitem with a create-ingredient button', async () => {
+      orderStoreMock.items = [orderWithUnmatched()]
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await flushPromises()
+
+      const detail = wrapper.get('[data-testid="order-detail-modal"]')
+      expect(detail.html()).toContain('Nutella')
+      expect(detail.find('[data-testid="unmatched-u1-create-button"]').exists()).toBe(true)
+    })
+
+    it('should create the missing ingredient prefilled with the raw name and hide the button after refetch', async () => {
+      ingredientStoreMock.create = vi.fn().mockResolvedValue({ id: 'new1' })
+
+      const withUnmatched = orderWithUnmatched()
+      const withoutUnmatched = orderWithUnmatched({
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 500ml',
+            quantity: 1,
+            unitPrice: 30,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [],
+            unmatchedSubItems: [],
+          },
+        ],
+      })
+      orderStoreMock.items = [withUnmatched]
+      orderStoreMock.findById = vi
+        .fn()
+        .mockResolvedValueOnce(withUnmatched)
+        .mockResolvedValueOnce(withoutUnmatched)
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await flushPromises()
+
+      const detail = wrapper.get('[data-testid="order-detail-modal"]')
+      await detail.get('[data-testid="unmatched-u1-create-button"]').trigger('click')
+
+      const nameInput = detail.get('[data-testid="unmatched-u1-name-input"]')
+      expect((nameInput.element as HTMLInputElement).value).toBe('Nutella')
+
+      await detail.get('[data-testid="unmatched-u1-unit-input"]').setValue('g')
+      await detail.get('[data-testid="unmatched-u1-cost-input"]').setValue('0.05')
+      await detail.get('[data-testid="unmatched-u1-save-button"]').trigger('click')
+      await flushPromises()
+
+      expect(ingredientStoreMock.create).toHaveBeenCalledWith({
+        name: 'Nutella',
+        unit: 'g',
+        costPerUnit: 0.05,
+      })
+      // Depois de criar, o pedido é recarregado e o botão some.
+      expect(wrapper.find('[data-testid="unmatched-u1-create-button"]').exists()).toBe(false)
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Configurar pedidos — ficha do pedido (insumos cobrados uma vez por pedido)
   // -------------------------------------------------------------------------
 

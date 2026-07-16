@@ -332,6 +332,37 @@ class IfoodOrderImportServiceTest {
         }
 
         @Test
+        @DisplayName("deve persistir a option não-casada como subItem não-casado no item do pedido")
+        void shouldPersistUnmatchedOptionOnOrderItem() {
+            IfoodOrderDetailResponse detail = baseDetail();
+            IfoodOrderDetailResponse.Option option = new IfoodOrderDetailResponse.Option();
+            option.setName("Pistache Raro");
+            option.setQuantity(BigDecimal.valueOf(2));
+            option.setUnitPrice(new BigDecimal("3.00"));
+            option.setPrice(new BigDecimal("6.00"));
+            detail.getItems().get(0).setOptions(List.of(option));
+
+            given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))
+                    .willReturn(Optional.of(product));
+            given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc("pistache raro", merchantId))
+                    .willReturn(Optional.empty());
+            given(orderRepository.existsByExternalOrderIdAndMerchantId("ord-1", merchantId))
+                    .willReturn(false);
+
+            importService.importOrder(detail, OrderStatus.PAID, RAW_JSON);
+
+            then(orderRepository).should().save(argThat((Order o) -> {
+                var unmatched = o.getItems().get(0).getUnmatchedSubItems();
+                return unmatched.size() == 1
+                        && "Pistache Raro".equals(unmatched.get(0).getRawName())
+                        && "pistache raro".equals(unmatched.get(0).getCanonicalName())
+                        && unmatched.get(0).getQuantity() == 2
+                        && unmatched.get(0).getSalePriceTotal().compareTo(new BigDecimal("6.00")) == 0
+                        && unmatched.get(0).getOrderItem() != null;
+            }));
+        }
+
+        @Test
         @DisplayName("deve converter createdAt UTC para horário de Brasília")
         void shouldConvertCreatedAtToBrazilZone() {
             given(productRepository.findByExternalIdAndMerchantId("PDV-1", merchantId))

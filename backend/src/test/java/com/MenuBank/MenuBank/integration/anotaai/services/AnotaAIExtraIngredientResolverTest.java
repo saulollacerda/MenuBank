@@ -5,6 +5,8 @@ import com.MenuBank.MenuBank.ingredient.IngredientRepository;
 import com.MenuBank.MenuBank.integration.anotaai.AnotaAIOrderDetailResponse;
 import com.MenuBank.MenuBank.notification.NotificationService;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
+import com.MenuBank.MenuBank.order.OrderItemUnmatchedSubItem;
+import com.MenuBank.MenuBank.order.ResolvedSubItems;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AnotaAIExtraIngredientResolver — preço pago pelo cliente vs. custo de produção")
@@ -74,7 +77,7 @@ class AnotaAIExtraIngredientResolverTest {
         Set<String> missing = new HashSet<>();
         List<OrderItemExtraIngredient> extras = resolver().resolve(
                 List.of(subItem("Açaí Premium", 1, 5.0, 5.0)),
-                new ArrayList<>(), MERCHANT_ID, missing);
+                new ArrayList<>(), MERCHANT_ID, missing).extras();
 
         assertThat(extras).hasSize(1);
         OrderItemExtraIngredient extra = extras.get(0);
@@ -96,7 +99,7 @@ class AnotaAIExtraIngredientResolverTest {
 
         List<OrderItemExtraIngredient> extras = resolver().resolve(
                 List.of(subItem("Pistache", 1, 1.5, 1.5)),
-                new ArrayList<>(), MERCHANT_ID, new HashSet<>());
+                new ArrayList<>(), MERCHANT_ID, new HashSet<>()).extras();
 
         OrderItemExtraIngredient extra = extras.get(0);
 
@@ -117,7 +120,7 @@ class AnotaAIExtraIngredientResolverTest {
 
         List<OrderItemExtraIngredient> extras = resolver().resolve(
                 List.of(subItem("Leite Ninho", 1, 0.0, 0.0)),
-                new ArrayList<>(), MERCHANT_ID, new HashSet<>());
+                new ArrayList<>(), MERCHANT_ID, new HashSet<>()).extras();
 
         OrderItemExtraIngredient extra = extras.get(0);
 
@@ -138,7 +141,7 @@ class AnotaAIExtraIngredientResolverTest {
 
         List<OrderItemExtraIngredient> extras = resolver().resolve(
                 List.of(subItem("leite ninho", 2, 0.5, 1.0)),
-                new ArrayList<>(), MERCHANT_ID, new HashSet<>());
+                new ArrayList<>(), MERCHANT_ID, new HashSet<>()).extras();
 
         OrderItemExtraIngredient extra = extras.get(0);
 
@@ -158,7 +161,7 @@ class AnotaAIExtraIngredientResolverTest {
 
         List<OrderItemExtraIngredient> extras = resolver().resolve(
                 List.of(subItem("Açaí Premium", 1, 5.0, 5.0)),
-                new ArrayList<>(), MERCHANT_ID, new HashSet<>());
+                new ArrayList<>(), MERCHANT_ID, new HashSet<>()).extras();
 
         OrderItemExtraIngredient extra = extras.get(0);
 
@@ -166,5 +169,31 @@ class AnotaAIExtraIngredientResolverTest {
         assertThat(extra.getCostPerUnit()).isEqualByComparingTo("0.0500");
         assertThat(extra.getIngredientName()).isEqualTo("Açaí Premium");
         assertThat(extra.getIngredientUnit()).isEqualTo("g");
+    }
+
+    @Test
+    @DisplayName("subItem sem ingrediente cadastrado vira registro não-casado (raw name, qtd e preço) e ainda notifica")
+    void shouldRecordUnmatchedSubItemWhenNoIngredientMatches() {
+        given(ingredientRepository.findFirstByCanonicalNameAndMerchantIdOrderByIdAsc(
+                eq("nutella"), any(UUID.class))).willReturn(Optional.empty());
+
+        Set<String> missing = new HashSet<>();
+        ResolvedSubItems resolved = resolver().resolve(
+                List.of(subItem("Nutella", 2, 3.0, 6.0)),
+                new ArrayList<>(), MERCHANT_ID, missing);
+
+        // Nenhum extra é criado (não há ingrediente), mas o subItem não some.
+        assertThat(resolved.extras()).isEmpty();
+        assertThat(resolved.unmatched()).hasSize(1);
+        OrderItemUnmatchedSubItem unmatched = resolved.unmatched().get(0);
+        assertThat(unmatched.getRawName()).isEqualTo("Nutella");
+        assertThat(unmatched.getCanonicalName()).isEqualTo("nutella");
+        assertThat(unmatched.getQuantity()).isEqualTo(2);
+        assertThat(unmatched.getSalePricePerUnit()).isEqualByComparingTo("3.00");
+        assertThat(unmatched.getSalePriceTotal()).isEqualByComparingTo("6.00");
+
+        // A notificação MISSING_INGREDIENT continua sendo criada.
+        then(notificationService).should().createMissingIngredient("Nutella", "nutella", MERCHANT_ID);
+        assertThat(missing).contains("Nutella");
     }
 }

@@ -29,8 +29,10 @@ import type {
   OrderItemRequest,
   OrderItemExtraIngredientRequest,
   OrderItemExtraIngredientResponse,
+  OrderItemUnmatchedSubItemResponse,
   OrderOrigin,
 } from '@/types/Order'
+import type { IngredientRequest } from '@/types/Ingredient'
 import type { IncludeResponse } from '@/types/Product'
 import type { OrderFichaLineRequest } from '@/types/OrderFicha'
 import type { IngredientRequest } from '@/types/Ingredient'
@@ -486,6 +488,59 @@ async function viewDetail(o: OrderResponse) {
 function closeDetail() {
   showDetailModal.value = false
   selectedOrder.value = null
+  cancelCreateIngredient()
+}
+
+// --- Cadastro de ingrediente faltante (subItem não-casado) ---------------
+const creatingIngredientFor = ref<string | null>(null)
+const savingIngredient = ref(false)
+const creatingIngredientError = ref<string | null>(null)
+const ingredientForm = ref<{
+  name: string
+  unit: string
+  costPerUnit: number | null
+  defaultQuantity: number | null
+}>({ name: '', unit: '', costPerUnit: null, defaultQuantity: null })
+
+function startCreateIngredient(u: OrderItemUnmatchedSubItemResponse) {
+  creatingIngredientFor.value = u.id
+  creatingIngredientError.value = null
+  ingredientForm.value = { name: u.rawName, unit: '', costPerUnit: null, defaultQuantity: null }
+}
+
+function cancelCreateIngredient() {
+  creatingIngredientFor.value = null
+  creatingIngredientError.value = null
+}
+
+async function submitCreateIngredient() {
+  const name = ingredientForm.value.name.trim()
+  const unit = ingredientForm.value.unit.trim()
+  const cost = ingredientForm.value.costPerUnit
+  if (!name || !unit || cost == null || Number.isNaN(Number(cost))) {
+    creatingIngredientError.value = 'Preencha nome, unidade e custo.'
+    return
+  }
+  const request: IngredientRequest = { name, unit, costPerUnit: Number(cost) }
+  const qty = ingredientForm.value.defaultQuantity
+  if (qty != null && Number(qty) > 0) request.defaultQuantity = Number(qty)
+
+  savingIngredient.value = true
+  try {
+    await ingredientStore.create(request)
+    creatingIngredientFor.value = null
+    // Recarrega o pedido: o backend filtra o subItem já casado e o botão some.
+    if (selectedOrder.value) {
+      selectedOrder.value = await orderStore.findById(selectedOrder.value.id)
+    }
+    // Mantém os dropdowns de ingredientes atualizados para novos pedidos.
+    void ingredientStore.fetchAll(true)
+    showToast('Ingrediente cadastrado com sucesso!')
+  } catch {
+    creatingIngredientError.value = ingredientStore.error ?? 'Erro ao cadastrar ingrediente'
+  } finally {
+    savingIngredient.value = false
+  }
 }
 async function handleDelete() {
   if (!confirmDeleteId.value) return
@@ -1647,7 +1702,11 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
               </div>
 
               <div
-                v-if="(item.insumos && item.insumos.length) || (item.extraIngredients && item.extraIngredients.length)"
+                v-if="
+                  (item.insumos && item.insumos.length) ||
+                  (item.extraIngredients && item.extraIngredients.length) ||
+                  (item.unmatchedSubItems && item.unmatchedSubItems.length)
+                "
                 style="padding: 12px 16px"
               >
                 <div
@@ -1814,6 +1873,114 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                     >
                       {{ brl(Number(ex.totalCost)) }}
                     </span>
+                  </div>
+                  <!-- SubItems não-casados: aparecem com um botão para cadastrar o
+                       ingrediente faltante. Somem quando o ingrediente é criado. -->
+                  <div
+                    v-for="u in item.unmatchedSubItems ?? []"
+                    :key="'u' + u.id"
+                    :data-testid="'unmatched-' + u.id + '-row'"
+                    :style="{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      padding: '8px 0',
+                      borderTop: `1px dashed ${UI.border}`,
+                    }"
+                  >
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <span
+                        :style="{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: UI.amber,
+                          flexShrink: 0,
+                        }"
+                      />
+                      <span :style="{ fontSize: '12px', color: UI.text }">
+                        {{ u.rawName }}
+                        <span :style="{ color: UI.textMute }">· {{ u.quantity }}</span>
+                      </span>
+                      <span :style="{ fontSize: '11px', color: UI.amber, fontStyle: 'italic' }">
+                        Ingrediente não cadastrado
+                      </span>
+                      <span style="flex: 1" />
+                      <UIBtn
+                        v-if="creatingIngredientFor !== u.id"
+                        variant="secondary"
+                        size="sm"
+                        :data-testid="'unmatched-' + u.id + '-create-button'"
+                        @click="startCreateIngredient(u)"
+                      >
+                        Cadastrar ingrediente
+                      </UIBtn>
+                    </div>
+                    <div
+                      v-if="creatingIngredientFor === u.id"
+                      :data-testid="'unmatched-' + u.id + '-form'"
+                      :style="{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'flex-end',
+                        gap: '8px',
+                        padding: '8px',
+                        background: UI.bg,
+                        borderRadius: '8px',
+                      }"
+                    >
+                      <UIField label="Nome" :width="160">
+                        <UIInput
+                          v-model="ingredientForm.name"
+                          :data-testid="'unmatched-' + u.id + '-name-input'"
+                        />
+                      </UIField>
+                      <UIField label="Unidade" :width="80">
+                        <UIInput
+                          v-model="ingredientForm.unit"
+                          placeholder="g, ml, un"
+                          :data-testid="'unmatched-' + u.id + '-unit-input'"
+                        />
+                      </UIField>
+                      <UIField label="Custo / unidade" :width="100">
+                        <UIInput
+                          v-model.number="ingredientForm.costPerUnit"
+                          type="number"
+                          :data-testid="'unmatched-' + u.id + '-cost-input'"
+                        />
+                      </UIField>
+                      <UIField label="Qtd. padrão" :width="100">
+                        <UIInput
+                          v-model.number="ingredientForm.defaultQuantity"
+                          type="number"
+                          :data-testid="'unmatched-' + u.id + '-quantity-input'"
+                        />
+                      </UIField>
+                      <UIBtn
+                        variant="primary"
+                        size="sm"
+                        :disabled="savingIngredient"
+                        :data-testid="'unmatched-' + u.id + '-save-button'"
+                        @click="submitCreateIngredient"
+                      >
+                        Salvar
+                      </UIBtn>
+                      <UIBtn
+                        variant="secondary"
+                        size="sm"
+                        :data-testid="'unmatched-' + u.id + '-cancel-button'"
+                        @click="cancelCreateIngredient"
+                      >
+                        Cancelar
+                      </UIBtn>
+                      <div
+                        v-if="creatingIngredientError"
+                        :data-testid="'unmatched-' + u.id + '-error'"
+                        :style="{ width: '100%', fontSize: '11px', color: UI.rose }"
+                      >
+                        {{ creatingIngredientError }}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

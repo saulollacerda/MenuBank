@@ -112,10 +112,12 @@ public class AnotaAIOrderImportService {
                         .unitPrice(BigDecimal.valueOf(remoteItem.getPrice()))
                         .unitCost(unitCost)
                         .build();
-                List<OrderItemExtraIngredient> extras = extraIngredientResolver.resolve(
+                com.MenuBank.MenuBank.order.ResolvedSubItems resolved = extraIngredientResolver.resolve(
                         remoteItem.getSubItems(), productIncludes, merchantId, missingIngredientNames);
-                extras.forEach(extra -> extra.setOrderItem(item));
-                item.setExtraIngredients(extras);
+                resolved.extras().forEach(extra -> extra.setOrderItem(item));
+                item.setExtraIngredients(resolved.extras());
+                resolved.unmatched().forEach(unmatched -> unmatched.setOrderItem(item));
+                item.setUnmatchedSubItems(resolved.unmatched());
                 items.add(item);
             }
         }

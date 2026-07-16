@@ -305,8 +305,10 @@ public class OrderService {
     private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct) {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
         UUID orderMerchantId = order.getMerchant().getId();
+        Set<String> registeredCanonicalNames = registeredCanonicalNamesFor(items, orderMerchantId);
         List<OrderItemResponse> itemResponses = items.stream()
-                .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin()))
+                .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin(),
+                        registeredCanonicalNames))
                 .toList();
 
         List<OrderFichaIngredientResponse> orderFichaResponses = toOrderFichaResponses(order);
@@ -388,8 +390,28 @@ public class OrderService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Nomes canônicos dos subItems não-casados que JÁ existem como ingrediente do merchant.
+     * Uma única consulta cobre todos os itens do pedido — usada para derivar quais botões de
+     * "cadastrar ingrediente" já não são necessários (o ingrediente foi criado). Vazio quando
+     * o pedido não tem subItems não-casados, evitando a consulta.
+     */
+    private Set<String> registeredCanonicalNamesFor(List<OrderItem> items, UUID merchantId) {
+        Set<String> canonicalNames = items.stream()
+                .filter(item -> item.getUnmatchedSubItems() != null)
+                .flatMap(item -> item.getUnmatchedSubItems().stream())
+                .map(OrderItemUnmatchedSubItem::getCanonicalName)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (canonicalNames.isEmpty()) {
+            return Set.of();
+        }
+        return new java.util.HashSet<>(
+                ingredientRepository.findExistingCanonicalNames(merchantId, canonicalNames));
+    }
+
     private OrderItemResponse toItemResponse(OrderItem item, UUID merchantId, Map<UUID, List<Include>> includesByProduct,
-                                             OrderOrigin origin) {
+                                             OrderOrigin origin, Set<String> registeredCanonicalNames) {
         List<OrderItemExtraIngredientResponse> extraResponses = item.getExtraIngredients() != null
                 ? item.getExtraIngredients().stream().map(extra -> {
                     BigDecimal totalCost = extra.getQuantity()
@@ -433,6 +455,23 @@ public class OrderService {
                 .map(this::toIncludeResponse)
                 .toList();
 
+        // SubItems não-casados: expostos apenas enquanto não houver um ingrediente com o
+        // mesmo nome canônico. Assim que o lojista cadastra o ingrediente, o registro é
+        // filtrado e o botão de cadastro some no próximo carregamento do pedido.
+        List<OrderItemUnmatchedSubItemResponse> unmatchedResponses = item.getUnmatchedSubItems() != null
+                ? item.getUnmatchedSubItems().stream()
+                    .filter(u -> u.getCanonicalName() == null
+                            || !registeredCanonicalNames.contains(u.getCanonicalName()))
+                    .map(u -> OrderItemUnmatchedSubItemResponse.builder()
+                            .id(u.getId())
+                            .rawName(u.getRawName())
+                            .quantity(u.getQuantity())
+                            .salePricePerUnit(u.getSalePricePerUnit())
+                            .salePriceTotal(u.getSalePriceTotal())
+                            .build())
+                    .toList()
+                : List.of();
+
         // Modelo aditivo: ficha técnica (item.unitCost = mandatory base) + extras.
         BigDecimal unitCost = orderCostCalculatorService.computeItemUnitCost(item, merchantId);
         if (unitCost == null) unitCost = BigDecimal.ZERO;
@@ -448,6 +487,7 @@ public class OrderService {
                 .totalCost(totalCost)
                 .insumos(insumos)
                 .extraIngredients(extraResponses)
+                .unmatchedSubItems(unmatchedResponses)
                 .excludedIncludeIds(List.copyOf(excludedIncludeIds))
                 .build();
     }
