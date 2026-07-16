@@ -589,6 +589,199 @@ describe('OrdersView', () => {
     expect(detail.get('[data-testid="extra-oei1-cost"]').text()).toMatch(/10,00/)
   })
 
+  it('should keep the "(extra)" suffix for an extra the customer paid for', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 23.49,
+        estimatedProfit: 10,
+        marginPct: 45.0,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 500ml',
+            quantity: 1,
+            unitPrice: 21.99,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Pistache',
+                ingredientUnit: 'g',
+                quantity: 30,
+                costPerUnit: 0.05,
+                totalCost: 1.5,
+                salePricePerUnit: 1.5,
+                salePriceTotal: 1.5,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+
+    // Adicional pago mantém o sufixo "(extra)".
+    expect(detail.get('[data-testid="extra-oei1-name"]').text()).toMatch(/Pistache \(extra\)/)
+  })
+
+  it('should drop the "(extra)" suffix for a zero-priced base complement', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 15,
+        estimatedProfit: 5,
+        marginPct: 33.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 330ml',
+            quantity: 1,
+            unitPrice: 15,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Leite Ninho',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.02,
+                totalCost: 1,
+                salePricePerUnit: 0,
+                salePriceTotal: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    const name = detail.get('[data-testid="extra-oei1-name"]').text()
+
+    // Complemento base (preço 0): só o nome, sem "(extra)".
+    expect(name).toMatch(/Leite Ninho/)
+    expect(name).not.toMatch(/\(extra\)/)
+  })
+
+  it('should drop the "(extra)" suffix when the sale price is unknown', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 60,
+        estimatedProfit: 26,
+        marginPct: 43.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Hambúrguer',
+            quantity: 2,
+            unitPrice: 30,
+            unitCost: 17,
+            totalCost: 34,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Bacon',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.1,
+                totalCost: 10,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    const name = detail.get('[data-testid="extra-oei1-name"]').text()
+
+    // Preço desconhecido: sem sufixo enganoso de "(extra)".
+    expect(name).toMatch(/Bacon/)
+    expect(name).not.toMatch(/\(extra\)/)
+  })
+
+  it('should show the item base price composing the total alongside the priced extras', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 23.49,
+        estimatedProfit: 10,
+        marginPct: 45.0,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 500ml',
+            quantity: 1,
+            unitPrice: 21.99,
+            unitCost: 10,
+            totalCost: 10,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Pistache',
+                ingredientUnit: 'g',
+                quantity: 30,
+                costPerUnit: 0.05,
+                totalCost: 1.5,
+                salePricePerUnit: 1.5,
+                salePriceTotal: 1.5,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+
+    // Preço base do produto entra na composição, na coluna "Pago", ao lado dos adicionais.
+    const basePaid = detail.get('[data-testid="item-oi1-base-paid"]')
+    expect(basePaid.text()).toMatch(/21,99/)
+    // O adicional pago segue visível: 21,99 (base) + 1,50 (Pistache) = total do item.
+    expect(detail.get('[data-testid="extra-oei1-paid"]').text()).toMatch(/1,50/)
+  })
+
   it('should render the margin from the backend marginPct, excluding the delivery fee', async () => {
     // Backend: subtotal = 60 - 10 = 50 | profit = 29 | marginPct = 29/50 = 58.00%
     // Recalcular no front sobre o totalValue daria 29/60 = 48,3% (errado).

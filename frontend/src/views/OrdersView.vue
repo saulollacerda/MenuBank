@@ -255,6 +255,18 @@ function paidLabel(ex: OrderItemExtraIngredientResponse): string {
   return brl(paid)
 }
 
+/**
+ * Rótulo do adicional na composição do item. O sufixo "(extra)" só faz sentido
+ * quando o cliente pagou a mais por ele: usa o preço de venda persistido
+ * (`salePriceTotal`), nunca o custo de produção. Preço 0/nulo (complemento base,
+ * ou pedido sem preço conhecido) mostra apenas o nome do ingrediente.
+ */
+function extraLabel(ex: OrderItemExtraIngredientResponse): string {
+  const paid = ex.salePriceTotal
+  if (paid == null || Number(paid) <= 0) return ex.ingredientName
+  return `${ex.ingredientName} (extra)`
+}
+
 const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue' | 'gray'; label: string }> = {
   PENDING: { color: 'amber', label: 'Pendente' },
   READY: { color: 'blue', label: 'Pronto' },
@@ -1522,6 +1534,52 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                     <span style="text-align: right">Pago</span>
                     <span style="text-align: right">Custo</span>
                   </div>
+                  <!-- Preço base do produto: primeira parcela da composição do total.
+                       base + cada adicional pago = valor pago pelo item. -->
+                  <div
+                    :data-testid="'item-' + item.id + '-base-row'"
+                    :style="{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 70px 90px 90px',
+                      gap: '10px',
+                      padding: '6px 0',
+                      fontSize: '12px',
+                      alignItems: 'center',
+                    }"
+                  >
+                    <span style="display: flex; align-items: center; gap: 8px">
+                      <span
+                        :style="{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: UI.violet,
+                        }"
+                      />
+                      Preço base
+                    </span>
+                    <span :style="{ color: UI.textSub }">{{ item.quantity }}</span>
+                    <span
+                      :data-testid="'item-' + item.id + '-base-paid'"
+                      :style="{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: UI.text,
+                        fontWeight: 600,
+                      }"
+                    >
+                      {{ brl(Number(item.unitPrice)) }}
+                    </span>
+                    <span
+                      :style="{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: UI.textSub,
+                      }"
+                    >
+                      {{ brl(Number(item.unitCost)) }}
+                    </span>
+                  </div>
                   <div
                     v-for="ins in item.insumos ?? []"
                     :key="'i' + ins.id"
@@ -1570,7 +1628,10 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                       alignItems: 'center',
                     }"
                   >
-                    <span style="display: flex; align-items: center; gap: 8px">
+                    <span
+                      :data-testid="'extra-' + ex.id + '-name'"
+                      style="display: flex; align-items: center; gap: 8px"
+                    >
                       <span
                         :style="{
                           width: '6px',
@@ -1579,7 +1640,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                           background: UI.textMute,
                         }"
                       />
-                      {{ ex.ingredientName }} (extra)
+                      {{ extraLabel(ex) }}
                     </span>
                     <span :style="{ color: UI.textSub }">
                       {{ ex.quantity }} {{ ex.ingredientUnit }}
