@@ -32,7 +32,6 @@ class SubscriptionServiceTest {
     @Mock
     private InvoiceRepository invoiceRepository;
 
-    @InjectMocks
     private SubscriptionService subscriptionService;
 
     private UUID merchantId;
@@ -40,6 +39,18 @@ class SubscriptionServiceTest {
     @BeforeEach
     void setUp() {
         merchantId = UUID.randomUUID();
+        // No default plan configured — this is the prod-like setup, where sign-up
+        // must always produce a plan-less PENDING subscription.
+        subscriptionService = serviceWithDefaultPlanName(null);
+    }
+
+    private SubscriptionService serviceWithDefaultPlanName(String defaultPlanName) {
+        return new SubscriptionService(
+                subscriptionRepository,
+                planRepository,
+                revenueReportRepository,
+                invoiceRepository,
+                defaultPlanName);
     }
 
     // -------------------------------------------------------------------------
@@ -78,6 +89,104 @@ class SubscriptionServiceTest {
             Subscription saved = captor.getValue();
             assertThat(saved.getCreatedAt()).isNotNull();
             assertThat(saved.getUpdatedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("não deve consultar plano padrão quando a propriedade não está configurada (comportamento de produção)")
+        void shouldNotLookUpDefaultPlanWhenPropertyAbsent() {
+            given(subscriptionRepository.save(any(Subscription.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            subscriptionService.createPendingSubscription(merchantId);
+
+            then(planRepository).should(never()).findByName(anyString());
+        }
+
+        @Test
+        @DisplayName("deve manter plano nulo e status PENDING quando a propriedade está em branco")
+        void shouldKeepPendingWhenPropertyIsBlank() {
+            subscriptionService = serviceWithDefaultPlanName("   ");
+            given(subscriptionRepository.save(any(Subscription.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            subscriptionService.createPendingSubscription(merchantId);
+
+            then(planRepository).should(never()).findByName(anyString());
+            then(subscriptionRepository).should().save(argThat(sub ->
+                    sub.getPlan() == null
+                            && SubscriptionStatus.PENDING.equals(sub.getStatus())
+            ));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // createPendingSubscription() with a configured default plan (dev profile)
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("createPendingSubscription() com plano padrão configurado")
+    class CreateSubscriptionWithDefaultPlan {
+
+        private static final String BASIC_PLAN_NAME = "Básico";
+
+        private Plan basicPlan;
+
+        @BeforeEach
+        void setUp() {
+            basicPlan = Plan.builder()
+                    .id(UUID.randomUUID())
+                    .name(BASIC_PLAN_NAME)
+                    .minRevenue(BigDecimal.ZERO)
+                    .priceMonthly(new BigDecimal("50.00"))
+                    .active(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            subscriptionService = serviceWithDefaultPlanName(BASIC_PLAN_NAME);
+        }
+
+        @Test
+        @DisplayName("deve atribuir o plano Básico com status ACTIVE para uso imediato")
+        void shouldAssignDefaultPlanAsActive() {
+            given(planRepository.findByName(BASIC_PLAN_NAME)).willReturn(Optional.of(basicPlan));
+            given(subscriptionRepository.save(any(Subscription.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            subscriptionService.createPendingSubscription(merchantId);
+
+            then(subscriptionRepository).should().save(argThat(sub ->
+                    merchantId.equals(sub.getMerchantId())
+                            && basicPlan.equals(sub.getPlan())
+                            && SubscriptionStatus.ACTIVE.equals(sub.getStatus())
+                            && sub.getTrialEndsAt() == null
+            ));
+        }
+
+        @Test
+        @DisplayName("não deve definir fim de período, para que a assinatura de desenvolvimento nunca expire")
+        void shouldNotSetPeriodEnd() {
+            ArgumentCaptor<Subscription> captor = ArgumentCaptor.forClass(Subscription.class);
+            given(planRepository.findByName(BASIC_PLAN_NAME)).willReturn(Optional.of(basicPlan));
+            given(subscriptionRepository.save(captor.capture()))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            subscriptionService.createPendingSubscription(merchantId);
+
+            assertThat(captor.getValue().getCurrentPeriodEnd()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve degradar para plano nulo e PENDING quando o plano configurado não existe")
+        void shouldFallBackToPendingWhenConfiguredPlanIsMissing() {
+            given(planRepository.findByName(BASIC_PLAN_NAME)).willReturn(Optional.empty());
+            given(subscriptionRepository.save(any(Subscription.class)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            subscriptionService.createPendingSubscription(merchantId);
+
+            then(subscriptionRepository).should().save(argThat(sub ->
+                    sub.getPlan() == null
+                            && SubscriptionStatus.PENDING.equals(sub.getStatus())
+            ));
         }
     }
 
