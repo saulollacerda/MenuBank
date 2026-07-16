@@ -127,8 +127,14 @@ function timeOf(iso: string): string {
   const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   return `${date} ${time}`
 }
-function pctFmt(v: number): string {
-  return (v * 100).toFixed(1).replace('.', ',') + '%'
+/**
+ * Margem do pedido. A fonte da verdade é o marginPct do backend, apurado sobre
+ * (totalValue - deliveryFee) — a mesma base do lucro. Null quando o backend não
+ * consegue apurá-la (subtotal zero); nesse caso não exibimos 0%, que enganaria.
+ */
+function marginLabel(o: OrderResponse): string {
+  if (o.marginPct == null) return '—'
+  return Number(o.marginPct).toFixed(1).replace('.', ',') + '%'
 }
 
 const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue' | 'gray'; label: string }> = {
@@ -153,10 +159,6 @@ function originColor(o: OrderOrigin | undefined): 'blue' | 'rose' | 'violet' {
 
 function orderTotalCost(o: OrderResponse): number {
   return o.items.reduce((s, it) => s + (Number(it.totalCost) || 0), 0)
-}
-function orderMargin(o: OrderResponse): number {
-  if (!o.totalValue) return 0
-  return Number(o.estimatedProfit) / Number(o.totalValue)
 }
 
 const counts = computed(() => {
@@ -583,13 +585,14 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
               {{ brl(Number(o.estimatedProfit)) }}
             </span>
             <span
+              :data-testid="`order-${o.id}-margin`"
               :style="{
                 textAlign: 'right',
                 color: UI.textSub,
                 fontVariantNumeric: 'tabular-nums',
               }"
             >
-              {{ pctFmt(orderMargin(o)) }}
+              {{ marginLabel(o) }}
             </span>
             <span style="display: flex; gap: 5px; justify-content: flex-end">
               <UIRowAction
@@ -1094,7 +1097,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
               data-testid="order-detail-margin"
               :style="{ fontSize: '11px', color: UI.textSub, marginLeft: '6px' }"
             >
-              {{ pctFmt(orderMargin(selectedOrder)) }}
+              {{ marginLabel(selectedOrder) }}
             </span>
           </div>
         </div>

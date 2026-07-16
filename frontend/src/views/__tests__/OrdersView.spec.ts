@@ -380,6 +380,8 @@ describe('OrdersView', () => {
         status: 'PAID',
         totalValue: 60,
         estimatedProfit: 26,
+        // sem taxa de entrega: 26 / 60 = 43,33% (como o backend envia)
+        marginPct: 43.33,
         items: [
           {
             id: 'oi1',
@@ -417,6 +419,61 @@ describe('OrdersView', () => {
     expect(detail.get('[data-testid="order-detail-total-cost"]').text()).toMatch(/34/)
     expect(detail.get('[data-testid="order-detail-estimated-profit"]').text()).toMatch(/26/)
     expect(detail.get('[data-testid="order-detail-margin"]').text()).toMatch(/43[,.]/)
+  })
+
+  it('should render the margin from the backend marginPct, excluding the delivery fee', async () => {
+    // Backend: subtotal = 60 - 10 = 50 | profit = 29 | marginPct = 29/50 = 58.00%
+    // Recalcular no front sobre o totalValue daria 29/60 = 48,3% (errado).
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 60,
+        deliveryFee: 10,
+        estimatedProfit: 29,
+        marginPct: 58,
+        items: [],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+
+    expect(wrapper.get('[data-testid="order-o1-margin"]').text()).toBe('58,0%')
+
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    expect(detail.get('[data-testid="order-detail-margin"]').text()).toBe('58,0%')
+  })
+
+  it('should render a dash instead of 0% when marginPct is not available', async () => {
+    // totalValue == deliveryFee -> backend não consegue apurar a margem (marginPct null)
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 15,
+        deliveryFee: 15,
+        estimatedProfit: -5,
+        marginPct: null,
+        items: [],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+
+    expect(wrapper.get('[data-testid="order-o1-margin"]').text()).toBe('—')
+
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    expect(detail.get('[data-testid="order-detail-margin"]').text()).toBe('—')
   })
 
   it('should render TEST order status with pt-BR label "Teste"', () => {

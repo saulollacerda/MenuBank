@@ -66,6 +66,8 @@ export interface OrderResponse {
   status: OrderStatus
   totalValue: number
   estimatedProfit: number
+  /** Margem (%) apurada pelo backend sobre (totalValue - deliveryFee). Null quando o subtotal é zero. */
+  marginPct?: number | null
   deliveryFee?: number
   totalCost?: number
   feeId?: string
