@@ -33,6 +33,7 @@ import type {
 } from '@/types/Order'
 import type { IncludeResponse } from '@/types/Product'
 import type { OrderFichaLineRequest } from '@/types/OrderFicha'
+import type { IngredientRequest } from '@/types/Ingredient'
 import { includeService } from '@/services/includeService'
 import { orderFichaService } from '@/services/orderFichaService'
 import { useToast } from '@/composables/useToast'
@@ -172,6 +173,7 @@ async function openFichaModal() {
 function closeFichaModal() {
   showFichaModal.value = false
   fichaError.value = null
+  closeCreateInsumo()
 }
 
 function addFichaLine() {
@@ -188,6 +190,67 @@ function onFichaIngredientChange(index: number) {
   if (!line) return
   const ingredient = ingredientById(line.ingredientId)
   if (ingredient?.defaultQuantity) line.quantity = Number(ingredient.defaultQuantity)
+}
+
+// ---------------------------------------------------------------------------
+// Criação de insumo sem sair do modal
+//
+// Quando o insumo ainda não existe, o lojista pode criá-lo direto na linha:
+// um formulário curto (nome, unidade, custo) reaproveita a mesma action do
+// cadastro de ingredientes. Ao criar, o insumo já entra selecionado na linha.
+// Só um formulário fica aberto por vez (creatingLineIndex).
+// ---------------------------------------------------------------------------
+const creatingLineIndex = ref<number | null>(null)
+const creatingInsumo = ref(false)
+const newInsumoError = ref<string | null>(null)
+const newInsumo = ref<IngredientRequest>({ name: '', unit: '', costPerUnit: 0 })
+
+function toggleCreateInsumo(index: number) {
+  if (creatingLineIndex.value === index) {
+    closeCreateInsumo()
+    return
+  }
+  creatingLineIndex.value = index
+  newInsumoError.value = null
+  newInsumo.value = { name: '', unit: '', costPerUnit: 0 }
+}
+
+function closeCreateInsumo() {
+  creatingLineIndex.value = null
+  newInsumoError.value = null
+}
+
+async function submitNewInsumo() {
+  const index = creatingLineIndex.value
+  if (index === null) return
+  newInsumoError.value = null
+
+  const name = newInsumo.value.name.trim()
+  const unit = newInsumo.value.unit.trim()
+  const costPerUnit = Number(newInsumo.value.costPerUnit)
+  if (!name || !unit) {
+    newInsumoError.value = 'Informe o nome e a unidade do insumo.'
+    return
+  }
+  if (!(costPerUnit >= 0)) {
+    newInsumoError.value = 'Informe um custo válido.'
+    return
+  }
+
+  creatingInsumo.value = true
+  try {
+    const created = await ingredientStore.create({ name, unit, costPerUnit })
+    const line = fichaLines.value[index]
+    if (line) {
+      line.ingredientId = created.id
+      onFichaIngredientChange(index)
+    }
+    closeCreateInsumo()
+  } catch {
+    newInsumoError.value = 'Não foi possível criar o insumo.'
+  } finally {
+    creatingInsumo.value = false
+  }
 }
 
 async function saveFicha() {
@@ -827,6 +890,7 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
       </div>
       <div v-else style="display: flex; flex-direction: column; gap: 16px">
         <div
+          data-testid="order-ficha-intro"
           :style="{
             background: UI.bg,
             border: `1px solid ${UI.border}`,
@@ -840,12 +904,8 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
         >
           <UIIcon name="info" :size="16" />
           <div>
-            Use para o que sai <strong>uma vez por pedido</strong> — sacola de entrega,
-            guardanapo, cupom. O que é consumido por item (copo, colher) deve continuar na
-            ficha técnica do produto, para ser multiplicado pela quantidade.
-            <br />
-            Se hoje a sacola está na ficha do produto, mova-a para cá: senão ela vai
-            continuar sendo contada uma vez por item.
+            Insumos cobrados <strong>uma vez por pedido</strong> (ex.: sacola de entrega),
+            somados ao custo de todo pedido.
           </div>
         </div>
 
@@ -868,56 +928,144 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
           <div
             v-for="(line, i) in fichaLines"
             :key="i"
-            style="display: flex; gap: 8px; align-items: center"
+            style="display: flex; flex-direction: column; gap: 8px"
           >
-            <UISelect
-              :model-value="line.ingredientId"
-              width="100%"
-              :data-testid="`order-ficha-line-${i}-ingredient-select`"
-              @update:model-value="
-                (v) => {
-                  line.ingredientId = v as string
-                  onFichaIngredientChange(i)
-                }
-              "
-            >
-              <option value="">Selecione o insumo…</option>
-              <option v-for="opt in ingredientOptions" :key="opt.id" :value="opt.id">
-                {{ opt.label }}
-              </option>
-            </UISelect>
-            <UIInput
-              v-model.number="line.quantity"
-              type="number"
-              step="any"
-              :width="90"
-              :data-testid="`order-ficha-line-${i}-quantity-input`"
-            />
-            <span
-              :style="{ fontSize: '12px', color: UI.textMute, minWidth: '64px', textAlign: 'right' }"
-              :data-testid="`order-ficha-line-${i}-cost`"
-            >
-              {{
-                brl(
-                  Number(ingredientById(line.ingredientId)?.costPerUnit ?? 0) *
-                    Number(line.quantity || 0),
-                )
-              }}
-            </span>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <UISelect
+                :model-value="line.ingredientId"
+                width="100%"
+                :data-testid="`order-ficha-line-${i}-ingredient-select`"
+                @update:model-value="
+                  (v) => {
+                    line.ingredientId = v as string
+                    onFichaIngredientChange(i)
+                  }
+                "
+              >
+                <option value="">Selecione o insumo…</option>
+                <option v-for="opt in ingredientOptions" :key="opt.id" :value="opt.id">
+                  {{ opt.label }}
+                </option>
+              </UISelect>
+              <UIInput
+                v-model.number="line.quantity"
+                type="number"
+                step="any"
+                :width="90"
+                :data-testid="`order-ficha-line-${i}-quantity-input`"
+              />
+              <span
+                :style="{ fontSize: '12px', color: UI.textMute, minWidth: '64px', textAlign: 'right' }"
+                :data-testid="`order-ficha-line-${i}-cost`"
+              >
+                {{
+                  brl(
+                    Number(ingredientById(line.ingredientId)?.costPerUnit ?? 0) *
+                      Number(line.quantity || 0),
+                  )
+                }}
+              </span>
+              <div
+                :style="{
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: creatingLineIndex === i ? UI.text : UI.textMute,
+                }"
+                title="Criar novo insumo"
+                :data-testid="`order-ficha-line-${i}-create-toggle`"
+                @click="toggleCreateInsumo(i)"
+              >
+                <UIIcon name="plus" :size="15" />
+              </div>
+              <div
+                :style="{
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: UI.rose2,
+                }"
+                :data-testid="`order-ficha-line-${i}-remove-button`"
+                @click="removeFichaLine(i)"
+              >
+                <UIIcon name="trash" :size="15" />
+              </div>
+            </div>
+
+            <!-- Formulário inline: cria um insumo e o seleciona nesta linha. -->
             <div
+              v-if="creatingLineIndex === i"
               :style="{
-                width: '30px',
-                height: '30px',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: UI.rose2,
+                flexDirection: 'column',
+                gap: '8px',
+                padding: '10px',
+                background: UI.bg,
+                border: `1px solid ${UI.border}`,
+                borderRadius: '10px',
               }"
-              :data-testid="`order-ficha-line-${i}-remove-button`"
-              @click="removeFichaLine(i)"
             >
-              <UIIcon name="trash" :size="15" />
+              <span :style="{ fontSize: '12px', color: UI.textSub, fontWeight: 600 }">
+                Novo insumo
+              </span>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <UIInput
+                  v-model="newInsumo.name"
+                  placeholder="Nome (ex.: Sacola)"
+                  width="100%"
+                  data-testid="order-ficha-create-name"
+                />
+                <UIInput
+                  v-model="newInsumo.unit"
+                  placeholder="Un."
+                  :width="80"
+                  data-testid="order-ficha-create-unit"
+                />
+                <UIInput
+                  v-model.number="newInsumo.costPerUnit"
+                  type="number"
+                  step="any"
+                  placeholder="Custo"
+                  :width="90"
+                  data-testid="order-ficha-create-cost"
+                />
+              </div>
+              <div
+                v-if="newInsumoError"
+                data-testid="order-ficha-create-error"
+                :style="{
+                  color: UI.rose2,
+                  fontSize: '12px',
+                }"
+              >
+                {{ newInsumoError }}
+              </div>
+              <div style="display: flex; gap: 8px; justify-content: flex-end">
+                <UIBtn
+                  size="sm"
+                  variant="secondary"
+                  data-testid="order-ficha-create-cancel"
+                  @click="closeCreateInsumo"
+                >
+                  Cancelar
+                </UIBtn>
+                <UIBtn
+                  size="sm"
+                  variant="primary"
+                  icon="check"
+                  :disabled="creatingInsumo"
+                  data-testid="order-ficha-create-submit"
+                  @click="submitNewInsumo"
+                >
+                  Criar e selecionar
+                </UIBtn>
+              </div>
             </div>
           </div>
 
