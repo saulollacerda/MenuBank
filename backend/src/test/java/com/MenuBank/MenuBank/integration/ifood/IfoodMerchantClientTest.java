@@ -91,6 +91,25 @@ class IfoodMerchantClientTest {
     }
 
     @Test
+    @DisplayName("getStatus normaliza validations ausente para lista vazia (nunca null ao frontend)")
+    void getStatus_shouldNormalizeMissingValidationsToEmptyList() {
+        server.expect(requestTo(BASE_URL + "/merchants/" + MID + "/status"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        [
+                          {"operation":"DELIVERY","salesChannel":"IFOOD","available":true,"state":"OK",
+                           "message":null}
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        List<IfoodMerchantStatusResponse> status = client.getStatus("tok", MID);
+
+        assertThat(status).hasSize(1);
+        assertThat(status.get(0).validations()).isNotNull().isEmpty();
+        server.verify();
+    }
+
+    @Test
     @DisplayName("getInterruptions retorna a lista de pausas")
     void getInterruptions_shouldReturnList() {
         server.expect(requestTo(BASE_URL + "/merchants/" + MID + "/interruptions"))

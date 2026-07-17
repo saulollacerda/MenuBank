@@ -18,6 +18,16 @@ public record IfoodMerchantStatusResponse(
         Message message,
         List<Validation> validations) {
 
+    /**
+     * iFood omits {@code validations} for some operations, which would leave the record
+     * component null. The frontend types it as a non-optional array, so we normalize a
+     * missing/null list to an empty one here. {@code message} stays nullable — the
+     * frontend guards it.
+     */
+    public IfoodMerchantStatusResponse {
+        validations = validations != null ? validations : List.of();
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Message(String title, String subtitle) {
     }
