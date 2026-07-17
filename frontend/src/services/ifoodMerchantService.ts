@@ -37,7 +37,8 @@ export interface MerchantStatus {
   available: boolean
   state: MerchantState
   message: MerchantMessage | null
-  validations: MerchantValidation[]
+  /** Older backend versions may omit this; treat null/undefined as an empty list. */
+  validations: MerchantValidation[] | null
 }
 
 export interface MerchantInterruption {
@@ -89,6 +90,25 @@ export function merchantErrorMessage(
     return detail
   }
   return fallback
+}
+
+/**
+ * Converts a browser `datetime-local` value ("YYYY-MM-DDTHH:mm[:ss]") into a
+ * timezone-aware ISO-8601 string with seconds and the browser's local UTC
+ * offset (e.g. "2026-07-17T14:30:00-03:00"). iFood expects offset-aware
+ * timestamps; forwarding the naive local value risks a 400 or a silent UTC
+ * shift for merchants outside UTC.
+ */
+export function toIsoWithOffset(localDateTime: string): string {
+  if (!localDateTime) return localDateTime
+  const withSeconds = localDateTime.length === 16 ? `${localDateTime}:00` : localDateTime
+  // getTimezoneOffset returns minutes behind UTC (e.g. +180 for UTC-3).
+  const offsetMinutes = -new Date(localDateTime).getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  const hours = String(Math.floor(abs / 60)).padStart(2, '0')
+  const minutes = String(abs % 60).padStart(2, '0')
+  return `${withSeconds}${sign}${hours}:${minutes}`
 }
 
 export const ifoodMerchantService = {

@@ -4,6 +4,7 @@ import { UI, UIBtn, UIModal, UIPill } from '@/design'
 import {
   ifoodMerchantService,
   merchantErrorMessage,
+  toIsoWithOffset,
   type DayOfWeek,
   type MerchantDetails,
   type MerchantInterruption,
@@ -128,8 +129,9 @@ async function submitPause() {
   try {
     await ifoodMerchantService.createInterruption({
       description: form.value.description.trim(),
-      start: form.value.start,
-      end: form.value.end,
+      // datetime-local values are naive local times; iFood needs offset-aware ISO-8601.
+      start: toIsoWithOffset(form.value.start),
+      end: toIsoWithOffset(form.value.end),
     })
     form.value = { description: '', start: '', end: '' }
     await loadPauses()
@@ -399,7 +401,7 @@ onMounted(loadStatus)
             <div :style="{ fontSize: '12px', color: UI.textSub }">{{ op.message.subtitle }}</div>
           </div>
           <div
-            v-for="validation in op.validations.filter((v) => v.message)"
+            v-for="validation in (op.validations ?? []).filter((v) => v.message)"
             :key="validation.id"
             :style="{ marginTop: '8px', paddingLeft: '10px', borderLeft: `2px solid ${UI.border}` }"
           >

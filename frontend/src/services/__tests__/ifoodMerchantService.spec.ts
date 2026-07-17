@@ -1,5 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ifoodMerchantService, merchantErrorMessage } from '@/services/ifoodMerchantService'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  ifoodMerchantService,
+  merchantErrorMessage,
+  toIsoWithOffset,
+} from '@/services/ifoodMerchantService'
 import api from '@/services/api'
 
 vi.mock('@/services/api', () => ({
@@ -99,6 +103,35 @@ describe('ifoodMerchantService', () => {
 
     expect(api.put).toHaveBeenCalledWith('/integrations/ifood/merchant/opening-hours', { shifts })
     expect(result.shifts).toEqual(shifts)
+  })
+})
+
+describe('toIsoWithOffset', () => {
+  const originalOffset = Date.prototype.getTimezoneOffset
+
+  afterEach(() => {
+    Date.prototype.getTimezoneOffset = originalOffset
+  })
+
+  it('serializes a datetime-local value to ISO-8601 with seconds and the local UTC offset (BRT)', () => {
+    // BRT is UTC-3; getTimezoneOffset returns +180 minutes for it.
+    Date.prototype.getTimezoneOffset = vi.fn(() => 180)
+
+    expect(toIsoWithOffset('2026-07-17T14:30')).toBe('2026-07-17T14:30:00-03:00')
+  })
+
+  it('supports positive offsets and half-hour zones', () => {
+    // UTC+5:30 (India) -> getTimezoneOffset returns -330 minutes.
+    Date.prototype.getTimezoneOffset = vi.fn(() => -330)
+
+    expect(toIsoWithOffset('2026-07-17T09:00')).toBe('2026-07-17T09:00:00+05:30')
+  })
+
+  it('keeps existing seconds and returns empty input unchanged', () => {
+    Date.prototype.getTimezoneOffset = vi.fn(() => 180)
+
+    expect(toIsoWithOffset('2026-07-17T14:30:45')).toBe('2026-07-17T14:30:45-03:00')
+    expect(toIsoWithOffset('')).toBe('')
   })
 })
 

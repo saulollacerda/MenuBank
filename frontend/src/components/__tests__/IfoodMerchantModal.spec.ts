@@ -126,12 +126,15 @@ describe('IfoodMerchantModal', () => {
     expect(rows[0]!.text()).toContain('Manutenção da cozinha')
   })
 
-  it('cria uma pausa chamando o serviço com os valores do formulário', async () => {
+  it('cria uma pausa serializando os datetimes com offset local (ISO-8601)', async () => {
+    // Pin the local zone to BRT (UTC-3) so the serialized offset is deterministic.
+    const originalOffset = Date.prototype.getTimezoneOffset
+    Date.prototype.getTimezoneOffset = vi.fn(() => 180)
     mockedService.createInterruption.mockResolvedValue({
       id: 'i-2',
       description: 'Almoço',
-      start: '2026-07-21T12:00',
-      end: '2026-07-21T13:00',
+      start: '2026-07-21T12:00:00-03:00',
+      end: '2026-07-21T13:00:00-03:00',
     })
     const wrapper = await mountModal()
     await wrapper.find('[data-testid="tab-pauses"]').trigger('click')
@@ -145,9 +148,10 @@ describe('IfoodMerchantModal', () => {
 
     expect(mockedService.createInterruption).toHaveBeenCalledWith({
       description: 'Almoço',
-      start: '2026-07-21T12:00',
-      end: '2026-07-21T13:00',
+      start: '2026-07-21T12:00:00-03:00',
+      end: '2026-07-21T13:00:00-03:00',
     })
+    Date.prototype.getTimezoneOffset = originalOffset
   })
 
   it('mostra a mensagem de sobreposição (409) ao criar pausa', async () => {
