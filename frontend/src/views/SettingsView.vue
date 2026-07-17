@@ -13,6 +13,7 @@ import { clearPendingIfoodAuth, hasPendingIfoodAuth } from '@/composables/useIfo
 import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
 import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
 import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
+import IfoodMerchantModal from '@/components/IfoodMerchantModal.vue'
 
 const authStore = useAuthStore()
 const anotaAIStore = useAnotaAIStore()
@@ -103,6 +104,7 @@ const ifoodModal = ref(false)
 const ifoodResume = ref(false)
 const ifoodCatalogModal = ref(false)
 const ifoodSyncModal = ref(false)
+const ifoodMerchantModal = ref(false)
 
 const ifoodConnected = computed(() => ifoodStatus.value?.connected ?? false)
 // Linking is blocked server-side while the integration awaits iFood homologation.
@@ -735,6 +737,46 @@ onMounted(async () => {
                   {{ ifoodStatus?.orderSyncEnabled ? 'Gerenciar' : 'Ativar' }}
                 </UIBtn>
               </div>
+
+              <!-- Minha loja no iFood — status, pausas e horários (Merchant) -->
+              <div
+                v-if="ifoodConnected"
+                data-testid="ifood-stage-merchant"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    background: UI.blueBg,
+                    color: UI.blue2,
+                  }"
+                >
+                  <UIIcon name="home" :size="12" />
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Minha loja no iFood</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Veja o status da loja, gerencie pausas e ajuste os horários de funcionamento.
+                  </div>
+                </div>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-merchant-action"
+                  @click="ifoodMerchantModal = true"
+                >
+                  Gerenciar
+                </UIBtn>
+              </div>
               </template>
             </div>
 
@@ -1064,6 +1106,10 @@ onMounted(async () => {
               :catalog-imported="!!ifoodStatus?.catalogImportedAt"
               @updated="handleIfoodSyncUpdated"
               @close="ifoodSyncModal = false"
+            />
+            <IfoodMerchantModal
+              v-if="ifoodMerchantModal"
+              @close="ifoodMerchantModal = false"
             />
           </div>
         </UICard>
