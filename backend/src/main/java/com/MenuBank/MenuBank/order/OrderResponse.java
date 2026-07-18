@@ -21,6 +21,7 @@ public class OrderResponse {
     private BigDecimal totalValue;
     private BigDecimal estimatedProfit;
     private BigDecimal deliveryFee;
+    private BigDecimal serviceFee;
     private BigDecimal totalCost;
     private UUID feeId;
     private String feeName;

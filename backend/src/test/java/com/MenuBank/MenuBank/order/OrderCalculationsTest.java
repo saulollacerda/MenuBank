@@ -42,6 +42,16 @@ class OrderCalculationsTest {
                 .build();
     }
 
+    private Order orderWithServiceFee(BigDecimal totalValue, BigDecimal deliveryFee,
+                                      BigDecimal serviceFee, BigDecimal totalCost) {
+        return Order.builder()
+                .totalValue(totalValue)
+                .deliveryFee(deliveryFee)
+                .serviceFee(serviceFee)
+                .totalCost(totalCost)
+                .build();
+    }
+
     @Test
     @DisplayName("lucro = totalValue − deliveryFee − totalCost")
     void shouldSubtractDeliveryAndCostFromTotalValue() {
@@ -137,6 +147,61 @@ class OrderCalculationsTest {
         BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
 
         assertThat(profit).isEqualByComparingTo("33.00");
+    }
+
+    // -------------------------------------------------------------------------
+    // serviceFee (taxa de serviço repassada ao iFood via Anota.AI)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("lucro = totalValue − deliveryFee − serviceFee − totalCost")
+    void shouldSubtractServiceFeeFromProfit() {
+        Order o = orderWithServiceFee(new BigDecimal("50.99"), new BigDecimal("5.00"),
+                new BigDecimal("0.99"), new BigDecimal("12.00"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 50.99 − 5.00 − 0.99 − 12.00 = 33.00
+        assertThat(profit).isEqualByComparingTo("33.00");
+    }
+
+    @Test
+    @DisplayName("trata serviceFee null como zero (pedidos sem taxa de serviço)")
+    void shouldTreatNullServiceFeeAsZero() {
+        Order o = orderWithServiceFee(new BigDecimal("50.00"), new BigDecimal("5.00"),
+                null, new BigDecimal("12.00"));
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // 50.00 − 5.00 − 0 − 12.00 = 33.00
+        assertThat(profit).isEqualByComparingTo("33.00");
+    }
+
+    @Test
+    @DisplayName("base da taxa de meio de pagamento exclui a taxa de serviço")
+    void shouldApplyPaymentFeeOnSubtotalExcludingServiceFee() {
+        Order o = Order.builder()
+                .totalValue(new BigDecimal("111.00"))
+                .deliveryFee(new BigDecimal("10.00"))
+                .serviceFee(new BigDecimal("1.00"))
+                .totalCost(BigDecimal.ZERO)
+                .fee(Fee.builder().name("Pix").feeRate(new BigDecimal("10")).build())
+                .build();
+
+        BigDecimal profit = OrderCalculations.calculateEstimatedProfit(o);
+
+        // subtotal = 111 − 10 − 1 = 100; taxa = 100 × 10% = 10; lucro = 100 − 0 − 10 = 90.00
+        assertThat(profit).isEqualByComparingTo("90.00");
+    }
+
+    @Test
+    @DisplayName("calculateProductsSubtotal exclui deliveryFee e serviceFee do subtotal")
+    void calculateProductsSubtotal_shouldExcludeDeliveryAndServiceFee() {
+        BigDecimal subtotal = OrderCalculations.calculateProductsSubtotal(
+                new BigDecimal("50.99"), new BigDecimal("5.00"), new BigDecimal("0.99"));
+
+        // 50.99 − 5.00 − 0.99 = 45.00
+        assertThat(subtotal).isEqualByComparingTo("45.00");
     }
 
     // -------------------------------------------------------------------------

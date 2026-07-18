@@ -418,6 +418,47 @@ class AnotaAISyncServiceTest {
         // estimatedProfit = (totalValue − deliveryFee) − totalCost = (25.80 − 6.00) − 0 = 19.80
         assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("19.80");
         assertThat(saved.getTotalCost()).isEqualByComparingTo("0");
+        // sem additionalFees no payload, serviceFee fica nulo — comportamento inalterado
+        assertThat(saved.getServiceFee()).isNull();
+    }
+
+    @Test
+    @DisplayName("importOrder deve persistir a taxa de serviço (additionalFees) e excluí-la do lucro")
+    void importOrder_shouldPersistServiceFeeAndExcludeFromProfit() {
+        // Pedidos do canal iFood via Anota.AI trazem additionalFees (ex.: RESTAURANT_SERVICE_FEE,
+        // "Taxa de serviço"). Esse valor está incluso no detail.total mas é repasse ao iFood —
+        // não é receita do restaurante e deve ser excluído do lucro.
+        Product mappedProduct = Product.builder()
+                .id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).name("Açaí 500ml")
+                .status(ProductStatus.ACTIVE).externalId("65d4a428f784bb001956f919").build();
+
+        given(merchantRepository.findById(merchantId)).willReturn(Optional.of(merchant));
+        given(anotaAIClient.getOrderList("test-api-key")).willReturn(buildOrderList("order-1"));
+        given(orderRepository.existsByExternalOrderIdAndMerchantId("order-1", merchantId)).willReturn(false);
+        given(anotaAIClient.getOrderDetail("test-api-key", "order-1"))
+                .willReturn(raw(buildOrderDetailWithServiceFee("order-1", 26.79, 6.00, 0.99)));
+        given(customerRepository.findByPhoneAndMerchantId("43123456789", merchantId))
+                .willReturn(Optional.of(Customer.builder().id(UUID.randomUUID()).merchant(Merchant.builder().id(merchantId).build()).build()));
+        given(feeRepository.findByNameIgnoreCaseAndMerchantId("money", merchantId))
+                .willReturn(Optional.empty());
+        given(productRepository.findByExternalIdAndMerchantId("65d4a428f784bb001956f919", merchantId))
+                .willReturn(Optional.of(mappedProduct));
+        given(includeRepository.findByProductIdAndProductMerchantId(mappedProduct.getId(), merchantId))
+                .willReturn(List.of());
+        given(orderCostCalculatorService.computeOrderTotalCost(any(Order.class)))
+                .willReturn(BigDecimal.ZERO);
+
+        syncService.syncOrders(merchantId);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        Order saved = orderCaptor.getValue();
+        assertThat(saved.getServiceFee()).isEqualByComparingTo("0.99");
+        assertThat(saved.getDeliveryFee()).isEqualByComparingTo("6.00");
+        assertThat(saved.getTotalValue()).isEqualByComparingTo("26.79");
+        // estimatedProfit = totalValue − deliveryFee − serviceFee − totalCost
+        //                 = 26.79 − 6.00 − 0.99 − 0 = 19.80
+        assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("19.80");
     }
 
     @Test
@@ -1228,6 +1269,17 @@ class AnotaAISyncServiceTest {
         AnotaAIOrderDetailResponse response = buildOrderDetail(orderId);
         response.getInfo().setTotal(total);
         response.getInfo().setDeliveryFee(deliveryFee);
+        return response;
+    }
+
+    private AnotaAIOrderDetailResponse buildOrderDetailWithServiceFee(String orderId, double total,
+                                                                      double deliveryFee, double serviceFeeValue) {
+        AnotaAIOrderDetailResponse response = buildOrderDetailWithDeliveryFee(orderId, total, deliveryFee);
+        AnotaAIOrderDetailResponse.AdditionalFee fee = new AnotaAIOrderDetailResponse.AdditionalFee();
+        fee.setType("RESTAURANT_SERVICE_FEE_INADIMPLENCIA");
+        fee.setDescription("Taxa de serviço");
+        fee.setValue(serviceFeeValue);
+        response.getInfo().setAdditionalFees(List.of(fee));
         return response;
     }
 
