@@ -2,8 +2,13 @@
 import { useAttrs } from 'vue'
 import { UI } from './tokens'
 import UIIcon from './UIIcon.vue'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 defineOptions({ inheritAttrs: false })
+
+// Lock page scroll while the modal is mounted so long content scrolls inside
+// the panel instead of the page behind it.
+useBodyScrollLock()
 
 withDefaults(
   defineProps<{
@@ -21,10 +26,12 @@ const attrs = useAttrs()
 </script>
 
 <template>
+  <!-- Intentionally no backdrop @click handler: the modal must close only via
+       the explicit X button so accidental backdrop clicks (or a text selection
+       that starts inside and ends outside) never discard form state. -->
   <div
     v-bind="attrs"
     class="ui-modal-backdrop"
-    @click.self="$emit('close')"
   >
     <div
       class="ui-modal"
@@ -73,6 +80,7 @@ const attrs = useAttrs()
             cursor: 'pointer',
             background: UI.bg,
           }"
+          data-testid="ui-modal-close"
           @click="$emit('close')"
         >
           <UIIcon name="x" :size="14" />

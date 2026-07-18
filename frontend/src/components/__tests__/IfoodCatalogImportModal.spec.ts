@@ -169,4 +169,12 @@ describe('IfoodCatalogImportModal', () => {
 
     expect(wrapper.emitted('close')).toBeTruthy()
   })
+
+  it('clicar no backdrop não emite close', async () => {
+    const wrapper = mountModal()
+
+    await wrapper.get('.ui-modal-backdrop').trigger('click')
+
+    expect(wrapper.emitted('close')).toBeFalsy()
+  })
 })
