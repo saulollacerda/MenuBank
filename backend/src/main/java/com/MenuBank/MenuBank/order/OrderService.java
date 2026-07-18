@@ -325,7 +325,7 @@ public class OrderService {
         // Lucro: recalcula sempre a partir dos valores do pedido para refletir a fórmula atual,
         // usando o totalCost resolvido acima (snapshot ou fallback) e a taxa de meio de pagamento.
         BigDecimal estimatedProfit = OrderCalculations.calculateEstimatedProfit(
-                order.getTotalValue(), order.getDeliveryFee(), totalCost,
+                order.getTotalValue(), order.getDeliveryFee(), order.getServiceFee(), totalCost,
                 fee != null ? fee.getFeeRate() : null);
 
         return OrderResponse.builder()
@@ -337,13 +337,15 @@ public class OrderService {
                 .totalValue(order.getTotalValue())
                 .estimatedProfit(estimatedProfit)
                 .deliveryFee(order.getDeliveryFee())
+                .serviceFee(order.getServiceFee())
                 .totalCost(totalCost)
                 .feeId(fee != null ? fee.getId() : null)
                 .feeName(fee != null ? fee.getName() : null)
                 .feeRate(fee != null ? fee.getFeeRate() : null)
                 .items(itemResponses)
                 .origin(order.getOrigin())
-                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue(), order.getDeliveryFee()))
+                .marginPct(computeMarginPct(estimatedProfit, order.getTotalValue(),
+                        order.getDeliveryFee(), order.getServiceFee()))
                 .orderFicha(orderFichaResponses)
                 .orderFichaCost(orderFichaCost)
                 .build();
@@ -375,12 +377,13 @@ public class OrderService {
     }
 
     /**
-     * Margem (%) do pedido sobre o subtotal dos produtos ({@code totalValue − deliveryFee}),
-     * mesma base usada no cálculo do lucro. A taxa de entrega é excluída do denominador
-     * porque já está excluída do numerador.
+     * Margem (%) do pedido sobre o subtotal dos produtos ({@code totalValue − deliveryFee −
+     * serviceFee}), mesma base usada no cálculo do lucro. A taxa de entrega e a taxa de serviço
+     * são excluídas do denominador porque já estão excluídas do numerador.
      */
-    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue, BigDecimal deliveryFee) {
-        BigDecimal base = OrderCalculations.calculateProductsSubtotal(totalValue, deliveryFee);
+    private BigDecimal computeMarginPct(BigDecimal profit, BigDecimal totalValue,
+                                        BigDecimal deliveryFee, BigDecimal serviceFee) {
+        BigDecimal base = OrderCalculations.calculateProductsSubtotal(totalValue, deliveryFee, serviceFee);
         if (base.signum() == 0 || profit == null) {
             return null;
         }

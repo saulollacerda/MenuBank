@@ -35,7 +35,7 @@ public class AnotaAIClient {
     /**
      * Fetches the order detail keeping the raw JSON body alongside the parsed DTO —
      * the raw payload is stored for financial auditing and preserves fields the DTO
-     * ignores (e.g. {@code additionalFees}, {@code discounts}).
+     * ignores (e.g. {@code discounts}).
      */
     public RawJsonResponse<AnotaAIOrderDetailResponse> getOrderDetail(String apiKey, String orderId) {
         String body = ordersClient.get()

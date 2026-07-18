@@ -54,6 +54,15 @@ public class Order {
     @Column(name = "delivery_fee", precision = 19, scale = 4)
     private BigDecimal deliveryFee;
 
+    /**
+     * Taxa de serviço repassada ao iFood (pedidos do canal iFood importados via Anota.AI,
+     * campo {@code additionalFees} do payload). Está inclusa no {@code totalValue}, mas não
+     * é receita do restaurante — é deduzida do lucro e excluída da base da margem, como a
+     * {@link #deliveryFee}. Nula em pedidos manuais e em pedidos sem taxa de serviço.
+     */
+    @Column(name = "service_fee", precision = 19, scale = 4)
+    private BigDecimal serviceFee;
+
     @Column(name = "total_cost", precision = 19, scale = 4)
     private BigDecimal totalCost;
 

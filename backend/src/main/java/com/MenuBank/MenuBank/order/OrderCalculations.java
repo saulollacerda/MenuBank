@@ -36,19 +36,20 @@ public final class OrderCalculations {
     }
 
     /**
-     * Lucro estimado do pedido = (totalValue − deliveryFee) − totalCost − taxa.
+     * Lucro estimado do pedido = (totalValue − deliveryFee − serviceFee) − totalCost − taxa.
      * <p>
-     * Todos os campos podem ser {@code null}; tratados como zero. A taxa de entrega
-     * é deduzida porque é repassada ao entregador/plataforma e não fica com o
-     * restaurante. A taxa de meio de pagamento ({@code fee.feeRate}, em %) incide
-     * sobre o subtotal dos produtos ({@code totalValue − deliveryFee}) e também é
+     * Todos os campos podem ser {@code null}; tratados como zero. A taxa de entrega e a taxa
+     * de serviço ({@code serviceFee}, repassada ao iFood em pedidos importados via Anota.AI)
+     * são deduzidas porque são repassadas à plataforma/entregador e não ficam com o
+     * restaurante. A taxa de meio de pagamento ({@code fee.feeRate}, em %) incide sobre o
+     * subtotal dos produtos ({@code totalValue − deliveryFee − serviceFee}) e também é
      * deduzida, pois é cobrada pela plataforma/adquirente.
      */
     public static BigDecimal calculateEstimatedProfit(Order order) {
         if (order == null) return BigDecimal.ZERO;
         BigDecimal feeRate = order.getFee() != null ? order.getFee().getFeeRate() : null;
         return calculateEstimatedProfit(order.getTotalValue(), order.getDeliveryFee(),
-                order.getTotalCost(), feeRate);
+                order.getServiceFee(), order.getTotalCost(), feeRate);
     }
 
     /**
@@ -63,17 +64,31 @@ public final class OrderCalculations {
     }
 
     /**
+     * @deprecated use {@link #calculateEstimatedProfit(BigDecimal, BigDecimal, BigDecimal, BigDecimal, BigDecimal)}
+     * para incluir a taxa de serviço. Mantido para compatibilidade — assume {@code serviceFee = 0}.
+     */
+    @Deprecated
+    public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
+                                                       BigDecimal deliveryFee,
+                                                       BigDecimal totalCost,
+                                                       BigDecimal feeRate) {
+        return calculateEstimatedProfit(totalValue, deliveryFee, null, totalCost, feeRate);
+    }
+
+    /**
      * Overload usado em {@code toResponse}, quando {@code totalCost} já foi resolvido
      * a partir do snapshot ou recalculado a partir dos items (fallback legado).
      *
+     * @param serviceFee taxa de serviço repassada ao iFood; {@code null}/zero = sem taxa.
      * @param feeRate percentual da taxa de meio de pagamento (ex.: {@code 2.5} = 2,5%);
      *                {@code null}/zero = sem taxa.
      */
     public static BigDecimal calculateEstimatedProfit(BigDecimal totalValue,
                                                        BigDecimal deliveryFee,
+                                                       BigDecimal serviceFee,
                                                        BigDecimal totalCost,
                                                        BigDecimal feeRate) {
-        BigDecimal subtotal = calculateProductsSubtotal(totalValue, deliveryFee);
+        BigDecimal subtotal = calculateProductsSubtotal(totalValue, deliveryFee, serviceFee);
         BigDecimal feeAmount = subtotal
                 .multiply(nz(feeRate))
                 .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
@@ -81,15 +96,25 @@ public final class OrderCalculations {
     }
 
     /**
-     * Subtotal dos produtos do pedido = {@code totalValue − deliveryFee}.
+     * @deprecated use {@link #calculateProductsSubtotal(BigDecimal, BigDecimal, BigDecimal)}
+     * para excluir também a taxa de serviço. Mantido para compatibilidade — assume {@code serviceFee = 0}.
+     */
+    @Deprecated
+    public static BigDecimal calculateProductsSubtotal(BigDecimal totalValue, BigDecimal deliveryFee) {
+        return calculateProductsSubtotal(totalValue, deliveryFee, null);
+    }
+
+    /**
+     * Subtotal dos produtos do pedido = {@code totalValue − deliveryFee − serviceFee}.
      * <p>
      * É a base sobre a qual o lucro é apurado, e portanto também o denominador
-     * da margem: a taxa de entrega é repassada e não é receita do restaurante,
-     * logo não pode inflar o denominador enquanto o numerador (lucro) já a exclui.
-     * Ambos os campos podem ser {@code null}; tratados como zero.
+     * da margem: a taxa de entrega e a taxa de serviço são repassadas e não são receita
+     * do restaurante, logo não podem inflar o denominador enquanto o numerador (lucro)
+     * já as exclui. Todos os campos podem ser {@code null}; tratados como zero.
      */
-    public static BigDecimal calculateProductsSubtotal(BigDecimal totalValue, BigDecimal deliveryFee) {
-        return nz(totalValue).subtract(nz(deliveryFee));
+    public static BigDecimal calculateProductsSubtotal(BigDecimal totalValue, BigDecimal deliveryFee,
+                                                       BigDecimal serviceFee) {
+        return nz(totalValue).subtract(nz(deliveryFee)).subtract(nz(serviceFee));
     }
 
     private static BigDecimal nz(BigDecimal value) {

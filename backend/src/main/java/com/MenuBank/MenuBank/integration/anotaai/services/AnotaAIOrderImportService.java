@@ -126,6 +126,9 @@ public class AnotaAIOrderImportService {
         // detail.total da Anota.AI já inclui a taxa de entrega (item.total + deliveryFee = detail.total).
         // Usar diretamente — somar deliveryFee inflaria o totalValue em duplicidade.
         BigDecimal totalValue = BigDecimal.valueOf(detail.getTotal());
+        // Taxa de serviço repassada ao iFood (additionalFees). Está inclusa no total, mas não é
+        // receita do restaurante — persistida para ser deduzida do lucro/margem.
+        BigDecimal serviceFee = sumAdditionalFees(detail.getAdditionalFees());
 
         Order order = Order.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
@@ -135,6 +138,7 @@ public class AnotaAIOrderImportService {
                 .status(OrderStatus.PAID)
                 .totalValue(totalValue)
                 .deliveryFee(deliveryFee)
+                .serviceFee(serviceFee)
                 .origin(origin)
                 .externalOrderId(detail.getId())
                 .items(items)
@@ -168,6 +172,19 @@ public class AnotaAIOrderImportService {
             log.warn("[Anota.AI] createdAt inválido '{}', usando hora atual", createdAt);
             return LocalDateTime.now(BRAZIL_ZONE);
         }
+    }
+
+    /**
+     * Soma as taxas adicionais do pedido (additionalFees) — taxas de serviço repassadas ao
+     * iFood. Retorna {@code null} quando não há taxas, mantendo a coluna nula em pedidos sem
+     * taxa de serviço (canal Anota.AI puro e pedidos anteriores). Todas as additionalFees
+     * fazem parte do total mas são repasse, portanto excluídas do lucro do restaurante.
+     */
+    private BigDecimal sumAdditionalFees(List<AnotaAIOrderDetailResponse.AdditionalFee> additionalFees) {
+        if (additionalFees == null || additionalFees.isEmpty()) return null;
+        return additionalFees.stream()
+                .map(fee -> BigDecimal.valueOf(fee.getValue()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private Fee resolveFee(List<AnotaAIOrderDetailResponse.AnotaAIPayment> payments, UUID merchantId) {
