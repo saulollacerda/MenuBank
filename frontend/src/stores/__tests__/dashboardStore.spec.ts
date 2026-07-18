@@ -138,6 +138,92 @@ describe('dashboardStore', () => {
     expect(mockedService.getDashboard).toHaveBeenCalledWith('2026-03-01', '2026-03-24')
   })
 
+  it('keeps previous data and uses refreshing (not loading) during a background refetch', async () => {
+    const mockData1 = {
+      totalSales: 1000.0,
+      orderCount: 10,
+      averageTicket: 100.0,
+      estimatedProfit: 400.0,
+      salesByDay: [],
+      topProducts: [],
+    }
+    const mockData2 = { ...mockData1, totalSales: 2000.0 }
+    mockedService.getDashboard.mockResolvedValueOnce(mockData1)
+
+    const store = useDashboardStore()
+    await store.fetchDashboard()
+    expect(store.data).toEqual(mockData1)
+
+    // Background refresh in flight: previous data must stay on screen, and the
+    // full-view loading flag must not toggle — only `refreshing`.
+    let resolveSecond!: (v: typeof mockData2) => void
+    mockedService.getDashboard.mockReturnValueOnce(
+      new Promise((r) => {
+        resolveSecond = r
+      }),
+    )
+    const pending = store.fetchDashboard(true, true)
+    await Promise.resolve()
+
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(true)
+    expect(store.data).toEqual(mockData1)
+
+    resolveSecond(mockData2)
+    await pending
+
+    expect(store.data).toEqual(mockData2)
+    expect(store.refreshing).toBe(false)
+    expect(store.loading).toBe(false)
+  })
+
+  it('does not refetch within the 10-minute window and refetches after it', async () => {
+    vi.useFakeTimers()
+    try {
+      const mockData = {
+        totalSales: 1000.0,
+        orderCount: 10,
+        averageTicket: 100.0,
+        estimatedProfit: 400.0,
+        salesByDay: [],
+        topProducts: [],
+      }
+      mockedService.getDashboard.mockResolvedValue(mockData)
+
+      const store = useDashboardStore()
+      await store.fetchDashboard()
+      expect(mockedService.getDashboard).toHaveBeenCalledTimes(1)
+
+      // Within the window: cache is served, no new request.
+      await store.fetchDashboard()
+      expect(mockedService.getDashboard).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1)
+      await store.fetchDashboard()
+      expect(mockedService.getDashboard).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('force bypasses the cache TTL', async () => {
+    const mockData = {
+      totalSales: 1000.0,
+      orderCount: 10,
+      averageTicket: 100.0,
+      estimatedProfit: 400.0,
+      salesByDay: [],
+      topProducts: [],
+    }
+    mockedService.getDashboard.mockResolvedValue(mockData)
+
+    const store = useDashboardStore()
+    await store.fetchDashboard()
+    await store.fetchDashboard(true)
+
+    expect(mockedService.getDashboard).toHaveBeenCalledTimes(2)
+  })
+
   it('fetchDashboard should set error on failure', async () => {
     mockedService.getDashboard.mockRejectedValue(new Error('Server error'))
 

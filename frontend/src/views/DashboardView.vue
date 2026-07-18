@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { usePolling } from '@/composables/usePolling'
+import { REFRESH_INTERVAL_MS } from '@/utils/refresh'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useOrderStore } from '@/stores/orderStore'
@@ -77,14 +78,16 @@ watch(
 )
 
 onMounted(() => {
-  // Dashboard sempre busca dados frescos ao abrir (sem cache) — muda com frequência.
-  dash.fetchDashboard(true)
+  // Serve o cache instantaneamente ao reabrir dentro da janela de 10 min; fora dela
+  // revalida em segundo plano mantendo os números na tela (stale-while-revalidate).
+  dash.fetchDashboard()
   orderStore.fetchPage({ page: 0 }).catch(() => {})
   notif.fetchAll().catch(() => {})
 })
 
-usePolling(() => { orderStore.fetchPage({ page: 0 }, true).catch(() => {}) }, 30_000)
-usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, 30_000)
+// Atualização automática a cada 10 minutos, em segundo plano (silent) para não piscar.
+usePolling(() => { orderStore.fetchPage({ page: 0 }, true).catch(() => {}) }, REFRESH_INTERVAL_MS)
+usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, REFRESH_INTERVAL_MS)
 
 function navOrders() {
   router.push('/orders')
