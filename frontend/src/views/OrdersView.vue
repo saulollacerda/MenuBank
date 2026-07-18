@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePolling } from '@/composables/usePolling'
+import { REFRESH_INTERVAL_MS } from '@/utils/refresh'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrderStore } from '@/stores/orderStore'
 import { useCustomerStore } from '@/stores/customerStore'
@@ -586,7 +587,8 @@ onMounted(() => {
   feeStore.fetchAll()
 })
 
-usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
+// Atualização automática a cada 10 minutos, em segundo plano (silent) para não piscar.
+usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, REFRESH_INTERVAL_MS)
 </script>
 
 <template>

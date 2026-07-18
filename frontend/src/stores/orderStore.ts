@@ -4,6 +4,8 @@ import type { OrderRequest, OrderResponse } from '@/types/Order'
 import { DEFAULT_PAGE_SIZE } from '@/types/Page'
 import { orderService, type OrderFilterParams } from '@/services/orderService'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { createStaleCache } from '@/utils/staleCache'
+import { REFRESH_INTERVAL_MS } from '@/utils/refresh'
 
 /** Extrai o `detail` do ProblemDetail retornado pelo backend, quando presente. */
 function extractDetail(e: unknown): string | null {
@@ -17,8 +19,12 @@ function extractDetail(e: unknown): string | null {
 export const useOrderStore = defineStore('order', () => {
   const items = ref<OrderResponse[]>([])
   const loading = ref(false)
+  // Background refresh in flight while rows are already on screen (stale-while-revalidate).
+  const refreshing = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const loadedKey = ref<string | null>(null)
+  const cache = createStaleCache(REFRESH_INTERVAL_MS)
 
   const search = ref('')
   const page = ref(0)
@@ -35,31 +41,50 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function fetchPage(params: OrderFilterParams = {}, silent = false) {
-    loading.value = true
+    const effectiveSearch = params.search ?? search.value
+    const effectivePage = params.page ?? page.value
+    const effectiveSize = params.size ?? size.value
+    const effectiveSort = params.sort ?? sort.value
+    const key = `${effectiveSearch}|${effectivePage}|${effectiveSize}|${effectiveSort}`
+
+    // Serve the cache while it is fresh for the exact same query. Changing page,
+    // search or sort produces a new key and always refetches; mutations invalidate
+    // the cache so they refetch too.
+    if (loaded.value && loadedKey.value === key && !cache.isStale()) return
+
+    // Stale-while-revalidate: full-view loading only before the first successful
+    // load (empty screen). Afterwards keep the current rows visible and flag
+    // `refreshing`, so a background poll never blanks the list.
+    if (loaded.value) refreshing.value = true
+    else loading.value = true
     if (!silent) error.value = null
     try {
-      const effectiveSort = params.sort ?? sort.value
       const result = await orderService.findAll({
-        search: params.search ?? search.value,
-        page: params.page ?? page.value,
-        size: params.size ?? size.value,
+        search: effectiveSearch,
+        page: effectivePage,
+        size: effectiveSize,
         sort: effectiveSort,
       })
       items.value = result.content
-      search.value = params.search ?? search.value
+      search.value = effectiveSearch
       sort.value = effectiveSort
       page.value = result.number
       size.value = result.size
       totalElements.value = result.totalElements
       totalPages.value = result.totalPages
       loaded.value = true
+      loadedKey.value = key
+      cache.markFresh()
       error.value = null
     } catch (e: unknown) {
       loaded.value = false
+      loadedKey.value = null
+      cache.invalidate()
       if (!silent) error.value = 'Erro ao carregar pedidos'
       throw e
     } finally {
       loading.value = false
+      refreshing.value = false
     }
   }
 
@@ -85,6 +110,7 @@ export const useOrderStore = defineStore('order', () => {
     error.value = null
     try {
       const created = await orderService.create(request)
+      cache.invalidate()
       await fetchPage({})
       refreshDashboard()
       return created
@@ -118,6 +144,7 @@ export const useOrderStore = defineStore('order', () => {
     error.value = null
     try {
       await orderService.remove(id)
+      cache.invalidate()
       await fetchPage({})
       refreshDashboard()
     } catch (e: unknown) {
@@ -140,6 +167,7 @@ export const useOrderStore = defineStore('order', () => {
   return {
     items,
     loading,
+    refreshing,
     error,
     search,
     page,

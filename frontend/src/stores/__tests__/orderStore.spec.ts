@@ -141,6 +141,117 @@ describe('orderStore', () => {
     expect(store.error).toBe('Cliente com ID x não encontrado')
   })
 
+  it('keeps items and uses refreshing (not loading) during a silent background refetch', async () => {
+    vi.useFakeTimers()
+    try {
+      const first = {
+        id: '1',
+        dateTime: '2026-03-24T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PENDING' as const,
+        totalValue: 50.0,
+        estimatedProfit: 20.0,
+        items: [],
+      }
+      mockedService.findAll.mockResolvedValueOnce(asPage([first]))
+
+      const store = useOrderStore()
+      await store.fetchPage({ page: 0, search: '' })
+      expect(store.items).toEqual([first])
+
+      // Jump past the window so the silent poll actually issues a request.
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1)
+
+      let resolveSecond!: (v: ReturnType<typeof asPage>) => void
+      mockedService.findAll.mockReturnValueOnce(
+        new Promise((r) => {
+          resolveSecond = r
+        }),
+      )
+      const pending = store.fetchPage({}, true)
+      await Promise.resolve()
+
+      // Background poll must not clear the list or flip the full-view loading flag.
+      expect(store.loading).toBe(false)
+      expect(store.refreshing).toBe(true)
+      expect(store.items).toEqual([first])
+
+      resolveSecond(asPage([]))
+      await pending
+
+      expect(store.refreshing).toBe(false)
+      expect(store.loading).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not refetch the same page within the 10-minute window and refetches after it', async () => {
+    vi.useFakeTimers()
+    try {
+      mockedService.findAll.mockResolvedValue(asPage([]))
+
+      const store = useOrderStore()
+      await store.fetchPage({ page: 0, search: '' })
+      expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+
+      // Same params within the window: served from cache, no new request.
+      await store.fetchPage({ page: 0, search: '' })
+      expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1)
+      await store.fetchPage({}, true)
+      expect(mockedService.findAll).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a page change bypasses the cache window even inside it', async () => {
+    vi.useFakeTimers()
+    try {
+      mockedService.findAll.mockResolvedValue(asPage([]))
+
+      const store = useOrderStore()
+      await store.fetchPage({ page: 0 })
+      expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+
+      await store.fetchPage({ page: 1 })
+      expect(mockedService.findAll).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('create refetches the current page even inside the cache window', async () => {
+    vi.useFakeTimers()
+    try {
+      const created = {
+        id: '1',
+        dateTime: '2026-03-24T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PENDING' as const,
+        totalValue: 50.0,
+        estimatedProfit: 20.0,
+        items: [],
+      }
+      mockedService.findAll.mockResolvedValue(asPage([created]))
+      mockedService.create.mockResolvedValue(created)
+
+      const store = useOrderStore()
+      await store.fetchPage({ page: 0, search: '' })
+      expect(mockedService.findAll).toHaveBeenCalledTimes(1)
+
+      await store.create({ customerId: 'c1', items: [{ productId: 'p1', quantity: 1 }] })
+      // Mutation must force a refetch despite the fresh cache.
+      expect(mockedService.findAll).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('remove should call service and refetch the current page', async () => {
     mockedService.remove.mockResolvedValue()
     mockedService.findAll.mockResolvedValue(asPage([]))
