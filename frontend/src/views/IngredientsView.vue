@@ -27,6 +27,11 @@ import { ingredientService } from '@/services/ingredientService'
 import { productService } from '@/services/productService'
 import { includeService } from '@/services/includeService'
 import { useToast } from '@/composables/useToast'
+import {
+  useIngredientFilters,
+  type IngredientFilterState,
+  type IngredientSortKey,
+} from '@/composables/useIngredientFilters'
 
 const store = useIngredientStore()
 const route = useRoute()
@@ -44,6 +49,9 @@ const purchaseQuantity = ref<number | null>(null)
 
 const unitFilter = ref<string>('')
 const statusFilter = ref<'' | 'ACTIVE' | 'INACTIVE'>('')
+const minCost = ref<number | null>(null)
+const maxCost = ref<number | null>(null)
+const sortBy = ref<IngredientSortKey>('')
 
 const computedCostPerUnit = computed(() => {
   const price = purchasePrice.value ?? 0
@@ -71,12 +79,21 @@ const availableProducts = computed(() =>
   allProducts.value.filter((p) => !specificGrammages.value.some((sg) => sg.productId === p.id)),
 )
 
-const filteredItems = computed(() =>
-  store.items.filter((i) => {
-    if (unitFilter.value && i.unit !== unitFilter.value) return false
-    if (statusFilter.value && i.status !== statusFilter.value) return false
-    return true
-  }),
+const filterState: IngredientFilterState = {
+  nameQuery: computed(() => store.search),
+  unit: unitFilter,
+  status: statusFilter,
+  minCost,
+  maxCost,
+  sortBy,
+}
+const {
+  sorted: filteredItems,
+  activeFilterCount,
+  reset: resetFilters,
+} = useIngredientFilters(
+  computed(() => store.items),
+  filterState,
 )
 
 const uniqueUnits = computed(() => Array.from(new Set(store.items.map((i) => i.unit))).sort())
@@ -330,7 +347,42 @@ const tableMinWidth = '820px'
           <option value="ACTIVE">Ativos</option>
           <option value="INACTIVE">Inativos</option>
         </UISelect>
+        <UIInput
+          v-model.number="minCost"
+          type="number"
+          step="0.0001"
+          min="0"
+          placeholder="Custo mín."
+          :width="130"
+          data-testid="ingredient-cost-min"
+        />
+        <UIInput
+          v-model.number="maxCost"
+          type="number"
+          step="0.0001"
+          min="0"
+          placeholder="Custo máx."
+          :width="130"
+          data-testid="ingredient-cost-max"
+        />
+        <UISelect v-model="sortBy" :width="180" data-testid="ingredient-sort">
+          <option value="">Ordenar por…</option>
+          <option value="name-asc">Nome (A–Z)</option>
+          <option value="name-desc">Nome (Z–A)</option>
+          <option value="cost-asc">Menor custo</option>
+          <option value="cost-desc">Maior custo</option>
+        </UISelect>
         <div style="flex: 1" />
+        <UIBtn
+          v-if="activeFilterCount > 0"
+          size="sm"
+          icon="x"
+          variant="secondary"
+          data-testid="ingredient-clear-filters"
+          @click="resetFilters"
+        >
+          Limpar filtros
+        </UIBtn>
       </div>
 
       <UIEmpty

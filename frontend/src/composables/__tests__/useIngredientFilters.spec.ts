@@ -1,0 +1,155 @@
+import { describe, it, expect } from 'vitest'
+import { ref } from 'vue'
+import {
+  useIngredientFilters,
+  type IngredientFilterState,
+} from '@/composables/useIngredientFilters'
+import type { IngredientResponse } from '@/types/Ingredient'
+
+function makeIngredient(over: Partial<IngredientResponse>): IngredientResponse {
+  return {
+    id: over.id ?? crypto.randomUUID(),
+    name: over.name ?? 'Ingrediente',
+    unit: over.unit ?? 'g',
+    costPerUnit: over.costPerUnit ?? 1,
+    salePrice: over.salePrice ?? null,
+    defaultQuantity: over.defaultQuantity ?? 0,
+    status: over.status ?? 'ACTIVE',
+  }
+}
+
+function makeState(over: Partial<Record<keyof IngredientFilterState, unknown>> = {}) {
+  const state: IngredientFilterState = {
+    nameQuery: ref((over.nameQuery as string) ?? ''),
+    unit: ref((over.unit as string) ?? ''),
+    status: ref((over.status as '' | 'ACTIVE' | 'INACTIVE') ?? ''),
+    minCost: ref((over.minCost as number | null) ?? null),
+    maxCost: ref((over.maxCost as number | null) ?? null),
+    sortBy: ref((over.sortBy as IngredientFilterState['sortBy']['value']) ?? ''),
+  }
+  return state
+}
+
+const sample: IngredientResponse[] = [
+  makeIngredient({ id: '1', name: 'Açúcar', unit: 'g', costPerUnit: 0.02, status: 'ACTIVE' }),
+  makeIngredient({ id: '2', name: 'Banana', unit: 'kg', costPerUnit: 5, status: 'INACTIVE' }),
+  makeIngredient({ id: '3', name: 'Chocolate', unit: 'g', costPerUnit: 10, status: 'ACTIVE' }),
+  makeIngredient({ id: '4', name: 'Doce de leite', unit: 'kg', costPerUnit: 25, status: 'ACTIVE' }),
+]
+
+describe('useIngredientFilters', () => {
+  it('should return all items when no filter is set', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState())
+    expect(sorted.value.map((i) => i.id)).toEqual(['1', '2', '3', '4'])
+  })
+
+  it('should filter by minimum cost only (inclusive of the boundary)', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ minCost: 5 }))
+    expect(sorted.value.map((i) => i.id)).toEqual(['2', '3', '4'])
+  })
+
+  it('should filter by maximum cost only (inclusive of the boundary)', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ maxCost: 10 }))
+    expect(sorted.value.map((i) => i.id)).toEqual(['1', '2', '3'])
+  })
+
+  it('should filter by both minimum and maximum cost', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ minCost: 5, maxCost: 10 }))
+    expect(sorted.value.map((i) => i.id)).toEqual(['2', '3'])
+  })
+
+  it('should combine name, cost and status filters', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(
+      items,
+      makeState({ nameQuery: 'a', minCost: 1, status: 'ACTIVE' }),
+    )
+    // name contains "a": Açúcar(0.02), Banana(5), Chocolate(10)
+    // minCost 1 removes Açúcar; status ACTIVE removes Banana
+    expect(sorted.value.map((i) => i.id)).toEqual(['3'])
+  })
+
+  it('should filter by unit', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ unit: 'kg' }))
+    expect(sorted.value.map((i) => i.id)).toEqual(['2', '4'])
+  })
+
+  it('should sort by name ascending (accent-insensitive)', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ sortBy: 'name-asc' }))
+    expect(sorted.value.map((i) => i.name)).toEqual([
+      'Açúcar',
+      'Banana',
+      'Chocolate',
+      'Doce de leite',
+    ])
+  })
+
+  it('should sort by name descending', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ sortBy: 'name-desc' }))
+    expect(sorted.value.map((i) => i.name)).toEqual([
+      'Doce de leite',
+      'Chocolate',
+      'Banana',
+      'Açúcar',
+    ])
+  })
+
+  it('should sort by cost ascending', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ sortBy: 'cost-asc' }))
+    expect(sorted.value.map((i) => i.costPerUnit)).toEqual([0.02, 5, 10, 25])
+  })
+
+  it('should sort by cost descending', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ sortBy: 'cost-desc' }))
+    expect(sorted.value.map((i) => i.costPerUnit)).toEqual([25, 10, 5, 0.02])
+  })
+
+  it('should not mutate the source array when sorting', () => {
+    const items = ref(sample)
+    const { sorted } = useIngredientFilters(items, makeState({ sortBy: 'cost-desc' }))
+    // touch computed
+    expect(sorted.value.length).toBe(4)
+    expect(items.value.map((i) => i.id)).toEqual(['1', '2', '3', '4'])
+  })
+
+  it('should report the number of active filters (name/sort excluded)', () => {
+    const state = makeState({ unit: 'kg', minCost: 5, sortBy: 'cost-asc' })
+    const { activeFilterCount } = useIngredientFilters(ref(sample), state)
+    expect(activeFilterCount.value).toBe(2)
+  })
+
+  it('should reset unit, status, cost and sort filters', () => {
+    const state = makeState({
+      unit: 'kg',
+      status: 'ACTIVE',
+      minCost: 5,
+      maxCost: 10,
+      sortBy: 'cost-asc',
+    })
+    const { reset, activeFilterCount } = useIngredientFilters(ref(sample), state)
+    reset()
+    expect(state.unit.value).toBe('')
+    expect(state.status.value).toBe('')
+    expect(state.minCost.value).toBeNull()
+    expect(state.maxCost.value).toBeNull()
+    expect(state.sortBy.value).toBe('')
+    expect(activeFilterCount.value).toBe(0)
+  })
+
+  it('should react to filter state changes', () => {
+    const state = makeState()
+    const { sorted } = useIngredientFilters(ref(sample), state)
+    expect(sorted.value.length).toBe(4)
+    state.minCost.value = 10
+    expect(sorted.value.map((i) => i.id)).toEqual(['3', '4'])
+  })
+})
