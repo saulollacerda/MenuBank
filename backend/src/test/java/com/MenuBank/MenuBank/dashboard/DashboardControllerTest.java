@@ -43,6 +43,7 @@ class DashboardControllerTest {
                 .orderCount(10L)
                 .averageTicket(new BigDecimal("150.00"))
                 .estimatedProfit(new BigDecimal("500.00"))
+                .averageMarginPct(new BigDecimal("58.00"))
                 .salesByDay(List.of(
                         DailySales.builder()
                                 .date(LocalDate.of(2026, 3, 1))
@@ -87,7 +88,8 @@ class DashboardControllerTest {
                     .andExpect(jsonPath("$.totalSales").value(1500.00))
                     .andExpect(jsonPath("$.orderCount").value(10))
                     .andExpect(jsonPath("$.averageTicket").value(150.00))
-                    .andExpect(jsonPath("$.estimatedProfit").value(500.00));
+                    .andExpect(jsonPath("$.estimatedProfit").value(500.00))
+                    .andExpect(jsonPath("$.averageMarginPct").value(58.00));
         }
 
         @Test

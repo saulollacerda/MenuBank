@@ -19,6 +19,11 @@ const periodLabel = computed(
   () => formatPeriod(dash.selectedMonthNumber, dash.selectedYear),
 )
 
+function marginLabel(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—'
+  return Number(v).toFixed(1).replace('.', ',') + '%'
+}
+
 const kpis = computed(() => {
   const d = dash.data
   return [
@@ -26,6 +31,7 @@ const kpis = computed(() => {
     { icon: 'receipt', iconBg: UI.blueBg, iconColor: UI.blue,      label: 'Pedidos',       value: num(Number(d?.orderCount ?? 0)) },
     { icon: 'chart', iconBg: '#f3e8ff',    iconColor: '#7c3aed',    label: 'Ticket médio',  value: brl(Number(d?.averageTicket ?? 0)) },
     { icon: 'trend', iconBg: UI.emeraldBg, iconColor: UI.emerald2,  label: 'Lucro estimado', value: brl(Number(d?.estimatedProfit ?? 0)) },
+    { icon: 'chart', iconBg: '#e0f2fe',    iconColor: '#0369a1',    label: 'Margem de lucro média', value: marginLabel(d?.averageMarginPct) },
   ]
 })
 
@@ -139,7 +145,7 @@ function navIngredientsWithName(name: string | null) {
       </div>
 
       <!-- KPIs -->
-      <div class="grid-cols-4" style="gap: 16px">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px">
         <div
           v-for="k in kpis"
           :key="k.label"

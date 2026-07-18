@@ -13,6 +13,7 @@ export interface DashboardResponse {
   orderCount: number
   averageTicket: number
   estimatedProfit: number
+  averageMarginPct?: number | null
   salesByDay: DailySales[]
   topProducts: TopProduct[]
 }

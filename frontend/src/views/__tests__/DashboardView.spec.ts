@@ -76,4 +76,33 @@ describe('DashboardView — seletor de período', () => {
     await wrapper.find('[data-testid="period-month-2"]').trigger('click')
     expect(dashboardStoreMock.selectedMonthNumber).toBe(2)
   })
+
+  it('renderiza o card de margem de lucro média formatado em pt-BR', () => {
+    dashboardStoreMock.data = {
+      totalSales: 1000,
+      orderCount: 10,
+      averageTicket: 100,
+      estimatedProfit: 580,
+      averageMarginPct: 58,
+      salesByDay: [],
+      topProducts: [],
+    }
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).toContain('Margem de lucro média')
+    expect(wrapper.text()).toContain('58,0%')
+  })
+
+  it('exibe traço quando averageMarginPct é nulo', () => {
+    dashboardStoreMock.data = {
+      totalSales: 0,
+      orderCount: 0,
+      averageTicket: 0,
+      estimatedProfit: 0,
+      averageMarginPct: null,
+      salesByDay: [],
+      topProducts: [],
+    }
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).toContain('Margem de lucro média')
+  })
 })
