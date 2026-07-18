@@ -66,4 +66,11 @@ public class Ingredient {
 
     @Column(name = "low_stock_threshold", precision = 19, scale = 4)
     private BigDecimal lowStockThreshold;
+
+    /**
+     * Creation timestamp (America/Sao_Paulo). Populated by {@code IngredientService}
+     * on create. Nullable: rows created before this column existed keep NULL.
+     */
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 }

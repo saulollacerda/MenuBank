@@ -316,4 +316,91 @@ describe('IngredientsView', () => {
 
     expect(showToastMock).not.toHaveBeenCalled()
   })
+
+  describe('cost and sort filters', () => {
+    const listItems = [
+      { id: '1', name: 'Açúcar', unit: 'g', costPerUnit: 0.02, defaultQuantity: 0, status: 'ACTIVE' },
+      { id: '2', name: 'Banana', unit: 'kg', costPerUnit: 5, defaultQuantity: 0, status: 'ACTIVE' },
+      { id: '3', name: 'Chocolate', unit: 'g', costPerUnit: 25, defaultQuantity: 0, status: 'ACTIVE' },
+    ]
+
+    function rowNames(wrapper: ReturnType<typeof mount>): string[] {
+      return wrapper.findAll('.ui-row').map((r) => r.findAll('span')[0]?.text() ?? '')
+    }
+
+    it('should filter rows by minimum cost', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      expect(wrapper.findAll('.ui-row')).toHaveLength(3)
+
+      await wrapper.get('[data-testid="ingredient-cost-min"]').setValue('5')
+      await flushPromises()
+
+      const names = rowNames(wrapper)
+      expect(names).toEqual(['Banana', 'Chocolate'])
+    })
+
+    it('should filter rows by maximum cost', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="ingredient-cost-max"]').setValue('5')
+      await flushPromises()
+
+      expect(rowNames(wrapper)).toEqual(['Açúcar', 'Banana'])
+    })
+
+    it('should sort rows by cost descending', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="ingredient-sort"]').setValue('cost-desc')
+      await flushPromises()
+
+      expect(rowNames(wrapper)).toEqual(['Chocolate', 'Banana', 'Açúcar'])
+    })
+
+    it('should filter rows by creation date range and exclude legacy null rows', async () => {
+      ingredientStoreMock.items = [
+        { id: '1', name: 'Antiga', unit: 'g', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE', createdAt: null },
+        { id: '2', name: 'Janeiro', unit: 'g', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE', createdAt: '2026-01-10T09:00:00' },
+        { id: '3', name: 'Fevereiro', unit: 'g', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE', createdAt: '2026-02-15T09:00:00' },
+      ]
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      // No date filter: legacy null row is visible
+      expect(rowNames(wrapper)).toEqual(['Antiga', 'Janeiro', 'Fevereiro'])
+
+      await wrapper.get('[data-testid="ingredient-created-from"]').setValue('2026-01-01')
+      await wrapper.get('[data-testid="ingredient-created-to"]').setValue('2026-01-31')
+      await flushPromises()
+
+      // Legacy null excluded, February out of range
+      expect(rowNames(wrapper)).toEqual(['Janeiro'])
+    })
+
+    it('should clear active filters via the reset button', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      // Reset button is hidden until a filter is active
+      expect(wrapper.find('[data-testid="ingredient-clear-filters"]').exists()).toBe(false)
+
+      await wrapper.get('[data-testid="ingredient-cost-min"]').setValue('5')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="ingredient-clear-filters"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="ingredient-clear-filters"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.findAll('.ui-row')).toHaveLength(3)
+      expect(wrapper.find('[data-testid="ingredient-clear-filters"]').exists()).toBe(false)
+    })
+  })
 })

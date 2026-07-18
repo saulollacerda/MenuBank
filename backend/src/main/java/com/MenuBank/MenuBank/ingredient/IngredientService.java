@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class IngredientService {
+
+    private static final ZoneId BRAZIL_ZONE = ZoneId.of("America/Sao_Paulo");
 
     private final IngredientRepository ingredientRepository;
     private final MerchantRepository merchantRepository;
@@ -63,6 +67,7 @@ public class IngredientService {
                 .stockQuantity(request.getStockQuantity())
                 .lastReplenishedAt(request.getLastReplenishedAt())
                 .lowStockThreshold(request.getLowStockThreshold())
+                .createdAt(LocalDateTime.now(BRAZIL_ZONE))
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
@@ -210,6 +215,7 @@ public class IngredientService {
                 .lowStockThreshold(ingredient.getLowStockThreshold())
                 .totalStockCost(totalStockCost)
                 .usageCount(usageCount)
+                .createdAt(ingredient.getCreatedAt())
                 .build();
     }
 }
