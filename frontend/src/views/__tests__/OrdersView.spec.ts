@@ -499,6 +499,140 @@ describe('OrdersView', () => {
     expect(detail.get('[data-testid="extra-oei1-cost"]').text()).toMatch(/1,50/)
   })
 
+  it('should show the item value as base price plus the value paid for its extras', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 65,
+        estimatedProfit: 20,
+        marginPct: 30.0,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Hambúrguer',
+            quantity: 2,
+            unitPrice: 30,
+            unitCost: 17,
+            totalCost: 34,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Bacon',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.1,
+                totalCost: 5,
+                salePricePerUnit: 5,
+                salePriceTotal: 5,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    // Base 30 × 2 = 60, somado ao adicional pago (5) = 65.
+    expect(detail.get('[data-testid="item-oi1-value"]').text()).toContain('65,00')
+  })
+
+  it('should show only the base price when the extras are zero-priced complements', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 15,
+        estimatedProfit: 5,
+        marginPct: 33.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Açaí 330ml',
+            quantity: 1,
+            unitPrice: 15,
+            unitCost: 10,
+            totalCost: 11,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Leite Ninho',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.02,
+                totalCost: 1,
+                salePricePerUnit: 0,
+                salePriceTotal: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    expect(detail.get('[data-testid="item-oi1-value"]').text()).toContain('15,00')
+  })
+
+  it('should show only the base price when the extras have no known price (legacy)', async () => {
+    orderStoreMock.items = [
+      {
+        id: 'o1',
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName: 'João',
+        status: 'PAID',
+        totalValue: 30,
+        estimatedProfit: 10,
+        marginPct: 33.33,
+        items: [
+          {
+            id: 'oi1',
+            productId: 'p1',
+            productName: 'Hambúrguer',
+            quantity: 1,
+            unitPrice: 30,
+            unitCost: 20,
+            totalCost: 20,
+            extraIngredients: [
+              {
+                id: 'oei1',
+                ingredientId: 'i1',
+                ingredientName: 'Bacon',
+                ingredientUnit: 'g',
+                quantity: 50,
+                costPerUnit: 0.2,
+                totalCost: 10,
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mount(OrdersView)
+    await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+
+    const detail = wrapper.get('[data-testid="order-detail-modal"]')
+    expect(detail.get('[data-testid="item-oi1-value"]').text()).toContain('30,00')
+  })
+
   it('should mark a zero-priced subitem as a base complement, not a paid add-on', async () => {
     orderStoreMock.items = [
       {

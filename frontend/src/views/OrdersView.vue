@@ -27,6 +27,7 @@ import type {
   OrderRequest,
   OrderResponse,
   OrderItemRequest,
+  OrderItemResponse,
   OrderItemExtraIngredientRequest,
   OrderItemExtraIngredientResponse,
   OrderItemUnmatchedSubItemResponse,
@@ -329,6 +330,21 @@ function extraLabel(ex: OrderItemExtraIngredientResponse): string {
   const paid = ex.salePriceTotal
   if (paid == null || Number(paid) <= 0) return ex.ingredientName
   return `${ex.ingredientName} (extra)`
+}
+
+/**
+ * Valor cobrado do cliente por este item: o preço do produto (unitPrice × quantidade)
+ * somado ao que foi pago pelos adicionais. Só somam os extras com preço de venda
+ * conhecido e positivo (`salePriceTotal > 0`); complementos base (preço 0) e extras
+ * sem preço (nulo/legado) não agregam valor, mantendo o item no preço base.
+ */
+function itemChargedValue(item: OrderItemResponse): number {
+  const base = Number(item.unitPrice) * Number(item.quantity)
+  const paidExtras = (item.extraIngredients ?? []).reduce((sum, ex) => {
+    const paid = Number(ex.salePriceTotal)
+    return ex.salePriceTotal != null && paid > 0 ? sum + paid : sum
+  }, 0)
+  return base + paidExtras
 }
 
 const STATUS_PILL: Record<string, { color: 'amber' | 'emerald' | 'rose' | 'blue' | 'gray'; label: string }> = {
@@ -1691,8 +1707,11 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, 30_000)
                   </div>
                 </div>
                 <div style="text-align: right">
-                  <div :style="{ fontSize: '14px', fontWeight: 700 }">
-                    {{ brl(Number(item.unitPrice) * Number(item.quantity)) }}
+                  <div
+                    :data-testid="`item-${item.id}-value`"
+                    :style="{ fontSize: '14px', fontWeight: 700 }"
+                  >
+                    {{ brl(itemChargedValue(item)) }}
                   </div>
                   <div :style="{ fontSize: '11px', color: UI.emerald2, fontWeight: 600 }">
                     + {{ brl(Number(item.unitPrice) * Number(item.quantity) - Number(item.totalCost)) }}
