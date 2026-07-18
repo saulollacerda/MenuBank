@@ -23,4 +23,5 @@ public class IngredientResponse {
     private BigDecimal lowStockThreshold;
     private BigDecimal totalStockCost;
     private Long usageCount;
+    private java.time.LocalDateTime createdAt;
 }

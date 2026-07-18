@@ -148,6 +148,17 @@ class IngredientServiceTest {
         }
 
         @Test
+        @DisplayName("deve preencher createdAt no create")
+        void shouldSetCreatedAtOnCreate() {
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(merchantId, ingredientRequest);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getCreatedAt() != null));
+        }
+
+        @Test
         @DisplayName("deve persistir salePrice no create quando informado")
         void shouldPersistSalePriceOnCreate() {
             IngredientRequest req = IngredientRequest.builder()
@@ -260,6 +271,29 @@ class IngredientServiceTest {
             assertThat(result.getUnit()).isEqualTo(ingredient.getUnit());
             assertThat(result.getCostPerUnit()).isEqualByComparingTo(ingredient.getCostPerUnit());
             assertThat(result.getDefaultQuantity()).isEqualByComparingTo(ingredient.getDefaultQuantity());
+        }
+
+        @Test
+        @DisplayName("deve mapear createdAt da entidade para a response")
+        void shouldMapCreatedAt() {
+            java.time.LocalDateTime createdAt = java.time.LocalDateTime.of(2026, 1, 5, 10, 30);
+            ingredient.setCreatedAt(createdAt);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+
+            IngredientResponse result = ingredientService.findById(merchantId, ingredientId);
+
+            assertThat(result.getCreatedAt()).isEqualTo(createdAt);
+        }
+
+        @Test
+        @DisplayName("deve mapear createdAt nulo (linhas legadas) para a response")
+        void shouldMapNullCreatedAt() {
+            ingredient.setCreatedAt(null);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+
+            IngredientResponse result = ingredientService.findById(merchantId, ingredientId);
+
+            assertThat(result.getCreatedAt()).isNull();
         }
 
         @Test

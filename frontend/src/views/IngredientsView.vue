@@ -51,6 +51,8 @@ const unitFilter = ref<string>('')
 const statusFilter = ref<'' | 'ACTIVE' | 'INACTIVE'>('')
 const minCost = ref<number | null>(null)
 const maxCost = ref<number | null>(null)
+const createdFrom = ref<string>('')
+const createdTo = ref<string>('')
 const sortBy = ref<IngredientSortKey>('')
 
 const computedCostPerUnit = computed(() => {
@@ -85,6 +87,8 @@ const filterState: IngredientFilterState = {
   status: statusFilter,
   minCost,
   maxCost,
+  createdFrom,
+  createdTo,
   sortBy,
 }
 const {
@@ -365,6 +369,28 @@ const tableMinWidth = '820px'
           :width="130"
           data-testid="ingredient-cost-max"
         />
+        <label
+          :style="{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: UI.textSub }"
+        >
+          Criado de
+          <UIInput
+            v-model="createdFrom"
+            type="date"
+            :width="150"
+            data-testid="ingredient-created-from"
+          />
+        </label>
+        <label
+          :style="{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: UI.textSub }"
+        >
+          até
+          <UIInput
+            v-model="createdTo"
+            type="date"
+            :width="150"
+            data-testid="ingredient-created-to"
+          />
+        </label>
         <UISelect v-model="sortBy" :width="180" data-testid="ingredient-sort">
           <option value="">Ordenar por…</option>
           <option value="name-asc">Nome (A–Z)</option>

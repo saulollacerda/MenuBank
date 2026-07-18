@@ -15,6 +15,8 @@ export interface IngredientResponse {
   salePrice?: number | null
   defaultQuantity?: number
   status: IngredientStatus
+  /** ISO date-time (LocalDateTime). Null for legacy rows created before the column existed. */
+  createdAt?: string | null
 }
 
 export interface IngredientCostRequest {

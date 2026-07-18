@@ -18,6 +18,10 @@ export interface IngredientFilterState {
   minCost: Ref<number | null>
   /** Maximum cost per unit (inclusive), null disables the upper bound. */
   maxCost: Ref<number | null>
+  /** Earliest creation day (inclusive) as YYYY-MM-DD, empty disables the bound. */
+  createdFrom: Ref<string>
+  /** Latest creation day (inclusive) as YYYY-MM-DD, empty disables the bound. */
+  createdTo: Ref<string>
   sortBy: Ref<IngredientSortKey>
 }
 
@@ -36,6 +40,9 @@ export function useIngredientFilters(
     const max = state.maxCost.value
     const unit = state.unit.value
     const status = state.status.value
+    const from = state.createdFrom.value
+    const to = state.createdTo.value
+    const hasDateFilter = Boolean(from || to)
 
     return items.value.filter((item) => {
       if (query && !item.name.toLowerCase().includes(query)) return false
@@ -44,6 +51,15 @@ export function useIngredientFilters(
       const cost = Number(item.costPerUnit)
       if (min != null && cost < min) return false
       if (max != null && cost > max) return false
+      if (hasDateFilter) {
+        // Legacy rows have unknown creation dates: drop them once a bound is active.
+        if (!item.createdAt) return false
+        // ISO dates compare correctly as strings; use only the date part so
+        // both bounds are inclusive of the whole boundary day.
+        const day = item.createdAt.slice(0, 10)
+        if (from && day < from) return false
+        if (to && day > to) return false
+      }
       return true
     })
   })
@@ -75,6 +91,8 @@ export function useIngredientFilters(
     if (state.status.value) count += 1
     if (state.minCost.value != null) count += 1
     if (state.maxCost.value != null) count += 1
+    if (state.createdFrom.value) count += 1
+    if (state.createdTo.value) count += 1
     return count
   })
 
@@ -83,6 +101,8 @@ export function useIngredientFilters(
     state.status.value = ''
     state.minCost.value = null
     state.maxCost.value = null
+    state.createdFrom.value = ''
+    state.createdTo.value = ''
     state.sortBy.value = ''
   }
 
