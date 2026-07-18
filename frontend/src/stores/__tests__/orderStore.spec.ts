@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useOrderStore } from '@/stores/orderStore'
 import { orderService } from '@/services/orderService'
+import type { OrderResponse } from '@/types/Order'
 
 vi.mock('@/services/orderService')
 
@@ -163,7 +164,7 @@ describe('orderStore', () => {
       // Jump past the window so the silent poll actually issues a request.
       vi.advanceTimersByTime(10 * 60 * 1000 + 1)
 
-      let resolveSecond!: (v: ReturnType<typeof asPage>) => void
+      let resolveSecond!: (v: ReturnType<typeof asPage<OrderResponse>>) => void
       mockedService.findAll.mockReturnValueOnce(
         new Promise((r) => {
           resolveSecond = r
