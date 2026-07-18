@@ -1,6 +1,7 @@
 package com.MenuBank.MenuBank.dashboard;
 
 import com.MenuBank.MenuBank.order.Order;
+import com.MenuBank.MenuBank.order.OrderCalculations;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderOrigin;
 import com.MenuBank.MenuBank.order.OrderRepository;
@@ -59,6 +60,7 @@ public class DashboardService {
                 .estimatedMarginChangePct(pctChange(
                         marginPct(current.estimatedProfit, current.totalSales),
                         marginPct(previous.estimatedProfit, previous.totalSales)))
+                .averageMarginPct(marginPct(current.estimatedProfit, current.productsSubtotal))
                 .customerCount(current.customerCount)
                 .customerCountChangePct(pctChange(
                         BigDecimal.valueOf(current.customerCount),
@@ -140,11 +142,19 @@ public class DashboardService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Base da margem: subtotal dos produtos (totalValue − deliveryFee − serviceFee),
+        // mesma base sobre a qual o lucro é apurado. Taxas de entrega/serviço são repassadas
+        // e não são receita do restaurante, logo não entram no denominador.
+        BigDecimal productsSubtotal = paidOrders.stream()
+                .map(order -> OrderCalculations.calculateProductsSubtotal(
+                        order.getTotalValue(), order.getDeliveryFee(), order.getServiceFee()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         Long customerCount = orderRepository.countDistinctCustomersByMerchantIdAndDateTimeBetween(
                 merchantId, start, end);
 
         return new PeriodMetrics(paidOrders, totalSales, orderCount, averageTicket, estimatedProfit,
-                customerCount != null ? customerCount : 0L);
+                productsSubtotal, customerCount != null ? customerCount : 0L);
     }
 
     private static BigDecimal pctChange(BigDecimal current, BigDecimal previous) {
@@ -222,6 +232,7 @@ public class DashboardService {
             long orderCount,
             BigDecimal averageTicket,
             BigDecimal estimatedProfit,
+            BigDecimal productsSubtotal,
             long customerCount) {}
 
     private static final class TopProductAccumulator {

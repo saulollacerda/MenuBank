@@ -23,6 +23,7 @@ public class DashboardResponse {
     private BigDecimal estimatedProfitChangePct;
     private BigDecimal estimatedMarginPct;
     private BigDecimal estimatedMarginChangePct;
+    private BigDecimal averageMarginPct;
     private Long customerCount;
     private BigDecimal customerCountChangePct;
 }

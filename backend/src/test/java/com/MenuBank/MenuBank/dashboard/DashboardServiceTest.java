@@ -96,6 +96,23 @@ class DashboardServiceTest {
                 .build();
     }
 
+    private Order buildOrderWithFees(LocalDateTime dateTime, BigDecimal totalValue,
+                                     BigDecimal deliveryFee, BigDecimal serviceFee,
+                                     BigDecimal estimatedProfit, OrderStatus status) {
+        return Order.builder()
+                .id(UUID.randomUUID())
+                .merchant(Merchant.builder().id(merchantId).build())
+                .dateTime(dateTime)
+                .customer(customer)
+                .status(status)
+                .totalValue(totalValue)
+                .deliveryFee(deliveryFee)
+                .serviceFee(serviceFee)
+                .estimatedProfit(estimatedProfit)
+                .items(List.of())
+                .build();
+    }
+
     // -------------------------------------------------------------------------
     // getDashboard() — KPIs
     // -------------------------------------------------------------------------
@@ -224,6 +241,67 @@ class DashboardServiceTest {
             DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
 
             assertThat(result.getEstimatedProfit()).isEqualByComparingTo(new BigDecimal("100.00"));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // getDashboard() — averageMarginPct (margem de lucro média)
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("getDashboard() — averageMarginPct")
+    class GetDashboardAverageMargin {
+
+        @Test
+        @DisplayName("deve calcular averageMarginPct = soma(estimatedProfit) / soma(subtotal produtos) × 100, descontando taxas de entrega e serviço")
+        void shouldCalculateAverageMarginPctFromProductsSubtotal() {
+            // Pedido 1: subtotal = 120 - 10 - 10 = 100 ; lucro = 40
+            // Pedido 2: subtotal =  60 -  5 -  5 =  50 ; lucro = 20
+            List<Order> paidOrders = List.of(
+                    buildOrderWithFees(startDate.atTime(10, 0), new BigDecimal("120.00"),
+                            new BigDecimal("10.00"), new BigDecimal("10.00"),
+                            new BigDecimal("40.00"), OrderStatus.PAID),
+                    buildOrderWithFees(startDate.atTime(14, 0), new BigDecimal("60.00"),
+                            new BigDecimal("5.00"), new BigDecimal("5.00"),
+                            new BigDecimal("20.00"), OrderStatus.PAID)
+            );
+
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(paidOrders);
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            // (40 + 20) / (100 + 50) * 100 = 40.00
+            assertThat(result.getAverageMarginPct()).isEqualByComparingTo(new BigDecimal("40.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar averageMarginPct nulo quando não há pedidos no período")
+        void shouldReturnNullAverageMarginPctWhenNoOrders() {
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            assertThat(result.getAverageMarginPct()).isNull();
+        }
+
+        @Test
+        @DisplayName("deve retornar averageMarginPct nulo quando o subtotal de produtos é zero")
+        void shouldReturnNullAverageMarginPctWhenProductsSubtotalIsZero() {
+            // subtotal = 20 - 10 - 10 = 0 → denominador zero
+            List<Order> paidOrders = List.of(
+                    buildOrderWithFees(startDate.atTime(10, 0), new BigDecimal("20.00"),
+                            new BigDecimal("10.00"), new BigDecimal("10.00"),
+                            BigDecimal.ZERO, OrderStatus.PAID)
+            );
+
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(paidOrders);
+
+            DashboardResponse result = dashboardService.getDashboard(merchantId, startDate, endDate);
+
+            assertThat(result.getAverageMarginPct()).isNull();
         }
     }
 

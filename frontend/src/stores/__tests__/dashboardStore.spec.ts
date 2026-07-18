@@ -44,6 +44,24 @@ describe('dashboardStore', () => {
     expect(store.error).toBeNull()
   })
 
+  it('fetchDashboard should populate averageMarginPct', async () => {
+    const mockData = {
+      totalSales: 1000.0,
+      orderCount: 10,
+      averageTicket: 100.0,
+      estimatedProfit: 580.0,
+      averageMarginPct: 58.0,
+      salesByDay: [],
+      topProducts: [],
+    }
+    mockedService.getDashboard.mockResolvedValue(mockData)
+
+    const store = useDashboardStore()
+    await store.fetchDashboard()
+
+    expect(store.data?.averageMarginPct).toBe(58.0)
+  })
+
   it('fetchDashboard should not call service again when filters did not change', async () => {
     const mockData = {
       totalSales: 1000.0,
