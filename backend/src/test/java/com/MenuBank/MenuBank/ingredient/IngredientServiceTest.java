@@ -239,6 +239,30 @@ class IngredientServiceTest {
 
             then(notificationService).should().deleteMissingIngredient("acai premium", merchantId);
         }
+
+        @Test
+        @DisplayName("deve atribuir position = max(position)+1 do merchant no create")
+        void shouldAssignNextPositionOnCreate() {
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.findMaxPositionByMerchantId(merchantId)).willReturn(4);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(merchantId, ingredientRequest);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() != null && i.getPosition() == 5));
+        }
+
+        @Test
+        @DisplayName("deve atribuir position = 0 ao primeiro ingrediente do merchant (max nulo)")
+        void shouldAssignZeroPositionForFirstIngredient() {
+            given(ingredientRepository.existsByNameAndMerchantId(anyString(), eq(merchantId))).willReturn(false);
+            given(ingredientRepository.findMaxPositionByMerchantId(merchantId)).willReturn(null);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.create(merchantId, ingredientRequest);
+
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() != null && i.getPosition() == 0));
+        }
     }
 
     @Nested
@@ -539,6 +563,139 @@ class IngredientServiceTest {
                     .isInstanceOf(IngredientNotFoundException.class);
 
             then(ingredientRepository).should(never()).deleteByIdAndMerchantId(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("reorder()")
+    class Reorder {
+
+        private Ingredient ingredientAt(int position) {
+            return Ingredient.builder()
+                    .id(ingredientId)
+                    .merchant(Merchant.builder().id(merchantId).build())
+                    .name("Farinha de Trigo")
+                    .canonicalName("farinha de trigo")
+                    .unit("kg")
+                    .costPerUnit(new BigDecimal("4.50"))
+                    .status(IngredientStatus.ACTIVE)
+                    .position(position)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("mover para baixo desloca o intervalo para a esquerda e grava a nova posição")
+        void shouldMoveDown() {
+            Ingredient ing = ingredientAt(2);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(10L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 5);
+
+            then(ingredientRepository).should().shiftRangeLeft(merchantId, 2, 5);
+            then(ingredientRepository).should(never()).shiftRangeRight(any(), anyInt(), anyInt());
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 5));
+        }
+
+        @Test
+        @DisplayName("mover para cima desloca o intervalo para a direita e grava a nova posição")
+        void shouldMoveUp() {
+            Ingredient ing = ingredientAt(5);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(10L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 1);
+
+            then(ingredientRepository).should().shiftRangeRight(merchantId, 5, 1);
+            then(ingredientRepository).should(never()).shiftRangeLeft(any(), anyInt(), anyInt());
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 1));
+        }
+
+        @Test
+        @DisplayName("mover para a mesma posição é no-op (não desloca nem grava)")
+        void shouldBeNoOpWhenSamePosition() {
+            Ingredient ing = ingredientAt(3);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(10L);
+
+            ingredientService.reorder(merchantId, ingredientId, 3);
+
+            then(ingredientRepository).should(never()).shiftRangeLeft(any(), anyInt(), anyInt());
+            then(ingredientRepository).should(never()).shiftRangeRight(any(), anyInt(), anyInt());
+            then(ingredientRepository).should(never()).save(any(Ingredient.class));
+        }
+
+        @Test
+        @DisplayName("mover para o início da lista (posição 0)")
+        void shouldMoveToFirst() {
+            Ingredient ing = ingredientAt(7);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(10L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 0);
+
+            then(ingredientRepository).should().shiftRangeRight(merchantId, 7, 0);
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 0));
+        }
+
+        @Test
+        @DisplayName("posição acima do total é limitada ao último índice (count-1)")
+        void shouldClampToLastIndex() {
+            Ingredient ing = ingredientAt(2);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(10L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 999);
+
+            then(ingredientRepository).should().shiftRangeLeft(merchantId, 2, 9);
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 9));
+        }
+
+        @Test
+        @DisplayName("posição para o início da próxima página (page-size aware) usa o índice global recebido")
+        void shouldMoveToStartOfNextPage() {
+            // 40 rows across 2 pages of 20; item at global 5 (page 0) → start of page 1 = global 20
+            Ingredient ing = ingredientAt(5);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(40L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 20);
+
+            then(ingredientRepository).should().shiftRangeLeft(merchantId, 5, 20);
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 20));
+        }
+
+        @Test
+        @DisplayName("posição para o fim da página anterior (page-size aware) usa o índice global recebido")
+        void shouldMoveToEndOfPreviousPage() {
+            // item at global 25 (page 1) → end of page 0 = global 19
+            Ingredient ing = ingredientAt(25);
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ing));
+            given(ingredientRepository.countByMerchantId(merchantId)).willReturn(40L);
+            given(ingredientRepository.save(any(Ingredient.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ingredientService.reorder(merchantId, ingredientId, 19);
+
+            then(ingredientRepository).should().shiftRangeRight(merchantId, 25, 19);
+            then(ingredientRepository).should().save(argThat(i -> i.getPosition() == 19));
+        }
+
+        @Test
+        @DisplayName("é escopado por merchant: ingrediente de outro merchant não é encontrado")
+        void shouldBeMerchantScoped() {
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> ingredientService.reorder(merchantId, ingredientId, 3))
+                    .isInstanceOf(IngredientNotFoundException.class);
+
+            then(ingredientRepository).should(never()).shiftRangeLeft(any(), anyInt(), anyInt());
+            then(ingredientRepository).should(never()).shiftRangeRight(any(), anyInt(), anyInt());
+            then(ingredientRepository).should(never()).save(any(Ingredient.class));
         }
     }
 }

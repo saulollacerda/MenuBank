@@ -55,6 +55,9 @@ public class IngredientService {
         if (ingredientRepository.existsByCanonicalNameAndMerchantId(canonicalName, merchantId)) {
             throw new DuplicateIngredientException("nome");
         }
+        Integer maxPosition = ingredientRepository.findMaxPositionByMerchantId(merchantId);
+        int nextPosition = maxPosition == null ? 0 : maxPosition + 1;
+
         Ingredient ingredient = Ingredient.builder()
                 .merchant(merchantRepository.getReferenceById(merchantId))
                 .name(request.getName())
@@ -68,6 +71,7 @@ public class IngredientService {
                 .lastReplenishedAt(request.getLastReplenishedAt())
                 .lowStockThreshold(request.getLowStockThreshold())
                 .createdAt(LocalDateTime.now(BRAZIL_ZONE))
+                .position(nextPosition)
                 .build();
 
         Ingredient saved = ingredientRepository.save(ingredient);
@@ -166,6 +170,34 @@ public class IngredientService {
     }
 
     /**
+     * Move o ingrediente para uma nova posição global (zero-based) na ordenação padrão do
+     * merchant, deslocando os demais registros com um único UPDATE em bloco. A posição
+     * informada é limitada ao intervalo válido [0, count-1] — o frontend calcula o índice
+     * global (página × tamanho + índice na página), inclusive para movimentos entre páginas.
+     */
+    @Transactional
+    public void reorder(UUID merchantId, UUID id, int newPosition) {
+        Ingredient ingredient = ingredientRepository.findByIdAndMerchantId(id, merchantId)
+                .orElseThrow(() -> new IngredientNotFoundException(id));
+
+        long count = ingredientRepository.countByMerchantId(merchantId);
+        int target = Math.max(0, Math.min(newPosition, (int) count - 1));
+        // Safety net for legacy rows without a position: treat as if appended at the end.
+        int current = ingredient.getPosition() != null ? ingredient.getPosition() : (int) count - 1;
+
+        if (target == current) {
+            return;
+        }
+        if (target > current) {
+            ingredientRepository.shiftRangeLeft(merchantId, current, target);
+        } else {
+            ingredientRepository.shiftRangeRight(merchantId, current, target);
+        }
+        ingredient.setPosition(target);
+        ingredientRepository.save(ingredient);
+    }
+
+    /**
      * Retorna os produtos cujas fichas tecnicas (includes) contem este ingrediente
      * (match por nome, case-insensitive).
      */
@@ -216,6 +248,7 @@ public class IngredientService {
                 .totalStockCost(totalStockCost)
                 .usageCount(usageCount)
                 .createdAt(ingredient.getCreatedAt())
+                .position(ingredient.getPosition())
                 .build();
     }
 }

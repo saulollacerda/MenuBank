@@ -253,6 +253,92 @@ class IngredientControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].id").value(ingredientId.toString()));
         }
+
+        @Test
+        @DisplayName("deve ordenar por position (ascendente) por padrão quando nenhum sort é informado")
+        void shouldDefaultSortByPosition() throws Exception {
+            org.springframework.data.domain.Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(0, 20);
+            given(ingredientService.findAll(any(), eq(""), any(org.springframework.data.domain.Pageable.class)))
+                    .willReturn(new org.springframework.data.domain.PageImpl<>(
+                            List.of(ingredientResponse), pageable, 1));
+
+            mockMvc.perform(get("/api/ingredients"))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> captor =
+                    org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+            then(ingredientService).should().findAll(any(), eq(""), captor.capture());
+            org.springframework.data.domain.Sort.Order order =
+                    captor.getValue().getSort().getOrderFor("position");
+            org.assertj.core.api.Assertions.assertThat(order).isNotNull();
+            org.assertj.core.api.Assertions.assertThat(order.getDirection())
+                    .isEqualTo(org.springframework.data.domain.Sort.Direction.ASC);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // PATCH /api/ingredients/{id}/position
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("PATCH /api/ingredients/{id}/position")
+    class ReorderIngredient {
+
+        @Test
+        @DisplayName("deve retornar 204 e repassar a nova posição ao service")
+        void shouldReturn204AndReorder() throws Exception {
+            willDoNothing().given(ingredientService).reorder(any(), eq(ingredientId), eq(5));
+
+            mockMvc.perform(patch("/api/ingredients/{id}/position", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    IngredientPositionRequest.builder().position(5).build())))
+                    .andExpect(status().isNoContent());
+
+            then(ingredientService).should().reorder(any(), eq(ingredientId), eq(5));
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando position é nula")
+        void shouldReturn400WhenPositionMissing() throws Exception {
+            mockMvc.perform(patch("/api/ingredients/{id}/position", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    IngredientPositionRequest.builder().build())))
+                    .andExpect(status().isBadRequest());
+
+            then(ingredientService).should(never()).reorder(any(), any(), anyInt());
+        }
+
+        @Test
+        @DisplayName("deve retornar 400 quando position é negativa")
+        void shouldReturn400WhenPositionNegative() throws Exception {
+            mockMvc.perform(patch("/api/ingredients/{id}/position", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    IngredientPositionRequest.builder().position(-1).build())))
+                    .andExpect(status().isBadRequest());
+
+            then(ingredientService).should(never()).reorder(any(), any(), anyInt());
+        }
+
+        @Test
+        @DisplayName("deve retornar 404 quando ingrediente não existe")
+        void shouldReturn404WhenIngredientNotFound() throws Exception {
+            willThrow(new IngredientNotFoundException(ingredientId))
+                    .given(ingredientService).reorder(any(), eq(ingredientId), eq(3));
+
+            mockMvc.perform(patch("/api/ingredients/{id}/position", ingredientId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    IngredientPositionRequest.builder().position(3).build())))
+                    .andExpect(status().isNotFound());
+        }
     }
 
     // -------------------------------------------------------------------------

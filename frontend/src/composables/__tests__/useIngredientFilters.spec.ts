@@ -223,4 +223,39 @@ describe('useIngredientFilters', () => {
       expect(sorted.value.map((i) => i.id)).toEqual(['2'])
     })
   })
+
+  describe('creation-date sorting', () => {
+    const dated: IngredientResponse[] = [
+      makeIngredient({ id: 'old', name: 'Antiga', createdAt: '2026-01-05T08:00:00' }),
+      makeIngredient({ id: 'mid', name: 'Meio', createdAt: '2026-01-10T23:30:00' }),
+      makeIngredient({ id: 'new', name: 'Nova', createdAt: '2026-01-20T00:00:00' }),
+      makeIngredient({ id: 'legacy', name: 'Legada', createdAt: null }),
+    ]
+
+    it('should sort by most recent first with null createdAt last', () => {
+      const { sorted } = useIngredientFilters(ref(dated), makeState({ sortBy: 'created-desc' }))
+      expect(sorted.value.map((i) => i.id)).toEqual(['new', 'mid', 'old', 'legacy'])
+    })
+
+    it('should sort by oldest first with null createdAt last', () => {
+      const { sorted } = useIngredientFilters(ref(dated), makeState({ sortBy: 'created-asc' }))
+      expect(sorted.value.map((i) => i.id)).toEqual(['old', 'mid', 'new', 'legacy'])
+    })
+
+    it('should keep null createdAt rows last in both directions (multiple legacy rows)', () => {
+      const items: IngredientResponse[] = [
+        makeIngredient({ id: 'a', createdAt: null }),
+        makeIngredient({ id: 'b', createdAt: '2026-03-01T00:00:00' }),
+        makeIngredient({ id: 'c', createdAt: null }),
+        makeIngredient({ id: 'd', createdAt: '2026-01-01T00:00:00' }),
+      ]
+      const desc = useIngredientFilters(ref(items), makeState({ sortBy: 'created-desc' }))
+      expect(desc.sorted.value.slice(0, 2).map((i) => i.id)).toEqual(['b', 'd'])
+      expect(desc.sorted.value.slice(2).map((i) => i.id).sort()).toEqual(['a', 'c'])
+
+      const asc = useIngredientFilters(ref(items), makeState({ sortBy: 'created-asc' }))
+      expect(asc.sorted.value.slice(0, 2).map((i) => i.id)).toEqual(['d', 'b'])
+      expect(asc.sorted.value.slice(2).map((i) => i.id).sort()).toEqual(['a', 'c'])
+    })
+  })
 })

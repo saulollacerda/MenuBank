@@ -24,4 +24,6 @@ public class IngredientResponse {
     private BigDecimal totalStockCost;
     private Long usageCount;
     private java.time.LocalDateTime createdAt;
+    /** Zero-based manual ordering index within the merchant (default listing order). */
+    private Integer position;
 }

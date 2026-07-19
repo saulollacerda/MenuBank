@@ -104,6 +104,101 @@ const uniqueUnits = computed(() => Array.from(new Set(store.items.map((i) => i.u
 
 const activeCount = computed(() => store.items.filter((i) => i.status === 'ACTIVE').length)
 
+// -- Manual drag-and-drop ordering -----------------------------------------
+// Reordering is only meaningful in the default (position) order: any active
+// search / filter / sort changes what "position N in the page" means, so the
+// handles are disabled while those are set.
+const dragEnabled = computed(
+  () => !store.search && activeFilterCount.value === 0 && sortBy.value === '',
+)
+
+const draggedIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+const dragOverPager = ref<'' | 'prev' | 'next'>('')
+const isDragging = computed(() => draggedIndex.value !== null)
+
+const canDropPrev = computed(() => store.page > 0)
+const canDropNext = computed(() => store.page < store.totalPages - 1)
+
+function resetDrag() {
+  draggedIndex.value = null
+  dragOverIndex.value = null
+  dragOverPager.value = ''
+}
+
+function onDragStart(index: number, e: DragEvent) {
+  if (!dragEnabled.value) return
+  draggedIndex.value = index
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(index))
+  }
+}
+
+function onRowDragOver(index: number) {
+  if (draggedIndex.value === null) return
+  dragOverIndex.value = index
+  dragOverPager.value = ''
+}
+
+async function onRowDrop(index: number) {
+  const from = draggedIndex.value
+  const id = from === null ? undefined : filteredItems.value[from]?.id
+  resetDrag()
+  if (from === null || from === index || !id) return
+  // Global position within the merchant = page offset + target index in the page.
+  const globalPosition = store.page * store.size + index
+  try {
+    await store.moveWithinPage(id, index, globalPosition)
+  } catch {
+    /* rollback + error toast handled by the store */
+  }
+}
+
+function onPagerDragOver(target: 'prev' | 'next') {
+  if (draggedIndex.value === null) return
+  if (target === 'prev' && !canDropPrev.value) return
+  if (target === 'next' && !canDropNext.value) return
+  dragOverPager.value = target
+  dragOverIndex.value = null
+}
+
+function onPagerDragLeave(target: 'prev' | 'next') {
+  if (dragOverPager.value === target) dragOverPager.value = ''
+}
+
+async function onDropPrev() {
+  const from = draggedIndex.value
+  const id = from === null ? undefined : filteredItems.value[from]?.id
+  const canDrop = canDropPrev.value
+  const targetPage = store.page - 1
+  // End of the previous page = first index of the current page minus one.
+  const globalPosition = store.page * store.size - 1
+  resetDrag()
+  if (from === null || !id || !canDrop) return
+  try {
+    await store.moveToPage(id, globalPosition, targetPage)
+  } catch {
+    /* error toast handled by the store */
+  }
+}
+
+async function onDropNext() {
+  const from = draggedIndex.value
+  const id = from === null ? undefined : filteredItems.value[from]?.id
+  const canDrop = canDropNext.value
+  const targetPage = store.page + 1
+  // Start of the next page = first index of that page.
+  const globalPosition = (store.page + 1) * store.size
+  resetDrag()
+  if (from === null || !id || !canDrop) return
+  try {
+    await store.moveToPage(id, globalPosition, targetPage)
+  } catch {
+    /* error toast handled by the store */
+  }
+}
+
 async function loadProducts() {
   const page = await productService.findAll({ search: '', page: 0, size: 500 })
   allProducts.value = page.content
@@ -298,8 +393,8 @@ onMounted(() => {
 })
 watch(() => route.query.createName, () => maybeOpenFromQuery())
 
-const cols = '1.4fr 90px 110px 110px 100px 90px 110px'
-const tableMinWidth = '820px'
+const cols = '1.4fr 90px 110px 110px 100px 90px 110px 44px'
+const tableMinWidth = '864px'
 </script>
 
 <template>
@@ -397,6 +492,8 @@ const tableMinWidth = '820px'
           <option value="name-desc">Nome (Z–A)</option>
           <option value="cost-asc">Menor custo</option>
           <option value="cost-desc">Maior custo</option>
+          <option value="created-desc">Mais recentes</option>
+          <option value="created-asc">Mais antigos</option>
         </UISelect>
         <div style="flex: 1" />
         <UIBtn
@@ -460,6 +557,7 @@ const tableMinWidth = '820px'
           <span style="text-align: right">Qtd. padrão</span>
           <span>Status</span>
           <span style="text-align: right">Ações</span>
+          <span />
         </div>
 
         <div>
@@ -480,6 +578,7 @@ const tableMinWidth = '820px'
             v-else
             :key="it.id"
             class="ui-row"
+            :class="{ 'drag-over': isDragging && dragOverIndex === i }"
             :style="{
               display: 'grid',
               gridTemplateColumns: cols,
@@ -489,7 +588,10 @@ const tableMinWidth = '820px'
               fontSize: '13px',
               color: UI.text,
               alignItems: 'center',
+              opacity: isDragging && draggedIndex === i ? 0.5 : 1,
             }"
+            @dragover.prevent="onRowDragOver(i)"
+            @drop.prevent="onRowDrop(i)"
           >
             <span style="display: flex; align-items: center; gap: 11px; min-width: 0">
               <span
@@ -581,6 +683,28 @@ const tableMinWidth = '820px'
               />
               <UIRowAction icon="trash" color="rose" label="Excluir" @click="confirmDeleteId = it.id" />
             </span>
+            <span style="display: flex; align-items: center; justify-content: center">
+              <span
+                v-if="dragEnabled"
+                class="drag-handle"
+                draggable="true"
+                data-testid="ingredient-drag-handle"
+                title="Arraste para reordenar"
+                :style="{ display: 'flex', cursor: 'grab', color: UI.textMute }"
+                @dragstart="onDragStart(i, $event)"
+                @dragend="resetDrag"
+              >
+                <UIIcon name="menu" :size="16" />
+              </span>
+              <span
+                v-else
+                data-testid="ingredient-drag-handle-disabled"
+                title="Disponível apenas na ordenação padrão"
+                :style="{ display: 'flex', color: UI.textMute, opacity: 0.35, cursor: 'not-allowed' }"
+              >
+                <UIIcon name="menu" :size="16" />
+              </span>
+            </span>
           </div>
         </div>
         </div>
@@ -604,24 +728,104 @@ const tableMinWidth = '820px'
             · {{ store.totalElements }} ingredientes
           </span>
           <div style="display: flex; gap: 6px; align-items: center">
-            <UIBtn
-              size="sm"
-              icon="chevLeft"
-              variant="secondary"
-              :disabled="store.page === 0 || store.loading"
-              @click="onPageChange(store.page - 1)"
+            <div
+              data-testid="ingredient-pager-prev"
+              :style="{
+                position: 'relative',
+                borderRadius: '9px',
+                padding: '2px',
+                outline:
+                  isDragging && canDropPrev
+                    ? dragOverPager === 'prev'
+                      ? `2px solid ${UI.emerald}`
+                      : `2px dashed ${UI.border}`
+                    : 'none',
+                background: dragOverPager === 'prev' ? UI.emeraldBg : 'transparent',
+                transition: 'background 0.12s ease',
+              }"
+              @dragover.prevent="onPagerDragOver('prev')"
+              @dragleave="onPagerDragLeave('prev')"
+              @drop.prevent="onDropPrev"
             >
-              Anterior
-            </UIBtn>
-            <UIBtn
-              size="sm"
-              icon="chevRight"
-              variant="secondary"
-              :disabled="store.page >= store.totalPages - 1 || store.loading"
-              @click="onPageChange(store.page + 1)"
+              <span :style="{ display: 'block', pointerEvents: isDragging ? 'none' : 'auto' }">
+                <UIBtn
+                  size="sm"
+                  icon="chevLeft"
+                  variant="secondary"
+                  :disabled="store.page === 0 || store.loading"
+                  @click="onPageChange(store.page - 1)"
+                >
+                  Anterior
+                </UIBtn>
+              </span>
+              <span
+                v-if="isDragging && canDropPrev"
+                :style="{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  whiteSpace: 'nowrap',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  background: UI.emerald,
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                }"
+              >
+                Solte para mover
+              </span>
+            </div>
+            <div
+              data-testid="ingredient-pager-next"
+              :style="{
+                position: 'relative',
+                borderRadius: '9px',
+                padding: '2px',
+                outline:
+                  isDragging && canDropNext
+                    ? dragOverPager === 'next'
+                      ? `2px solid ${UI.emerald}`
+                      : `2px dashed ${UI.border}`
+                    : 'none',
+                background: dragOverPager === 'next' ? UI.emeraldBg : 'transparent',
+                transition: 'background 0.12s ease',
+              }"
+              @dragover.prevent="onPagerDragOver('next')"
+              @dragleave="onPagerDragLeave('next')"
+              @drop.prevent="onDropNext"
             >
-              Próximo
-            </UIBtn>
+              <span :style="{ display: 'block', pointerEvents: isDragging ? 'none' : 'auto' }">
+                <UIBtn
+                  size="sm"
+                  icon="chevRight"
+                  variant="secondary"
+                  :disabled="store.page >= store.totalPages - 1 || store.loading"
+                  @click="onPageChange(store.page + 1)"
+                >
+                  Próximo
+                </UIBtn>
+              </span>
+              <span
+                v-if="isDragging && canDropNext"
+                :style="{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  whiteSpace: 'nowrap',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  background: UI.emerald,
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                }"
+              >
+                Solte para mover
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -910,5 +1114,12 @@ const tableMinWidth = '820px'
 }
 .ui-row:hover {
   background: rgba(15, 23, 42, 0.025);
+}
+.ui-row.drag-over {
+  background: rgba(16, 185, 129, 0.1);
+  box-shadow: inset 0 2px 0 rgba(16, 185, 129, 0.55);
+}
+.drag-handle:active {
+  cursor: grabbing;
 }
 </style>

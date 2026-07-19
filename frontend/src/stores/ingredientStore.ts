@@ -118,6 +118,46 @@ export const useIngredientStore = defineStore('ingredient', () => {
     }
   }
 
+  /**
+   * Optimistically reorders the ingredient within the current page, then persists the
+   * new global position. On failure the previous order is restored and the error toast
+   * pattern is set. `globalPosition` = page × size + target index within page.
+   */
+  async function moveWithinPage(id: string, toIndex: number, globalPosition: number) {
+    const fromIndex = items.value.findIndex((i) => i.id === id)
+    if (fromIndex === -1 || fromIndex === toIndex) return
+    const snapshot = [...items.value]
+    const next = [...items.value]
+    const [moved] = next.splice(fromIndex, 1)
+    if (!moved) return
+    next.splice(toIndex, 0, moved)
+    items.value = next
+    error.value = null
+    try {
+      await ingredientService.updatePosition(id, globalPosition)
+    } catch (e: unknown) {
+      items.value = snapshot
+      error.value = 'Erro ao reordenar ingrediente'
+      throw e
+    }
+  }
+
+  /**
+   * Persists a cross-page move (drop on the pagination targets) to the given global
+   * position, then navigates to the target page so the user sees where the row landed.
+   */
+  async function moveToPage(id: string, globalPosition: number, targetPage: number) {
+    error.value = null
+    try {
+      await ingredientService.updatePosition(id, globalPosition)
+      cache.invalidate()
+      await fetchPage({ page: targetPage })
+    } catch (e: unknown) {
+      error.value = 'Erro ao reordenar ingrediente'
+      throw e
+    }
+  }
+
   return {
     items,
     loading,
@@ -132,5 +172,7 @@ export const useIngredientStore = defineStore('ingredient', () => {
     create,
     update,
     remove,
+    moveWithinPage,
+    moveToPage,
   }
 })

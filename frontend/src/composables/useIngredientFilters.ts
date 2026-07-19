@@ -5,7 +5,14 @@ import type { IngredientResponse, IngredientStatus } from '@/types/Ingredient'
  * Sort options offered by the ingredients list. Empty string keeps the
  * backend order (as returned by the current page).
  */
-export type IngredientSortKey = '' | 'name-asc' | 'name-desc' | 'cost-asc' | 'cost-desc'
+export type IngredientSortKey =
+  | ''
+  | 'name-asc'
+  | 'name-desc'
+  | 'cost-asc'
+  | 'cost-desc'
+  | 'created-asc'
+  | 'created-desc'
 
 export interface IngredientFilterState {
   /** Free-text name query (substring, accent-sensitive lowercase match). */
@@ -23,6 +30,20 @@ export interface IngredientFilterState {
   /** Latest creation day (inclusive) as YYYY-MM-DD, empty disables the bound. */
   createdTo: Ref<string>
   sortBy: Ref<IngredientSortKey>
+}
+
+/**
+ * Compares two ingredients by `createdAt` (ISO strings compare lexicographically for
+ * a chronological order). `dir` is 1 for oldest-first, -1 for newest-first. Rows with a
+ * null/absent `createdAt` (legacy) always sort LAST, regardless of direction.
+ */
+function compareCreatedAt(a: IngredientResponse, b: IngredientResponse, dir: 1 | -1): number {
+  const av = a.createdAt
+  const bv = b.createdAt
+  if (!av && !bv) return 0
+  if (!av) return 1
+  if (!bv) return -1
+  return dir * av.localeCompare(bv)
 }
 
 /**
@@ -79,6 +100,10 @@ export function useIngredientFilters(
         return list.sort((a, b) => Number(a.costPerUnit) - Number(b.costPerUnit))
       case 'cost-desc':
         return list.sort((a, b) => Number(b.costPerUnit) - Number(a.costPerUnit))
+      case 'created-asc':
+        return list.sort((a, b) => compareCreatedAt(a, b, 1))
+      case 'created-desc':
+        return list.sort((a, b) => compareCreatedAt(a, b, -1))
       default:
         return list
     }

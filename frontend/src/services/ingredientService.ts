@@ -39,4 +39,12 @@ export const ingredientService = {
     return data
   },
 
+  /**
+   * Moves an ingredient to a new zero-based global position in the merchant's default
+   * ordering. Returns 204 No Content.
+   */
+  async updatePosition(id: string, position: number): Promise<void> {
+    await api.patch(`/ingredients/${id}/position`, { position })
+  },
+
 }
