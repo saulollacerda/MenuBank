@@ -80,4 +80,61 @@ describe('ingredientStore', () => {
     expect(mockedService.remove).toHaveBeenCalledWith('1')
     expect(store.items).toEqual([remaining])
   })
+
+  describe('reorder', () => {
+    const rows = [
+      { id: 'a', name: 'A', unit: 'g', costPerUnit: 1, status: 'ACTIVE' as const },
+      { id: 'b', name: 'B', unit: 'g', costPerUnit: 1, status: 'ACTIVE' as const },
+      { id: 'c', name: 'C', unit: 'g', costPerUnit: 1, status: 'ACTIVE' as const },
+    ]
+
+    it('moveWithinPage should optimistically reorder items and call updatePosition', async () => {
+      mockedService.updatePosition.mockResolvedValue()
+      const store = useIngredientStore()
+      store.items = [...rows]
+
+      // move 'a' (index 0) to index 2 on page 0 → global position 2
+      await store.moveWithinPage('a', 2, 2)
+
+      expect(store.items.map((i) => i.id)).toEqual(['b', 'c', 'a'])
+      expect(mockedService.updatePosition).toHaveBeenCalledWith('a', 2)
+    })
+
+    it('moveWithinPage should roll back and set error when the request fails', async () => {
+      mockedService.updatePosition.mockRejectedValue(new Error('boom'))
+      const store = useIngredientStore()
+      store.items = [...rows]
+
+      await expect(store.moveWithinPage('a', 2, 2)).rejects.toThrow()
+
+      // original order restored
+      expect(store.items.map((i) => i.id)).toEqual(['a', 'b', 'c'])
+      expect(store.error).toBe('Erro ao reordenar ingrediente')
+    })
+
+    it('moveToPage should call updatePosition then navigate to the target page', async () => {
+      mockedService.updatePosition.mockResolvedValue()
+      mockedService.findAll.mockResolvedValue(asPage(rows))
+      const store = useIngredientStore()
+      store.items = [...rows]
+
+      await store.moveToPage('a', 40, 2)
+
+      expect(mockedService.updatePosition).toHaveBeenCalledWith('a', 40)
+      expect(mockedService.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      )
+    })
+
+    it('moveToPage should set error and not navigate when the request fails', async () => {
+      mockedService.updatePosition.mockRejectedValue(new Error('boom'))
+      const store = useIngredientStore()
+      store.items = [...rows]
+
+      await expect(store.moveToPage('a', 40, 2)).rejects.toThrow()
+
+      expect(store.error).toBe('Erro ao reordenar ingrediente')
+      expect(mockedService.findAll).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -45,7 +45,7 @@ public class IngredientController {
     public ResponseEntity<Page<IngredientResponse>> findAll(
             Authentication auth,
             @RequestParam(required = false, defaultValue = "") String search,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "position") Pageable pageable) {
         UUID merchantId = authHelper.getMerchantId(auth);
         return ResponseEntity.ok(ingredientService.findAll(merchantId, search, pageable));
     }
@@ -72,6 +72,18 @@ public class IngredientController {
     public ResponseEntity<List<IngredientProductUsageResponse>> fetchUsages(Authentication auth, @PathVariable UUID id) {
         UUID merchantId = authHelper.getMerchantId(auth);
         return ResponseEntity.ok(ingredientService.fetchUsages(merchantId, id));
+    }
+
+    /**
+     * Reordena manualmente o ingrediente para uma nova posição global (zero-based) na
+     * ordenação padrão do merchant. Corpo: {@code {"position": <int>}}.
+     */
+    @PatchMapping("/{id}/position")
+    public ResponseEntity<Void> reorder(Authentication auth, @PathVariable UUID id,
+                                        @Valid @RequestBody IngredientPositionRequest request) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        ingredientService.reorder(merchantId, id, request.getPosition());
+        return ResponseEntity.noContent().build();
     }
 
     @Transactional

@@ -73,4 +73,13 @@ public class Ingredient {
      */
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    /**
+     * Zero-based, per-merchant manual ordering index used as the default listing order
+     * (drag-and-drop reordering on the ingredients screen). Backfilled by migration V21;
+     * new rows get {@code max(position)+1} for the merchant on create. Nullable only as a
+     * safety net for legacy rows — such rows sort last.
+     */
+    @Column(name = "position")
+    private Integer position;
 }

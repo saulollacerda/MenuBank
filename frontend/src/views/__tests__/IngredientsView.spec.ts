@@ -69,6 +69,8 @@ describe('IngredientsView', () => {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn(),
       remove: vi.fn(),
+      moveWithinPage: vi.fn().mockResolvedValue(undefined),
+      moveToPage: vi.fn().mockResolvedValue(undefined),
     }
     routeMock.query = {}
     routerMock.replace.mockClear()
@@ -401,6 +403,129 @@ describe('IngredientsView', () => {
 
       expect(wrapper.findAll('.ui-row')).toHaveLength(3)
       expect(wrapper.find('[data-testid="ingredient-clear-filters"]').exists()).toBe(false)
+    })
+  })
+
+  describe('manual drag ordering', () => {
+    const listItems = [
+      { id: 'a', name: 'Alface', unit: 'un', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE' },
+      { id: 'b', name: 'Batata', unit: 'kg', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE' },
+      { id: 'c', name: 'Cenoura', unit: 'kg', costPerUnit: 1, defaultQuantity: 0, status: 'ACTIVE' },
+    ]
+
+    it('should show enabled drag handles in default order (no filters/sort)', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      expect(wrapper.findAll('[data-testid="ingredient-drag-handle"]')).toHaveLength(3)
+      expect(wrapper.find('[data-testid="ingredient-drag-handle-disabled"]').exists()).toBe(false)
+    })
+
+    it('should disable drag handles when a sort is active', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="ingredient-sort"]').setValue('name-asc')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ingredient-drag-handle"]').exists()).toBe(false)
+      expect(wrapper.findAll('[data-testid="ingredient-drag-handle-disabled"]')).toHaveLength(3)
+    })
+
+    it('should disable drag handles when a value filter is active', async () => {
+      ingredientStoreMock.items = listItems
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="ingredient-cost-min"]').setValue('5')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ingredient-drag-handle"]').exists()).toBe(false)
+    })
+
+    it('should move a row within the page with the global position (page × size + index)', async () => {
+      ingredientStoreMock.items = listItems
+      ingredientStoreMock.page = 0
+      ingredientStoreMock.size = 20
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      const handles = wrapper.findAll('[data-testid="ingredient-drag-handle"]')
+      const rows = wrapper.findAll('.ui-row')
+
+      // Grab row 0 ('a'), drop on row 2 → global position 0*20 + 2 = 2
+      await handles[0]!.trigger('dragstart')
+      await rows[2]!.trigger('drop')
+
+      expect(ingredientStoreMock.moveWithinPage).toHaveBeenCalledWith('a', 2, 2)
+    })
+
+    it('should compute the global position from the current page offset', async () => {
+      ingredientStoreMock.items = listItems
+      ingredientStoreMock.page = 2
+      ingredientStoreMock.size = 20
+      ingredientStoreMock.totalPages = 5
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      const handles = wrapper.findAll('[data-testid="ingredient-drag-handle"]')
+      const rows = wrapper.findAll('.ui-row')
+
+      // Grab row 0, drop on row 1 → global position 2*20 + 1 = 41
+      await handles[0]!.trigger('dragstart')
+      await rows[1]!.trigger('drop')
+
+      expect(ingredientStoreMock.moveWithinPage).toHaveBeenCalledWith('a', 1, 41)
+    })
+
+    it('should move to the START of the next page when dropping on "Próximo"', async () => {
+      ingredientStoreMock.items = listItems
+      ingredientStoreMock.page = 1
+      ingredientStoreMock.size = 20
+      ingredientStoreMock.totalPages = 3
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      const handles = wrapper.findAll('[data-testid="ingredient-drag-handle"]')
+      await handles[0]!.trigger('dragstart')
+      await wrapper.get('[data-testid="ingredient-pager-next"]').trigger('drop')
+
+      // start of page 2 = (1+1)*20 = 40
+      expect(ingredientStoreMock.moveToPage).toHaveBeenCalledWith('a', 40, 2)
+    })
+
+    it('should move to the END of the previous page when dropping on "Anterior"', async () => {
+      ingredientStoreMock.items = listItems
+      ingredientStoreMock.page = 1
+      ingredientStoreMock.size = 20
+      ingredientStoreMock.totalPages = 3
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      const handles = wrapper.findAll('[data-testid="ingredient-drag-handle"]')
+      await handles[0]!.trigger('dragstart')
+      await wrapper.get('[data-testid="ingredient-pager-prev"]').trigger('drop')
+
+      // end of page 0 = 1*20 - 1 = 19
+      expect(ingredientStoreMock.moveToPage).toHaveBeenCalledWith('a', 19, 0)
+    })
+
+    it('should not move across pages when already on the first/last page', async () => {
+      ingredientStoreMock.items = listItems
+      ingredientStoreMock.page = 0
+      ingredientStoreMock.size = 20
+      ingredientStoreMock.totalPages = 1
+      const wrapper = mount(IngredientsView)
+      await flushPromises()
+
+      const handles = wrapper.findAll('[data-testid="ingredient-drag-handle"]')
+      await handles[0]!.trigger('dragstart')
+      await wrapper.get('[data-testid="ingredient-pager-prev"]').trigger('drop')
+      await wrapper.get('[data-testid="ingredient-pager-next"]').trigger('drop')
+
+      expect(ingredientStoreMock.moveToPage).not.toHaveBeenCalled()
     })
   })
 })

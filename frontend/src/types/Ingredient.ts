@@ -17,6 +17,8 @@ export interface IngredientResponse {
   status: IngredientStatus
   /** ISO date-time (LocalDateTime). Null for legacy rows created before the column existed. */
   createdAt?: string | null
+  /** Zero-based manual ordering index within the merchant (default listing order). */
+  position?: number | null
 }
 
 export interface IngredientCostRequest {
