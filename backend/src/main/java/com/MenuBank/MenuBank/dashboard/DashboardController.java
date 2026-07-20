@@ -42,6 +42,15 @@ public class DashboardController {
         return ResponseEntity.ok(Map.of("items", dashboardService.peakHours(merchantId, startDate, endDate)));
     }
 
+    @GetMapping("/ingredient-ranking")
+    public ResponseEntity<List<IngredientConsumption>> ingredientRanking(
+            Authentication auth,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        UUID merchantId = authHelper.getMerchantId(auth);
+        return ResponseEntity.ok(dashboardService.ingredientRanking(merchantId, startDate, endDate));
+    }
+
     @GetMapping("/channels")
     public ResponseEntity<List<ChannelBreakdown>> channels(
             Authentication auth,

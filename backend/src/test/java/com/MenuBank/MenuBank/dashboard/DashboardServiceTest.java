@@ -585,5 +585,91 @@ class DashboardServiceTest {
             assertThat(menubankPct).isEqualByComparingTo(new BigDecimal("75.00"));
         }
     }
+
+    // -------------------------------------------------------------------------
+    // ingredientRanking()
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("ingredientRanking(startDate, endDate)")
+    class IngredientRanking {
+
+        @Test
+        @DisplayName("deve combinar ficha e extras, somar o mesmo ingrediente e ordenar por custo total decrescente")
+        void shouldCombineFichaAndExtrasSortedByCostDesc() {
+            UUID sacolaId = UUID.randomUUID();
+            UUID baconId = UUID.randomUUID();
+            UUID queijoId = UUID.randomUUID();
+
+            given(orderRepository.sumFichaIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of(
+                            new Object[]{sacolaId, "Sacola", "un",
+                                    new BigDecimal("10"), new BigDecimal("5.00")},
+                            new Object[]{baconId, "Bacon", "g",
+                                    new BigDecimal("200"), new BigDecimal("8.00")}
+                    ));
+            given(orderRepository.sumExtraIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of(
+                            new Object[]{baconId, "Bacon", "g",
+                                    new BigDecimal("50"), new BigDecimal("2.00")},
+                            new Object[]{queijoId, "Queijo", "g",
+                                    new BigDecimal("100"), new BigDecimal("12.00")}
+                    ));
+
+            List<IngredientConsumption> result =
+                    dashboardService.ingredientRanking(merchantId, startDate, endDate);
+
+            assertThat(result).hasSize(3);
+            // Queijo (12.00) > Bacon (8.00 + 2.00 = 10.00) > Sacola (5.00)
+            assertThat(result.get(0).getIngredientName()).isEqualTo("Queijo");
+            assertThat(result.get(0).getUnit()).isEqualTo("g");
+            assertThat(result.get(0).getTotalQuantity()).isEqualByComparingTo(new BigDecimal("100"));
+            assertThat(result.get(0).getTotalCost()).isEqualByComparingTo(new BigDecimal("12.00"));
+
+            assertThat(result.get(1).getIngredientName()).isEqualTo("Bacon");
+            assertThat(result.get(1).getTotalQuantity()).isEqualByComparingTo(new BigDecimal("250"));
+            assertThat(result.get(1).getTotalCost()).isEqualByComparingTo(new BigDecimal("10.00"));
+
+            assertThat(result.get(2).getIngredientName()).isEqualTo("Sacola");
+            assertThat(result.get(2).getTotalCost()).isEqualByComparingTo(new BigDecimal("5.00"));
+        }
+
+        @Test
+        @DisplayName("deve retornar lista vazia quando não há consumo no período")
+        void shouldReturnEmptyWhenNoConsumption() {
+            given(orderRepository.sumFichaIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+            given(orderRepository.sumExtraIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+
+            List<IngredientConsumption> result =
+                    dashboardService.ingredientRanking(merchantId, startDate, endDate);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("deve usar data de hoje quando startDate e endDate são nulos")
+        void shouldUseCurrentDateWhenDatesAreNull() {
+            given(orderRepository.sumFichaIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+            given(orderRepository.sumExtraIngredientConsumptionForMerchant(
+                    eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
+                    .willReturn(List.of());
+
+            dashboardService.ingredientRanking(merchantId, null, null);
+
+            then(orderRepository).should().sumFichaIngredientConsumptionForMerchant(
+                    eq(merchantId),
+                    eq(LocalDate.now().atStartOfDay()),
+                    eq(LocalDate.now().atTime(23, 59, 59)),
+                    eq(OrderStatus.PAID));
+        }
+    }
 }
 

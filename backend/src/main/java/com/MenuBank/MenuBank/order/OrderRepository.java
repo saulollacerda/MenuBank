@@ -208,4 +208,46 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Object[]> originBreakdownByCustomerForMerchant(
             @Param("merchantId") UUID merchantId,
             @Param("customerIds") java.util.Collection<UUID> customerIds);
+
+    /**
+     * Ficha-snapshot ingredient consumption per merchant/period/status. Ficha ingredients
+     * are consumed once per order, so quantity and cost are summed directly. Each row:
+     * {ingredientId, ingredientName, ingredientUnit, totalQuantity, totalCost}.
+     */
+    @Query("""
+            SELECT fi.ingredient.id, fi.ingredientName, fi.ingredientUnit,
+                   SUM(fi.quantity),
+                   SUM(fi.quantity * fi.costPerUnit)
+            FROM Order o JOIN o.orderFicha fi
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            AND o.status = :status
+            GROUP BY fi.ingredient.id, fi.ingredientName, fi.ingredientUnit
+            """)
+    List<Object[]> sumFichaIngredientConsumptionForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("status") OrderStatus status);
+
+    /**
+     * Extra-ingredient consumption per merchant/period/status. Extras are consumed per unit
+     * of the parent item, so quantity and cost are multiplied by the item quantity. Each row:
+     * {ingredientId, ingredientName, ingredientUnit, totalQuantity, totalCost}.
+     */
+    @Query("""
+            SELECT ei.ingredient.id, ei.ingredientName, ei.ingredientUnit,
+                   SUM(ei.quantity * it.quantity),
+                   SUM(ei.quantity * ei.costPerUnit * it.quantity)
+            FROM Order o JOIN o.items it JOIN it.extraIngredients ei
+            WHERE o.merchant.id = :merchantId
+            AND o.dateTime BETWEEN :start AND :end
+            AND o.status = :status
+            GROUP BY ei.ingredient.id, ei.ingredientName, ei.ingredientUnit
+            """)
+    List<Object[]> sumExtraIngredientConsumptionForMerchant(
+            @Param("merchantId") UUID merchantId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("status") OrderStatus status);
 }

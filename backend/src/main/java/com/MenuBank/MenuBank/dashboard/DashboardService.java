@@ -123,6 +123,72 @@ public class DashboardService {
                 .toList();
     }
 
+    /**
+     * Ranking of ingredients consumed by a merchant's PAID orders over the period, combining
+     * the order ficha snapshot (once per order) and the item extras (per item quantity). Each
+     * entry carries the ingredient name, its unit, the total quantity consumed and the total
+     * cost. Sorted by total cost descending. Dates default to today, like the other endpoints.
+     */
+    public List<IngredientConsumption> ingredientRanking(UUID merchantId, LocalDate startDate, LocalDate endDate) {
+        LocalDate start = startDate != null ? startDate : LocalDate.now();
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDateTime startDateTime = start.atStartOfDay();
+        LocalDateTime endDateTime = end.atTime(23, 59, 59);
+
+        Map<Object, IngredientConsumptionAccumulator> map = new LinkedHashMap<>();
+
+        List<Object[]> fichaRows = orderRepository.sumFichaIngredientConsumptionForMerchant(
+                merchantId, startDateTime, endDateTime, OrderStatus.PAID);
+        List<Object[]> extraRows = orderRepository.sumExtraIngredientConsumptionForMerchant(
+                merchantId, startDateTime, endDateTime, OrderStatus.PAID);
+
+        accumulate(map, fichaRows);
+        accumulate(map, extraRows);
+
+        return map.values().stream()
+                .map(acc -> IngredientConsumption.builder()
+                        .ingredientName(acc.name)
+                        .unit(acc.unit)
+                        .totalQuantity(acc.totalQuantity)
+                        .totalCost(acc.totalCost)
+                        .build())
+                .sorted(Comparator.comparing(IngredientConsumption::getTotalCost).reversed())
+                .toList();
+    }
+
+    private static void accumulate(Map<Object, IngredientConsumptionAccumulator> map, List<Object[]> rows) {
+        for (Object[] row : rows) {
+            Object ingredientId = row[0];
+            String name = (String) row[1];
+            String unit = (String) row[2];
+            BigDecimal quantity = toBigDecimal(row[3]);
+            BigDecimal cost = toBigDecimal(row[4]);
+
+            IngredientConsumptionAccumulator acc = map.computeIfAbsent(
+                    ingredientId, id -> new IngredientConsumptionAccumulator(name, unit));
+            acc.totalQuantity = acc.totalQuantity.add(quantity);
+            acc.totalCost = acc.totalCost.add(cost);
+        }
+    }
+
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal bd) return bd;
+        return new BigDecimal(value.toString());
+    }
+
+    private static final class IngredientConsumptionAccumulator {
+        final String name;
+        final String unit;
+        BigDecimal totalQuantity = BigDecimal.ZERO;
+        BigDecimal totalCost = BigDecimal.ZERO;
+
+        IngredientConsumptionAccumulator(String name, String unit) {
+            this.name = name;
+            this.unit = unit;
+        }
+    }
+
     private PeriodMetrics computeMetrics(UUID merchantId, LocalDateTime start, LocalDateTime end) {
         List<Order> paidOrders = orderRepository.findAllForReportByMerchantAndPeriodAndStatus(
                 merchantId, start, end, OrderStatus.PAID);
