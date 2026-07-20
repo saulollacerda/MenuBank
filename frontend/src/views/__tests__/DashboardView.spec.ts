@@ -110,6 +110,11 @@ describe('DashboardView — seletor de período', () => {
     expect(wrapper.text()).toContain('Margem de lucro média')
   })
 
+  it('renderiza o botão de fechamento com o rótulo "Fechamento do dia"', () => {
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).toContain('Fechamento do dia')
+  })
+
   it('busca o ranking de ingredientes ao montar', () => {
     mount(DashboardView)
     expect(dashboardStoreMock.fetchIngredientRanking).toHaveBeenCalled()

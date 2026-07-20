@@ -137,7 +137,7 @@ function navIngredientsWithName(name: string | null) {
           :disabled="dash.exporting"
           @click="dash.exportDayClosing()"
         >
-          Fechamento
+          Fechamento do dia
         </UIBtn>
       </template>
     </UITopbar>
