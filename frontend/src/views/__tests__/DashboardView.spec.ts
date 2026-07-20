@@ -140,6 +140,34 @@ describe('DashboardView — seletor de período', () => {
     expect(text).toContain('850 g')
   })
 
+  it('limita o ranking de ingredientes a 5 itens', () => {
+    dashboardStoreMock.ingredientRanking = Array.from({ length: 15 }, (_, i) => ({
+      ingredientName: `Ingrediente ${i + 1}`,
+      unit: 'kg',
+      totalQuantity: 15 - i,
+      totalCost: 100 - i,
+    }))
+    const wrapper = mount(DashboardView)
+    const rows = wrapper.findAll('[data-testid="ingredient-ranking-row"]')
+    expect(rows).toHaveLength(5)
+    expect(rows[0].text()).toContain('Ingrediente 1')
+    expect(rows[4].text()).toContain('Ingrediente 5')
+  })
+
+  it('a lista do ranking de ingredientes tem rolagem própria', () => {
+    dashboardStoreMock.ingredientRanking = Array.from({ length: 15 }, (_, i) => ({
+      ingredientName: `Ingrediente ${i + 1}`,
+      unit: 'kg',
+      totalQuantity: 15 - i,
+      totalCost: 100 - i,
+    }))
+    const wrapper = mount(DashboardView)
+    const list = wrapper.find('[data-testid="ingredient-ranking-list"]')
+    expect(list.exists()).toBe(true)
+    expect(list.attributes('style')).toContain('overflow-y: auto')
+    expect(list.attributes('style')).toContain('max-height')
+  })
+
   it('exibe estado vazio quando não há ingredientes no período', () => {
     dashboardStoreMock.ingredientRanking = []
     dashboardStoreMock.ingredientRankingLoading = false
