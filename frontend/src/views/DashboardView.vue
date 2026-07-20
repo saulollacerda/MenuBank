@@ -43,7 +43,11 @@ const hoveredBarIndex = ref<number | null>(null)
 
 const topProducts = computed(() => dash.data?.topProducts ?? [])
 
-const ingredientRanking = computed(() => dash.ingredientRanking ?? [])
+const INGREDIENT_RANKING_LIMIT = 5
+
+const ingredientRanking = computed(() =>
+  (dash.ingredientRanking ?? []).slice(0, INGREDIENT_RANKING_LIMIT),
+)
 
 function formatQuantity(quantity: number, unit: string): string {
   const value = Number(quantity).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
@@ -349,12 +353,21 @@ function navIngredientsWithName(name: string | null) {
           </div>
           <div
             v-else
-            style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px"
+            data-testid="ingredient-ranking-list"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 10px;
+              margin-top: 16px;
+              max-height: 320px;
+              overflow-y: auto;
+            "
           >
             <div
               v-for="(ing, i) in ingredientRanking"
               :key="ing.ingredientName"
-              style="display: flex; align-items: center; gap: 11px"
+              data-testid="ingredient-ranking-row"
+              style="display: flex; align-items: center; gap: 11px; flex-shrink: 0"
             >
               <div
                 :style="{
