@@ -234,6 +234,57 @@ describe('dashboardStore', () => {
     expect(store.loading).toBe(false)
   })
 
+  describe('fetchIngredientRanking', () => {
+    it('should populate ingredientRanking sorted as returned by the service', async () => {
+      const mockRanking = [
+        { ingredientName: 'Carne', unit: 'kg', totalQuantity: 12.5, totalCost: 350.0 },
+        { ingredientName: 'Queijo', unit: 'kg', totalQuantity: 4.2, totalCost: 120.0 },
+      ]
+      mockedService.getIngredientRanking.mockResolvedValue(mockRanking)
+
+      const store = useDashboardStore()
+      await store.fetchIngredientRanking()
+
+      expect(store.ingredientRanking).toEqual(mockRanking)
+      expect(store.ingredientRankingLoading).toBe(false)
+      expect(store.ingredientRankingError).toBeNull()
+    })
+
+    it('should pass resolved month dates to the service', async () => {
+      mockedService.getIngredientRanking.mockResolvedValue([])
+
+      const store = useDashboardStore()
+      store.filterMode = 'month'
+      store.selectedYear = 2026
+      store.selectedMonthNumber = 3
+      await store.fetchIngredientRanking()
+
+      expect(mockedService.getIngredientRanking).toHaveBeenCalledWith('2026-03-01', '2026-03-31')
+    })
+
+    it('should pass custom date filters to the service', async () => {
+      mockedService.getIngredientRanking.mockResolvedValue([])
+
+      const store = useDashboardStore()
+      store.filterMode = 'custom'
+      store.startDate = '2026-03-01'
+      store.endDate = '2026-03-24'
+      await store.fetchIngredientRanking()
+
+      expect(mockedService.getIngredientRanking).toHaveBeenCalledWith('2026-03-01', '2026-03-24')
+    })
+
+    it('should set error on failure', async () => {
+      mockedService.getIngredientRanking.mockRejectedValue(new Error('Server error'))
+
+      const store = useDashboardStore()
+
+      await expect(store.fetchIngredientRanking()).rejects.toThrow()
+      expect(store.ingredientRankingError).toBe('Erro ao carregar ranking de ingredientes')
+      expect(store.ingredientRankingLoading).toBe(false)
+    })
+  })
+
   describe('filterMode = month', () => {
     it('selectedMonth should be derived from selectedYear and selectedMonthNumber', () => {
       const store = useDashboardStore()

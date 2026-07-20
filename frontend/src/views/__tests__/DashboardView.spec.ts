@@ -49,6 +49,10 @@ describe('DashboardView — seletor de período', () => {
       fetchDashboard: vi.fn(async () => {}),
       exportDashboard: vi.fn(),
       exportDayClosing: vi.fn(),
+      ingredientRanking: [],
+      ingredientRankingLoading: false,
+      ingredientRankingError: null,
+      fetchIngredientRanking: vi.fn(async () => {}),
     }
     orderStoreMock = { items: [], fetchPage: vi.fn(async () => {}) }
     notificationStoreMock = { items: [], fetchAll: vi.fn(async () => {}) }
@@ -104,5 +108,44 @@ describe('DashboardView — seletor de período', () => {
     }
     const wrapper = mount(DashboardView)
     expect(wrapper.text()).toContain('Margem de lucro média')
+  })
+
+  it('busca o ranking de ingredientes ao montar', () => {
+    mount(DashboardView)
+    expect(dashboardStoreMock.fetchIngredientRanking).toHaveBeenCalled()
+  })
+
+  it('não renderiza mais o card de horário de pico', () => {
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).not.toContain('Horário de pico')
+  })
+
+  it('renderiza o ranking de ingredientes com nome, gramatura e custo', () => {
+    dashboardStoreMock.ingredientRanking = [
+      { ingredientName: 'Carne', unit: 'kg', totalQuantity: 12.5, totalCost: 350 },
+      { ingredientName: 'Farinha', unit: 'g', totalQuantity: 850, totalCost: 12.4 },
+    ]
+    const wrapper = mount(DashboardView)
+    const text = wrapper.text()
+    expect(text).toContain('Ranking de ingredientes')
+    expect(text).toContain('Carne')
+    expect(text).toContain('12,5 kg')
+    expect(text).toContain('R$ 350,00')
+    expect(text).toContain('Farinha')
+    expect(text).toContain('850 g')
+  })
+
+  it('exibe estado vazio quando não há ingredientes no período', () => {
+    dashboardStoreMock.ingredientRanking = []
+    dashboardStoreMock.ingredientRankingLoading = false
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).toContain('Nenhum ingrediente no período.')
+  })
+
+  it('exibe estado de carregamento do ranking de ingredientes', () => {
+    dashboardStoreMock.ingredientRanking = []
+    dashboardStoreMock.ingredientRankingLoading = true
+    const wrapper = mount(DashboardView)
+    expect(wrapper.text()).toContain('Carregando…')
   })
 })

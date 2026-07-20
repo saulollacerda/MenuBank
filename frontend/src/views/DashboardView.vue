@@ -43,6 +43,13 @@ const hoveredBarIndex = ref<number | null>(null)
 
 const topProducts = computed(() => dash.data?.topProducts ?? [])
 
+const ingredientRanking = computed(() => dash.ingredientRanking ?? [])
+
+function formatQuantity(quantity: number, unit: string): string {
+  const value = Number(quantity).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  return unit ? `${value} ${unit}` : value
+}
+
 const recentOrders = computed(() => orderStore.items.slice(0, 5))
 const missingIngredientAlerts = computed(() =>
   notif.items.filter((n) => n.type === 'MISSING_INGREDIENT' && n.status !== 'RESOLVED').slice(0, 4),
@@ -74,6 +81,7 @@ watch(
   () => [dash.selectedYear, dash.selectedMonthNumber],
   () => {
     dash.fetchDashboard(true)
+    dash.fetchIngredientRanking().catch(() => {})
   },
 )
 
@@ -81,6 +89,7 @@ onMounted(() => {
   // Serve o cache instantaneamente ao reabrir dentro da janela de 10 min; fora dela
   // revalida em segundo plano mantendo os números na tela (stale-while-revalidate).
   dash.fetchDashboard()
+  dash.fetchIngredientRanking().catch(() => {})
   orderStore.fetchPage({ page: 0 }).catch(() => {})
   notif.fetchAll().catch(() => {})
 })
@@ -88,6 +97,7 @@ onMounted(() => {
 // Atualização automática a cada 10 minutos, em segundo plano (silent) para não piscar.
 usePolling(() => { orderStore.fetchPage({ page: 0 }, true).catch(() => {}) }, REFRESH_INTERVAL_MS)
 usePolling(() => { dash.fetchDashboard(true, true).catch(() => {}) }, REFRESH_INTERVAL_MS)
+usePolling(() => { dash.fetchIngredientRanking().catch(() => {}) }, REFRESH_INTERVAL_MS)
 
 function navOrders() {
   router.push('/orders')
@@ -306,7 +316,7 @@ function navIngredientsWithName(name: string | null) {
           </div>
         </div>
 
-        <!-- Peak hours / placeholder until backend supports -->
+        <!-- Ingredient ranking by total cost for the selected period -->
         <div
           :style="{
             background: UI.panel,
@@ -318,27 +328,80 @@ function navIngredientsWithName(name: string | null) {
             flexDirection: 'column',
           }"
         >
-          <div :style="{ fontSize: '14px', fontWeight: 600, color: UI.text }">Horário de pico</div>
+          <div :style="{ fontSize: '14px', fontWeight: 600, color: UI.text }">
+            Ranking de ingredientes
+          </div>
           <div :style="{ fontSize: '12px', color: UI.textSub, marginTop: '2px' }">
-            Pedidos por hora
+            Custo no período
+          </div>
+
+          <div
+            v-if="dash.ingredientRankingLoading && !ingredientRanking.length"
+            :style="{ marginTop: '18px', color: UI.textMute, fontSize: '13px' }"
+          >
+            Carregando…
           </div>
           <div
-            :style="{
-              marginTop: '18px',
-              padding: '12px 14px',
-              background: UI.amberBg,
-              borderRadius: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '11px',
-              color: UI.amber2,
-            }"
+            v-else-if="!ingredientRanking.length"
+            :style="{ marginTop: '18px', color: UI.textMute, fontSize: '13px' }"
           >
-            <UIIcon name="info" :size="18" />
-            <div style="flex: 1">
-              <div :style="{ fontSize: '11px', fontWeight: 500 }">Em breve</div>
-              <div :style="{ fontSize: '13px', fontWeight: 600, marginTop: '2px' }">
-                Backend ainda não expõe esse dado
+            Nenhum ingrediente no período.
+          </div>
+          <div
+            v-else
+            style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px"
+          >
+            <div
+              v-for="(ing, i) in ingredientRanking"
+              :key="ing.ingredientName"
+              style="display: flex; align-items: center; gap: 11px"
+            >
+              <div
+                :style="{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '6px',
+                  background: i === 0 ? UI.emerald : UI.bg,
+                  color: i === 0 ? '#fff' : UI.textSub,
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }"
+              >
+                {{ i + 1 }}
+              </div>
+              <div style="flex: 1; min-width: 0">
+                <div
+                  :style="{
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    color: UI.text,
+                    marginBottom: '2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }"
+                >
+                  {{ ing.ingredientName }}
+                </div>
+                <div :style="{ fontSize: '10.5px', color: UI.textMute }">
+                  {{ formatQuantity(Number(ing.totalQuantity), ing.unit) }}
+                </div>
+              </div>
+              <div
+                :style="{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: UI.text,
+                  fontVariantNumeric: 'tabular-nums',
+                  textAlign: 'right',
+                  flexShrink: 0,
+                }"
+              >
+                {{ brl(Number(ing.totalCost)) }}
               </div>
             </div>
           </div>

@@ -250,11 +250,12 @@ async function logout() {
 }
 
 .ui-nav {
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 .ui-nav:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  transform: translateX(3px);
 }
 .ui-nav.is-active:hover {
   background: #2563eb !important;
