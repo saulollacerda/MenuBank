@@ -172,5 +172,60 @@ class DashboardControllerTest {
                     .andExpect(jsonPath("$.totalSales").value(1500.00));
         }
     }
+
+    // -------------------------------------------------------------------------
+    // GET /api/dashboard/ingredient-ranking
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("GET /api/dashboard/ingredient-ranking")
+    class IngredientRanking {
+
+        @Test
+        @DisplayName("deve retornar 200 com array de ingredientes no contrato esperado")
+        void shouldReturn200WithIngredientArray() throws Exception {
+            given(dashboardService.ingredientRanking(any(),
+                    eq(LocalDate.of(2026, 3, 1)), eq(LocalDate.of(2026, 3, 31))))
+                    .willReturn(List.of(
+                            IngredientConsumption.builder()
+                                    .ingredientName("Queijo")
+                                    .unit("g")
+                                    .totalQuantity(new BigDecimal("100"))
+                                    .totalCost(new BigDecimal("12.00"))
+                                    .build(),
+                            IngredientConsumption.builder()
+                                    .ingredientName("Bacon")
+                                    .unit("g")
+                                    .totalQuantity(new BigDecimal("250"))
+                                    .totalCost(new BigDecimal("10.00"))
+                                    .build()
+                    ));
+
+            mockMvc.perform(get("/api/dashboard/ingredient-ranking")
+                            .param("startDate", "2026-03-01")
+                            .param("endDate", "2026-03-31"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$[0].ingredientName").value("Queijo"))
+                    .andExpect(jsonPath("$[0].unit").value("g"))
+                    .andExpect(jsonPath("$[0].totalQuantity").value(100))
+                    .andExpect(jsonPath("$[0].totalCost").value(12.00))
+                    .andExpect(jsonPath("$[1].ingredientName").value("Bacon"))
+                    .andExpect(jsonPath("$[1].totalQuantity").value(250))
+                    .andExpect(jsonPath("$[1].totalCost").value(10.00));
+        }
+
+        @Test
+        @DisplayName("deve retornar 200 sem parâmetros de data (usa padrão hoje)")
+        void shouldReturn200WithoutDateParams() throws Exception {
+            given(dashboardService.ingredientRanking(any(), isNull(), isNull()))
+                    .willReturn(List.of());
+
+            mockMvc.perform(get("/api/dashboard/ingredient-ranking"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$").isEmpty());
+        }
+    }
 }
 

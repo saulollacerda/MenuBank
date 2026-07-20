@@ -4,6 +4,8 @@ import com.MenuBank.MenuBank.merchant.Merchant;
 
 import com.MenuBank.MenuBank.category.Category;
 import com.MenuBank.MenuBank.customer.Customer;
+import com.MenuBank.MenuBank.dashboard.DashboardService;
+import com.MenuBank.MenuBank.dashboard.IngredientConsumption;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.ingredient.Ingredient;
 import com.MenuBank.MenuBank.order.OrderItem;
@@ -39,6 +41,9 @@ class ExportServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private DashboardService dashboardService;
 
     @InjectMocks
     private ExportService exportService;
@@ -146,15 +151,15 @@ class ExportServiceTest {
         }
 
         @Test
-        @DisplayName("deve gerar workbook com 3 abas")
-        void shouldGenerateWorkbookWithThreeSheets() throws Exception {
+        @DisplayName("deve gerar workbook com 4 abas")
+        void shouldGenerateWorkbookWithFourSheets() throws Exception {
             given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(eq(merchantId), any(), any(), eq(OrderStatus.PAID)))
                     .willReturn(List.of());
 
             byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
 
             try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
-                assertThat(wb.getNumberOfSheets()).isEqualTo(3);
+                assertThat(wb.getNumberOfSheets()).isEqualTo(4);
             }
         }
     }
@@ -414,6 +419,69 @@ class ExportServiceTest {
                 assertThat(custoTotal).isEqualTo(30.00);
                 assertThat(lucroTotal).isEqualTo(20.00);
                 assertThat(margem).isEqualTo(40.00);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // generateDashboardExport() — Aba Desempenho por Ingrediente
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("generateDashboardExport() — Desempenho por Ingrediente")
+    class DesempenhoPorIngrediente {
+
+        @Test
+        @DisplayName("deve criar aba 'Desempenho por Ingrediente' como quarta aba, após 'Desempenho por Produto'")
+        void shouldCreateDesempenhoPorIngredienteAsFourthSheet() throws Exception {
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(any(), any(), any(), any()))
+                    .willReturn(List.of());
+
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
+
+            try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
+                assertThat(wb.getSheetAt(2).getSheetName()).isEqualTo("Desempenho por Produto");
+                assertThat(wb.getSheetAt(3).getSheetName()).isEqualTo("Desempenho por Ingrediente");
+            }
+        }
+
+        @Test
+        @DisplayName("deve preencher uma linha por ingrediente vindo do ranking do serviço")
+        void shouldWriteOneRowPerIngredientFromService() throws Exception {
+            given(orderRepository.findAllForReportByMerchantAndPeriodAndStatus(any(), any(), any(), any()))
+                    .willReturn(List.of());
+            given(dashboardService.ingredientRanking(eq(merchantId), any(), any()))
+                    .willReturn(List.of(
+                            IngredientConsumption.builder()
+                                    .ingredientName("Queijo")
+                                    .unit("g")
+                                    .totalQuantity(new BigDecimal("100"))
+                                    .totalCost(new BigDecimal("12.00"))
+                                    .build(),
+                            IngredientConsumption.builder()
+                                    .ingredientName("Bacon")
+                                    .unit("g")
+                                    .totalQuantity(new BigDecimal("250"))
+                                    .totalCost(new BigDecimal("10.00"))
+                                    .build()
+                    ));
+
+            byte[] result = exportService.generateDashboardExport(merchantId, startDate, endDate);
+
+            try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
+                var sheet = wb.getSheet("Desempenho por Ingrediente");
+                // header + 2 ingredient rows
+                assertThat(sheet.getLastRowNum()).isEqualTo(2);
+
+                // col 0 = Ingrediente, 1 = Unidade, 2 = Quantidade Total, 3 = Custo Total
+                assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("Queijo");
+                assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("g");
+                assertThat(sheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(100.0);
+                assertThat(sheet.getRow(1).getCell(3).getNumericCellValue()).isEqualTo(12.00);
+
+                assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("Bacon");
+                assertThat(sheet.getRow(2).getCell(2).getNumericCellValue()).isEqualTo(250.0);
+                assertThat(sheet.getRow(2).getCell(3).getNumericCellValue()).isEqualTo(10.00);
             }
         }
     }

@@ -50,18 +50,19 @@ class ExportServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("generateDashboardExport deve retornar planilha XLSX válida com 3 abas")
-    void generateDashboardExport_shouldReturnValidXlsxWithThreeSheets() throws Exception {
+    @DisplayName("generateDashboardExport deve retornar planilha XLSX válida com 4 abas")
+    void generateDashboardExport_shouldReturnValidXlsxWithFourSheets() throws Exception {
         seedOrder("João", "Açaí 500ml", new BigDecimal("50.00"));
 
         byte[] bytes = exportService.generateDashboardExport(merchant.getId(), LocalDate.now(), LocalDate.now());
 
         assertThat(bytes).isNotEmpty();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-            assertThat(wb.getNumberOfSheets()).isEqualTo(3);
+            assertThat(wb.getNumberOfSheets()).isEqualTo(4);
             assertThat(wb.getSheet("Resumo Financeiro")).isNotNull();
             assertThat(wb.getSheet("Pedidos")).isNotNull();
             assertThat(wb.getSheet("Desempenho por Produto")).isNotNull();
+            assertThat(wb.getSheet("Desempenho por Ingrediente")).isNotNull();
         }
     }
 

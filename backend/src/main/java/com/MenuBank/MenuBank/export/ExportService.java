@@ -1,5 +1,7 @@
 package com.MenuBank.MenuBank.export;
 
+import com.MenuBank.MenuBank.dashboard.DashboardService;
+import com.MenuBank.MenuBank.dashboard.IngredientConsumption;
 import com.MenuBank.MenuBank.order.Order;
 import com.MenuBank.MenuBank.order.OrderItem;
 import com.MenuBank.MenuBank.order.OrderItemExtraIngredient;
@@ -26,6 +28,7 @@ import java.util.*;
 public class ExportService {
 
     private final OrderRepository orderRepository;
+    private final DashboardService dashboardService;
 
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -48,6 +51,7 @@ public class ExportService {
             buildResumoFinanceiro(workbook, orders, start, end, headerStyle, boldStyle);
             buildPedidos(workbook, orders, headerStyle);
             buildDesempenhoPorProduto(workbook, orders, headerStyle);
+            buildDesempenhoPorIngrediente(workbook, merchantId, start, end, headerStyle);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             workbook.write(out);
@@ -220,6 +224,33 @@ public class ExportService {
                     .setScale(2, RoundingMode.HALF_UP).doubleValue()
                     : 0.0;
             row.createCell(6).setCellValue(margin);
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // -------------------------------------------------------------------------
+    // Aba 4 — Desempenho por Ingrediente
+    // -------------------------------------------------------------------------
+
+    private void buildDesempenhoPorIngrediente(XSSFWorkbook wb, UUID merchantId,
+                                               LocalDate start, LocalDate end,
+                                               CellStyle headerStyle) {
+        Sheet sheet = wb.createSheet("Desempenho por Ingrediente");
+
+        String[] headers = {"Ingrediente", "Unidade", "Quantidade Total", "Custo Total (R$)"};
+        writeHeaderRow(sheet, headers, headerStyle);
+
+        List<IngredientConsumption> ranking = dashboardService.ingredientRanking(merchantId, start, end);
+
+        int rowIdx = 1;
+        for (IngredientConsumption ingredient : ranking) {
+            Row row = sheet.createRow(rowIdx++);
+            createCell(row, 0, ingredient.getIngredientName(), null);
+            createCell(row, 1, ingredient.getUnit(), null);
+            row.createCell(2).setCellValue(ingredient.getTotalQuantity().doubleValue());
+            row.createCell(3).setCellValue(
+                    ingredient.getTotalCost().setScale(2, RoundingMode.HALF_UP).doubleValue());
         }
 
         autoSizeColumns(sheet, headers.length);
