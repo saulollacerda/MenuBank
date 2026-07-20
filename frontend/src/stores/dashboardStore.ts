@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { DashboardResponse } from '@/types/Dashboard'
+import type { DashboardResponse, IngredientRanking } from '@/types/Dashboard'
 import { dashboardService } from '@/services/dashboardService'
 import { createStaleCache } from '@/utils/staleCache'
 import { REFRESH_INTERVAL_MS } from '@/utils/refresh'
@@ -20,6 +20,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const refreshing = ref(false)
   const error = ref<string | null>(null)
   const exporting = ref(false)
+
+  const ingredientRanking = ref<IngredientRanking[]>([])
+  const ingredientRankingLoading = ref(false)
+  const ingredientRankingError = ref<string | null>(null)
 
   const filterMode = ref<'month' | 'custom'>('month')
 
@@ -99,6 +103,22 @@ export const useDashboardStore = defineStore('dashboard', () => {
     return fetchDashboardInFlight
   }
 
+  async function fetchIngredientRanking() {
+    ingredientRankingLoading.value = true
+    ingredientRankingError.value = null
+    try {
+      ingredientRanking.value = await dashboardService.getIngredientRanking(
+        resolvedStartDate.value || undefined,
+        resolvedEndDate.value || undefined,
+      )
+    } catch (e: unknown) {
+      ingredientRankingError.value = 'Erro ao carregar ranking de ingredientes'
+      throw e
+    } finally {
+      ingredientRankingLoading.value = false
+    }
+  }
+
   async function exportDashboard() {
     exporting.value = true
     try {
@@ -156,7 +176,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     endDate,
     resolvedStartDate,
     resolvedEndDate,
+    ingredientRanking,
+    ingredientRankingLoading,
+    ingredientRankingError,
     fetchDashboard,
+    fetchIngredientRanking,
     exportDashboard,
     exportDayClosing,
   }

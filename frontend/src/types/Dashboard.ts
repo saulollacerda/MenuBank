@@ -8,6 +8,13 @@ export interface TopProduct {
   quantitySold: number
 }
 
+export interface IngredientRanking {
+  ingredientName: string
+  unit: string
+  totalQuantity: number
+  totalCost: number
+}
+
 export interface DashboardResponse {
   totalSales: number
   orderCount: number
