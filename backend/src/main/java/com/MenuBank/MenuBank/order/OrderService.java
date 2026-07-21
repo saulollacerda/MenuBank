@@ -27,6 +27,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,9 +130,12 @@ public class OrderService {
                 ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
                 : orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(merchantId, status, term, pageable);
 
-        Set<UUID> productIds = page.getContent().stream()
+        List<OrderItem> pageItems = page.getContent().stream()
                 .filter(o -> o.getItems() != null)
                 .flatMap(o -> o.getItems().stream())
+                .toList();
+
+        Set<UUID> productIds = pageItems.stream()
                 .map(i -> i.getProduct().getId())
                 .collect(Collectors.toSet());
         Map<UUID, List<Include>> includesByProduct = productIds.isEmpty() ? Map.of() :
@@ -139,7 +143,12 @@ public class OrderService {
                         .stream()
                         .collect(Collectors.groupingBy(inc -> inc.getProduct().getId()));
 
-        return page.map(o -> toResponse(o, includesByProduct));
+        // Resolved ONCE for the whole page. Per order, every one carrying unmatched
+        // subItems cost its own query (N+1): a page of 20 imported orders fired 20 extra
+        // SELECTs just to decide which "register ingredient" buttons to hide.
+        Set<String> registeredCanonicalNames = registeredCanonicalNamesFor(pageItems, merchantId);
+
+        return page.map(o -> toResponse(o, includesByProduct, registeredCanonicalNames));
     }
 
     @Transactional(readOnly = true)
@@ -166,8 +175,9 @@ public class OrderService {
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
         List<OrderItem> newItems = buildItems(merchantId, request.getItems());
+        carryOverExtraSalePrices(order, newItems);
 
-        BigDecimal totalValue = calculateTotalValue(newItems);
+        BigDecimal totalValue = calculateTotalValue(newItems, order.getDeliveryFee(), order.getServiceFee());
 
         order.setCustomer(customer);
         order.setFee(fee);
@@ -298,14 +308,82 @@ public class OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private OrderResponse toResponse(Order order) {
-        return toResponse(order, null);
+    /**
+     * Total do pedido = itens + adicionais pagos + taxa de entrega + taxa de serviço.
+     * <p>
+     * As duas taxas só existem em pedido importado, onde o total do parceiro já as inclui.
+     * Somá-las de volta ao recalcular é o que mantém o total igual ao que o cliente pagou —
+     * sem isso a edição derrubava o total para a soma dos itens, e como o lucro desconta
+     * ambas as taxas ({@link OrderCalculations#calculateEstimatedProfit}), a diferença era
+     * cobrada duas vezes. Em pedido manual as taxas são nulas e o total segue a soma dos itens.
+     */
+    private BigDecimal calculateTotalValue(List<OrderItem> items, BigDecimal deliveryFee, BigDecimal serviceFee) {
+        return calculateTotalValue(items)
+                .add(sumExtraSalePrices(items))
+                .add(deliveryFee != null ? deliveryFee : BigDecimal.ZERO)
+                .add(serviceFee != null ? serviceFee : BigDecimal.ZERO);
     }
 
-    private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct) {
+    /**
+     * Receita dos adicionais pagos. Em pedido importado o {@code unitPrice} do item não inclui
+     * os subItems cobrados — o valor deles vive em {@code salePriceTotal}. Adicional de pedido
+     * manual não tem preço de venda ({@code null}) e não entra na conta.
+     */
+    private BigDecimal sumExtraSalePrices(List<OrderItem> items) {
+        return items.stream()
+                .filter(item -> item.getExtraIngredients() != null)
+                .flatMap(item -> item.getExtraIngredients().stream())
+                .map(OrderItemExtraIngredient::getSalePriceTotal)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Copia o preço de venda dos adicionais do pedido atual para os adicionais reconstruídos
+     * a partir do request, casando por ingrediente. O request da UI não carrega preço de venda
+     * (adicional de pedido manual não tem), então sem esse repasse uma edição apagaria a receita
+     * dos adicionais que vieram do parceiro.
+     */
+    private void carryOverExtraSalePrices(Order order, List<OrderItem> newItems) {
+        if (order.getItems() == null) return;
+        Map<UUID, BigDecimal> salePriceByIngredient = new HashMap<>();
+        for (OrderItem item : order.getItems()) {
+            if (item.getExtraIngredients() == null) continue;
+            for (OrderItemExtraIngredient extra : item.getExtraIngredients()) {
+                if (extra.getSalePriceTotal() == null || extra.getIngredient() == null) continue;
+                salePriceByIngredient.merge(extra.getIngredient().getId(), extra.getSalePriceTotal(),
+                        BigDecimal::add);
+            }
+        }
+        if (salePriceByIngredient.isEmpty()) return;
+        for (OrderItem item : newItems) {
+            if (item.getExtraIngredients() == null) continue;
+            for (OrderItemExtraIngredient extra : item.getExtraIngredients()) {
+                BigDecimal salePrice = salePriceByIngredient.remove(extra.getIngredient().getId());
+                if (salePrice != null) {
+                    extra.setSalePriceTotal(salePrice);
+                }
+            }
+        }
+    }
+
+    private OrderResponse toResponse(Order order) {
+        return toResponse(order, null, null);
+    }
+
+    /**
+     * @param includesByProduct            includes already loaded for the page, or {@code null}
+     *                                     to fetch them per product (single order).
+     * @param pageRegisteredCanonicalNames canonical names already resolved for the page, or
+     *                                     {@code null} to resolve them from this order alone.
+     */
+    private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct,
+                                     Set<String> pageRegisteredCanonicalNames) {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
         UUID orderMerchantId = order.getMerchant().getId();
-        Set<String> registeredCanonicalNames = registeredCanonicalNamesFor(items, orderMerchantId);
+        Set<String> registeredCanonicalNames = pageRegisteredCanonicalNames != null
+                ? pageRegisteredCanonicalNames
+                : registeredCanonicalNamesFor(items, orderMerchantId);
         List<OrderItemResponse> itemResponses = items.stream()
                 .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin(),
                         registeredCanonicalNames))
@@ -394,10 +472,10 @@ public class OrderService {
     }
 
     /**
-     * Nomes canônicos dos subItems não-casados que JÁ existem como ingrediente do merchant.
-     * Uma única consulta cobre todos os itens do pedido — usada para derivar quais botões de
-     * "cadastrar ingrediente" já não são necessários (o ingrediente foi criado). Vazio quando
-     * o pedido não tem subItems não-casados, evitando a consulta.
+     * Canonical names of unmatched subItems that ALREADY exist as an ingredient of the
+     * merchant. A single query covers every item received — a single order or a whole page —
+     * and drives which "register ingredient" buttons are no longer needed (the ingredient
+     * has been created). Empty when there are no unmatched subItems, skipping the query.
      */
     private Set<String> registeredCanonicalNamesFor(List<OrderItem> items, UUID merchantId) {
         Set<String> canonicalNames = items.stream()

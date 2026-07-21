@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { usePolling } from '@/composables/usePolling'
 import { REFRESH_INTERVAL_MS } from '@/utils/refresh'
 import { useRouter } from 'vue-router'
@@ -7,7 +7,18 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useOrderStore } from '@/stores/orderStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
-import { UI, UITopbar, UIBtn, UIIcon, UIPeriodPicker, periodLabel as formatPeriod, brl, num } from '@/design'
+import {
+  UI,
+  UITopbar,
+  UIBtn,
+  UIIcon,
+  UIPeriodPicker,
+  periodLabel as formatPeriod,
+  rangeLabel,
+  brl,
+  num,
+} from '@/design'
+import type { PeriodChange } from '@/design/UIPeriodPicker.vue'
 import type { OrderOrigin } from '@/types/Order'
 
 const dash = useDashboardStore()
@@ -16,9 +27,28 @@ const notif = useNotificationStore()
 const auth = useAuthStore()
 const router = useRouter()
 
-const periodLabel = computed(
-  () => formatPeriod(dash.selectedMonthNumber, dash.selectedYear),
-)
+const periodLabel = computed(() => {
+  if (dash.filterMode === 'custom' && (dash.startDate || dash.endDate)) {
+    return rangeLabel(dash.startDate, dash.endDate)
+  }
+  return formatPeriod(dash.selectedMonthNumber, dash.selectedYear)
+})
+
+function refetchPeriodData() {
+  dash.fetchDashboard(true)
+  dash.fetchIngredientRanking().catch(() => {})
+}
+
+// The picker emits a single `change` once the whole selection is settled, so the
+// dashboard never refetches with a half-applied range.
+function onPeriodChange(change: PeriodChange) {
+  dash.filterMode = change.mode
+  if (change.mode === 'custom') {
+    dash.startDate = change.startDate ?? ''
+    dash.endDate = change.endDate ?? ''
+  }
+  refetchPeriodData()
+}
 
 function marginLabel(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
@@ -81,14 +111,6 @@ function formatDay(dateStr: string): string {
   return String(d.getDate()).padStart(2, '0')
 }
 
-watch(
-  () => [dash.selectedYear, dash.selectedMonthNumber],
-  () => {
-    dash.fetchDashboard(true)
-    dash.fetchIngredientRanking().catch(() => {})
-  },
-)
-
 onMounted(() => {
   // Serve o cache instantaneamente ao reabrir dentro da janela de 10 min; fora dela
   // revalida em segundo plano mantendo os números na tela (stale-while-revalidate).
@@ -126,6 +148,10 @@ function navIngredientsWithName(name: string | null) {
         <UIPeriodPicker
           v-model:month="dash.selectedMonthNumber"
           v-model:year="dash.selectedYear"
+          :mode="dash.filterMode"
+          :start-date="dash.startDate"
+          :end-date="dash.endDate"
+          @change="onPeriodChange"
         />
         <UIBtn
           icon="download"

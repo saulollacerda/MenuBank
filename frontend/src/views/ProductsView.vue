@@ -197,11 +197,6 @@ const packagingSubtotal = computed(() =>
 const recipeTotalCost = computed(() =>
   productStore.includes.reduce((s, i) => s + Number(i.totalCost), 0),
 )
-const recipeMargin = computed(() => {
-  const price = Number(selectedProduct.value?.price ?? 0)
-  if (!price) return 0
-  return ((price - recipeTotalCost.value) / price) * 100
-})
 
 // The Ficha column ("Abrir") only exists on phones/tablets, where the row
 // actions sit far right after horizontal scroll; desktop opens the recipe
@@ -643,7 +638,7 @@ onMounted(() => {
       @close="closeRecipe"
     >
       <div style="display: flex; flex-direction: column; gap: 16px">
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px">
           <div
             :style="{
               padding: '12px',
@@ -704,37 +699,6 @@ onMounted(() => {
               }"
             >
               {{ brl(recipeTotalCost) }}
-            </div>
-          </div>
-          <div
-            :style="{
-              padding: '12px',
-              background: UI.bg,
-              border: `1px solid ${UI.border}`,
-              borderRadius: '10px',
-            }"
-          >
-            <div
-              :style="{
-                fontSize: '10.5px',
-                color: UI.textMute,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                marginBottom: '6px',
-              }"
-            >
-              Margem estimada
-            </div>
-            <div
-              :style="{
-                fontSize: '18px',
-                fontWeight: 700,
-                color: UI.emerald2,
-                fontVariantNumeric: 'tabular-nums',
-              }"
-            >
-              {{ recipeMargin.toFixed(1).replace('.', ',') }}%
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import com.MenuBank.MenuBank.merchant.Merchant;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,6 +33,15 @@ public class Order {
 
     @Column(nullable = false)
     private LocalDateTime dateTime;
+
+    /**
+     * Última gravação do pedido, escrita pelo Hibernate na criação e em toda edição.
+     * Serve para distinguir um pedido importado intacto de um que passou pela tela de
+     * edição — informação que faltou ao diagnosticar o total errado em pedidos com frete.
+     */
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)

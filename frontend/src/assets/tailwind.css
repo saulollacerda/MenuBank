@@ -1,0 +1,13 @@
+/*
+ * Tailwind CSS v4 — utilities only.
+ *
+ * Preflight (Tailwind's own reset) is deliberately NOT imported: the rest of the
+ * app is styled with inline style objects from `src/design/tokens.ts` plus the
+ * hand-written reset in `main.css`, and Tailwind's reset would regress it.
+ * Importing only the theme and utility layers keeps Tailwind additive, so it
+ * affects nothing that does not explicitly use a utility class.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);

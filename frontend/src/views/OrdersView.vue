@@ -62,7 +62,11 @@ function goToHoursSettings() {
 const showModal = ref(false)
 const showDetailModal = ref(false)
 const loadingDetail = ref(false)
+// Background refresh of the detail: never replaces content already on screen.
+const detailPending = ref(false)
 const selectedOrder = ref<OrderResponse | null>(null)
+// Detail request sequence, guarding against out-of-order responses.
+let detailRequestToken = 0
 const confirmDeleteId = ref<string | null>(null)
 const editingOrderId = ref<string | null>(null)
 
@@ -490,18 +494,33 @@ async function handleSubmit() {
   }
 }
 async function viewDetail(o: OrderResponse) {
+  // Monotonic token: only the newest request may write to the modal. Without it
+  // a slow response for the previous order overwrites the current one.
+  const token = ++detailRequestToken
   showDetailModal.value = true
-  loadingDetail.value = true
-  selectedOrder.value = null
+  cancelCreateIngredient()
+  // The list row is already a complete OrderResponse: render it at once and let
+  // the fetched detail replace it, so switching orders never flashes a spinner.
+  selectedOrder.value = o
+  loadingDetail.value = false
+  detailPending.value = true
   try {
-    selectedOrder.value = await orderStore.findById(o.id)
+    const detail = await orderStore.findById(o.id)
+    if (token !== detailRequestToken) return
+    selectedOrder.value = detail
   } catch {
+    if (token !== detailRequestToken) return
     showDetailModal.value = false
+    selectedOrder.value = null
   } finally {
-    loadingDetail.value = false
+    if (token === detailRequestToken) detailPending.value = false
   }
 }
 function closeDetail() {
+  // Invalidate the in-flight request: it must not reopen or repopulate the modal.
+  detailRequestToken++
+  detailPending.value = false
+  loadingDetail.value = false
   showDetailModal.value = false
   selectedOrder.value = null
   cancelCreateIngredient()
@@ -1501,13 +1520,31 @@ usePolling(() => { orderStore.fetchPage({}, true).catch(() => {}) }, REFRESH_INT
       data-testid="order-detail-modal"
       @close="closeDetail"
     >
-      <div v-if="loadingDetail" style="padding: 40px; text-align: center; color: #94a3b8">
+      <div
+        v-if="loadingDetail && !selectedOrder"
+        style="padding: 40px; text-align: center; color: #94a3b8"
+      >
         Carregando…
       </div>
       <div
         v-else-if="selectedOrder"
         style="display: flex; flex-direction: column; gap: 18px"
       >
+        <!-- Discreet hint. The row is always present and only its opacity changes,
+             so showing it never pushes the content below it. -->
+        <div
+          data-testid="order-detail-pending"
+          :style="{
+            height: '13px',
+            fontSize: '11px',
+            lineHeight: '13px',
+            color: UI.textMute,
+            opacity: detailPending ? 1 : 0,
+            transition: 'opacity 0.15s ease',
+          }"
+        >
+          Atualizando…
+        </div>
         <div class="grid-cols-4" style="gap: 10px">
           <div
             :style="{
