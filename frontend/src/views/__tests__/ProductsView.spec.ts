@@ -245,6 +245,20 @@ describe('ProductsView', () => {
     expect(wrapper.text()).not.toContain('Ingredientes')
   })
 
+  it('should not render the estimated margin card in the recipe panel', async () => {
+    productStoreMock.includes = [
+      { id: 'i1', productId: 'p1', name: 'Açaí Base', cost: 2.5, quantity: 1, totalCost: 2.5, kind: 'INGREDIENT' },
+    ]
+
+    const wrapper = mount(ProductsView)
+    await wrapper.get('[data-testid="product-p1-recipe-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ficha Técnica — Açaí 330ml')
+    expect(wrapper.text()).toContain('Custo total')
+    expect(wrapper.text()).not.toContain('Margem estimada')
+  })
+
   it('should show edit inputs when edit button is clicked on an include', async () => {
     productStoreMock.includes = [
       { id: 'i1', productId: 'p1', name: 'Copo', cost: 0.5, quantity: 1, totalCost: 0.5, kind: 'PACKAGING' },
