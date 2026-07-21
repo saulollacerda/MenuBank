@@ -1187,6 +1187,117 @@ describe('OrdersView', () => {
   })
 
   // -------------------------------------------------------------------------
+  // Detalhe do pedido — troca rápida entre pedidos
+  // -------------------------------------------------------------------------
+
+  describe('order detail switching', () => {
+    function makeOrder(id: string, customerName: string, productName: string) {
+      return {
+        id,
+        dateTime: '2026-05-14T10:00:00',
+        customerId: 'c1',
+        customerName,
+        status: 'PAID',
+        totalValue: 60,
+        estimatedProfit: 26,
+        marginPct: 43.33,
+        items: [
+          {
+            id: `oi-${id}`,
+            productId: 'p1',
+            productName,
+            quantity: 1,
+            unitPrice: 60,
+            unitCost: 34,
+            totalCost: 34,
+            extraIngredients: [],
+          },
+        ],
+      }
+    }
+
+    it('should ignore a stale response that resolves after another order was opened', async () => {
+      const first = makeOrder('o1', 'João', 'Hambúrguer')
+      const second = makeOrder('o2', 'Maria', 'Açaí 500ml')
+      orderStoreMock.items = [first, second]
+
+      let resolveFirst: (value: unknown) => void = () => {}
+      orderStoreMock.findById = vi.fn((id: string) =>
+        id === 'o1'
+          ? new Promise((resolve) => {
+              resolveFirst = resolve
+            })
+          : Promise.resolve(second),
+      )
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await wrapper.get('[data-testid="order-o2-detail-button"]').trigger('click')
+      await flushPromises()
+
+      // A resposta lenta do primeiro pedido chega depois: não pode sobrescrever.
+      resolveFirst(first)
+      await flushPromises()
+
+      const detail = wrapper.get('[data-testid="order-detail-modal"]')
+      expect(detail.html()).toContain('Maria')
+      expect(detail.html()).toContain('Açaí 500ml')
+      expect(detail.html()).not.toContain('João')
+      expect(detail.html()).not.toContain('Hambúrguer')
+    })
+
+    it('should show the clicked order right away, without blanking to a loading state', async () => {
+      const first = makeOrder('o1', 'João', 'Hambúrguer')
+      const second = makeOrder('o2', 'Maria', 'Açaí 500ml')
+      orderStoreMock.items = [first, second]
+
+      orderStoreMock.findById = vi.fn((id: string) =>
+        id === 'o1' ? Promise.resolve(first) : new Promise(() => {}),
+      )
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await flushPromises()
+
+      // Troca para o segundo pedido: enquanto o detalhe não chega, a linha da
+      // lista já é exibida — sem spinner e sem o pedido anterior.
+      await wrapper.get('[data-testid="order-o2-detail-button"]').trigger('click')
+
+      const detail = wrapper.get('[data-testid="order-detail-modal"]')
+      expect(detail.html()).toContain('Maria')
+      expect(detail.html()).toContain('Açaí 500ml')
+      expect(detail.html()).not.toContain('João')
+      expect(detail.html()).not.toContain('Hambúrguer')
+      expect(detail.text()).not.toContain('Carregando')
+    })
+
+    it('should not repopulate a closed modal with a pending response', async () => {
+      const first = makeOrder('o1', 'João', 'Hambúrguer')
+      orderStoreMock.items = [first]
+
+      let resolveFirst: (value: unknown) => void = () => {}
+      orderStoreMock.findById = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          }),
+      )
+
+      const wrapper = mount(OrdersView)
+      await wrapper.get('[data-testid="order-o1-detail-button"]').trigger('click')
+      await wrapper
+        .get('[data-testid="order-detail-modal"] [data-testid="ui-modal-close"]')
+        .trigger('click')
+      await flushPromises()
+
+      resolveFirst(first)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="order-detail-modal"]').exists()).toBe(false)
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Configurar pedidos — ficha do pedido (insumos cobrados uma vez por pedido)
   // -------------------------------------------------------------------------
 
