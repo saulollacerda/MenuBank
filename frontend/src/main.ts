@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+// Tailwind first so the hand-written app styles in main.css keep precedence.
+import './assets/tailwind.css'
 import './assets/main.css'
 import { useAuthStore } from '@/stores/authStore'
 

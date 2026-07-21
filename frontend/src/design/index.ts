@@ -13,7 +13,19 @@ export { default as UITable } from './UITable.vue'
 export { default as UIRowAction } from './UIRowAction.vue'
 export { default as UITopbar } from './UITopbar.vue'
 export { default as UIPeriodPicker } from './UIPeriodPicker.vue'
-export { MONTHS_PT, periodLabel } from './period'
+export {
+  MONTHS_PT,
+  WEEKDAYS_PT_SHORT,
+  periodLabel,
+  rangeLabel,
+  formatDateBR,
+  toISODate,
+  parseISODate,
+  addDays,
+  addMonths,
+  buildCalendarDays,
+} from './period'
+export type { CalendarDay, YearMonth } from './period'
 export { default as UISidebar } from './UISidebar.vue'
 export { default as UIEmpty } from './UIEmpty.vue'
 export { default as UIToast } from './UIToast.vue'

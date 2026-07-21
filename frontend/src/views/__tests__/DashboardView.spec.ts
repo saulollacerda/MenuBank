@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 
 let dashboardStoreMock: any
 let orderStoreMock: any
@@ -39,7 +40,7 @@ describe('DashboardView — seletor de período', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-10T12:00:00'))
-    dashboardStoreMock = {
+    dashboardStoreMock = reactive({
       selectedMonthNumber: 7,
       selectedYear: 2026,
       data: null,
@@ -53,7 +54,10 @@ describe('DashboardView — seletor de período', () => {
       ingredientRankingLoading: false,
       ingredientRankingError: null,
       fetchIngredientRanking: vi.fn(async () => {}),
-    }
+      filterMode: 'month',
+      startDate: '',
+      endDate: '',
+    })
     orderStoreMock = { items: [], fetchPage: vi.fn(async () => {}) }
     notificationStoreMock = { items: [], fetchAll: vi.fn(async () => {}) }
   })
@@ -150,8 +154,8 @@ describe('DashboardView — seletor de período', () => {
     const wrapper = mount(DashboardView)
     const rows = wrapper.findAll('[data-testid="ingredient-ranking-row"]')
     expect(rows).toHaveLength(5)
-    expect(rows[0].text()).toContain('Ingrediente 1')
-    expect(rows[4].text()).toContain('Ingrediente 5')
+    expect(rows[0]!.text()).toContain('Ingrediente 1')
+    expect(rows[4]!.text()).toContain('Ingrediente 5')
   })
 
   it('a lista do ranking de ingredientes tem rolagem própria', () => {
@@ -180,5 +184,53 @@ describe('DashboardView — seletor de período', () => {
     dashboardStoreMock.ingredientRankingLoading = true
     const wrapper = mount(DashboardView)
     expect(wrapper.text()).toContain('Carregando…')
+  })
+
+  describe('intervalo personalizado', () => {
+    async function selectRange(wrapper: ReturnType<typeof mount>) {
+      await wrapper.find('[data-testid="period-picker-toggle"]').trigger('click')
+      await wrapper.find('[data-testid="period-tab-custom"]').trigger('click')
+      await wrapper.find('[data-testid="period-calendar-prev"]').trigger('click')
+      await wrapper.find('[data-testid="period-day-2026-06-16"]').trigger('click')
+      await wrapper.find('[data-testid="period-calendar-next"]').trigger('click')
+      await wrapper.find('[data-testid="period-day-2026-07-07"]').trigger('click')
+    }
+
+    it('selecionar um intervalo grava filterMode, startDate e endDate no store', async () => {
+      const wrapper = mount(DashboardView)
+      await selectRange(wrapper)
+      expect(dashboardStoreMock.filterMode).toBe('custom')
+      expect(dashboardStoreMock.startDate).toBe('2026-06-16')
+      expect(dashboardStoreMock.endDate).toBe('2026-07-07')
+    })
+
+    it('selecionar um intervalo dispara o refetch do dashboard e do ranking', async () => {
+      const wrapper = mount(DashboardView)
+      dashboardStoreMock.fetchDashboard.mockClear()
+      dashboardStoreMock.fetchIngredientRanking.mockClear()
+      await selectRange(wrapper)
+      expect(dashboardStoreMock.fetchDashboard).toHaveBeenCalledWith(true)
+      expect(dashboardStoreMock.fetchIngredientRanking).toHaveBeenCalled()
+    })
+
+    it('o subtítulo passa a exibir o intervalo selecionado', async () => {
+      const wrapper = mount(DashboardView)
+      await selectRange(wrapper)
+      expect(wrapper.text()).toContain('16/06/2026 a 07/07/2026')
+    })
+
+    it('selecionar um mês volta o store para o modo mês e refaz a busca', async () => {
+      dashboardStoreMock.filterMode = 'custom'
+      dashboardStoreMock.startDate = '2026-06-16'
+      dashboardStoreMock.endDate = '2026-07-07'
+      const wrapper = mount(DashboardView)
+      dashboardStoreMock.fetchDashboard.mockClear()
+      await wrapper.find('[data-testid="period-picker-toggle"]').trigger('click')
+      await wrapper.find('[data-testid="period-tab-month"]').trigger('click')
+      await wrapper.find('[data-testid="period-month-4"]').trigger('click')
+      expect(dashboardStoreMock.filterMode).toBe('month')
+      expect(dashboardStoreMock.selectedMonthNumber).toBe(4)
+      expect(dashboardStoreMock.fetchDashboard).toHaveBeenCalledWith(true)
+    })
   })
 })

@@ -32,13 +32,20 @@
   --transition: 150ms ease;
 }
 
-/* ===== Reset ===== */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ===== Reset =====
+ * Declared inside the `base` layer on purpose. Unlayered CSS always beats
+ * layered CSS, so an unlayered universal reset silently defeats every Tailwind
+ * padding/margin utility (they live in `@layer utilities`). Keeping only the
+ * reset in a layer restores that without changing the precedence of the
+ * hand-written component rules below, which stay unlayered and still win. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html {
