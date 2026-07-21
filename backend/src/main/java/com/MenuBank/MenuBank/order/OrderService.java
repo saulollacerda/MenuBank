@@ -27,6 +27,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -174,8 +175,9 @@ public class OrderService {
         Fee fee = resolveFee(request.getFeeId(), merchantId);
 
         List<OrderItem> newItems = buildItems(merchantId, request.getItems());
+        carryOverExtraSalePrices(order, newItems);
 
-        BigDecimal totalValue = calculateTotalValue(newItems);
+        BigDecimal totalValue = calculateTotalValue(newItems, order.getDeliveryFee(), order.getServiceFee());
 
         order.setCustomer(customer);
         order.setFee(fee);
@@ -304,6 +306,65 @@ public class OrderService {
         return items.stream()
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Total do pedido = itens + adicionais pagos + taxa de entrega + taxa de serviço.
+     * <p>
+     * As duas taxas só existem em pedido importado, onde o total do parceiro já as inclui.
+     * Somá-las de volta ao recalcular é o que mantém o total igual ao que o cliente pagou —
+     * sem isso a edição derrubava o total para a soma dos itens, e como o lucro desconta
+     * ambas as taxas ({@link OrderCalculations#calculateEstimatedProfit}), a diferença era
+     * cobrada duas vezes. Em pedido manual as taxas são nulas e o total segue a soma dos itens.
+     */
+    private BigDecimal calculateTotalValue(List<OrderItem> items, BigDecimal deliveryFee, BigDecimal serviceFee) {
+        return calculateTotalValue(items)
+                .add(sumExtraSalePrices(items))
+                .add(deliveryFee != null ? deliveryFee : BigDecimal.ZERO)
+                .add(serviceFee != null ? serviceFee : BigDecimal.ZERO);
+    }
+
+    /**
+     * Receita dos adicionais pagos. Em pedido importado o {@code unitPrice} do item não inclui
+     * os subItems cobrados — o valor deles vive em {@code salePriceTotal}. Adicional de pedido
+     * manual não tem preço de venda ({@code null}) e não entra na conta.
+     */
+    private BigDecimal sumExtraSalePrices(List<OrderItem> items) {
+        return items.stream()
+                .filter(item -> item.getExtraIngredients() != null)
+                .flatMap(item -> item.getExtraIngredients().stream())
+                .map(OrderItemExtraIngredient::getSalePriceTotal)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Copia o preço de venda dos adicionais do pedido atual para os adicionais reconstruídos
+     * a partir do request, casando por ingrediente. O request da UI não carrega preço de venda
+     * (adicional de pedido manual não tem), então sem esse repasse uma edição apagaria a receita
+     * dos adicionais que vieram do parceiro.
+     */
+    private void carryOverExtraSalePrices(Order order, List<OrderItem> newItems) {
+        if (order.getItems() == null) return;
+        Map<UUID, BigDecimal> salePriceByIngredient = new HashMap<>();
+        for (OrderItem item : order.getItems()) {
+            if (item.getExtraIngredients() == null) continue;
+            for (OrderItemExtraIngredient extra : item.getExtraIngredients()) {
+                if (extra.getSalePriceTotal() == null || extra.getIngredient() == null) continue;
+                salePriceByIngredient.merge(extra.getIngredient().getId(), extra.getSalePriceTotal(),
+                        BigDecimal::add);
+            }
+        }
+        if (salePriceByIngredient.isEmpty()) return;
+        for (OrderItem item : newItems) {
+            if (item.getExtraIngredients() == null) continue;
+            for (OrderItemExtraIngredient extra : item.getExtraIngredients()) {
+                BigDecimal salePrice = salePriceByIngredient.remove(extra.getIngredient().getId());
+                if (salePrice != null) {
+                    extra.setSalePriceTotal(salePrice);
+                }
+            }
+        }
     }
 
     private OrderResponse toResponse(Order order) {

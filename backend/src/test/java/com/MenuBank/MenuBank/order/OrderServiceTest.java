@@ -1249,6 +1249,98 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("deve manter frete e taxa de serviço no totalValue ao atualizar pedido importado")
+        void shouldKeepDeliveryAndServiceFeeInTotalValueOnUpdate() {
+            // Pedido importado da Anota.AI: info.total (64.99) = itens (60.00) + frete (4.00)
+            // + taxa de serviço (0.99). Recalcular o total só pelos itens descartava as duas
+            // taxas do total — mas elas continuavam sendo deduzidas do lucro (dedução dupla).
+            order.setDeliveryFee(new BigDecimal("4.00"));
+            order.setServiceFee(new BigDecimal("0.99"));
+            order.setTotalValue(new BigDecimal("64.99"));
+            order.setOrigin(OrderOrigin.ANOTA_AI);
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.update(merchantId, orderId, orderRequest);
+
+            ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            Order saved = captor.getValue();
+            // 60.00 (itens) + 4.00 (frete) + 0.99 (taxa de serviço)
+            assertThat(saved.getTotalValue()).isEqualByComparingTo("64.99");
+            assertThat(saved.getDeliveryFee()).isEqualByComparingTo("4.00");
+            assertThat(saved.getServiceFee()).isEqualByComparingTo("0.99");
+            // lucro = (64.99 − 4.00 − 0.99) − 24.00 = 36.00
+            assertThat(saved.getEstimatedProfit()).isEqualByComparingTo("36.00");
+        }
+
+        @Test
+        @DisplayName("deve preservar o preço de venda dos extras importados ao atualizar")
+        void shouldKeepImportedExtraSalePriceInTotalValueOnUpdate() {
+            // Em pedido importado, o preço do item (unitPrice) NÃO inclui os subItems pagos —
+            // a receita deles vive em OrderItemExtraIngredient.salePriceTotal. Sem preservá-la,
+            // editar o pedido apagava o valor dos adicionais do total.
+            OrderItemExtraIngredient importedExtra = OrderItemExtraIngredient.builder()
+                    .ingredient(ingredient)
+                    .quantity(new BigDecimal("10"))
+                    .costPerUnit(new BigDecimal("0.10"))
+                    .ingredientName("Bacon")
+                    .ingredientUnit("g")
+                    .salePriceTotal(new BigDecimal("3.00"))
+                    .build();
+            OrderItem importedItem = order.getItems().get(0);
+            importedExtra.setOrderItem(importedItem);
+            importedItem.setExtraIngredients(new ArrayList<>(List.of(importedExtra)));
+            order.setOrigin(OrderOrigin.ANOTA_AI);
+            order.setTotalValue(new BigDecimal("63.00"));
+
+            OrderRequest requestWithExtra = OrderRequest.builder()
+                    .customerId(customerId)
+                    .items(List.of(OrderItemRequest.builder()
+                            .productId(productId)
+                            .quantity(2)
+                            .extraIngredients(List.of(OrderItemExtraIngredientRequest.builder()
+                                    .ingredientId(ingredientId)
+                                    .quantity(new BigDecimal("10"))
+                                    .build()))
+                            .build()))
+                    .build();
+
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(ingredientRepository.findByIdAndMerchantId(ingredientId, merchantId)).willReturn(Optional.of(ingredient));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.update(merchantId, orderId, requestWithExtra);
+
+            ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+            then(orderRepository).should().save(captor.capture());
+            Order saved = captor.getValue();
+            // 60.00 (itens) + 3.00 (adicional pago importado)
+            assertThat(saved.getTotalValue()).isEqualByComparingTo("63.00");
+            assertThat(saved.getItems().get(0).getExtraIngredients().get(0).getSalePriceTotal())
+                    .isEqualByComparingTo("3.00");
+        }
+
+        @Test
+        @DisplayName("pedido manual sem frete nem taxa mantém totalValue = soma dos itens")
+        void shouldKeepItemsSumForManualOrderWithoutFees() {
+            given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.of(order));
+            given(customerRepository.findByIdAndMerchantId(customerId, merchantId)).willReturn(Optional.of(customer));
+            given(productRepository.findByIdAndMerchantId(productId, merchantId)).willReturn(Optional.of(product));
+            given(orderRepository.save(any(Order.class))).willReturn(order);
+
+            orderService.update(merchantId, orderId, orderRequest);
+
+            then(orderRepository).should().save(argThat(saved ->
+                    saved.getTotalValue().compareTo(new BigDecimal("60.00")) == 0));
+        }
+
+        @Test
         @DisplayName("deve lançar OrderNotFoundException ao atualizar pedido inexistente")
         void shouldThrowWhenOrderNotFoundForUpdate() {
             given(orderRepository.findByIdAndMerchantId(orderId, merchantId)).willReturn(Optional.empty());

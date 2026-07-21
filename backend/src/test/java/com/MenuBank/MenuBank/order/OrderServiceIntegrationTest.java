@@ -24,6 +24,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -191,6 +193,66 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
 
         assertThat(response.getTotalValue()).isEqualByComparingTo("100.00"); // 20 × 5
         assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("update de pedido importado preserva frete e taxa de serviço no total")
+    void update_shouldPreserveDeliveryAndServiceFeeOnImportedOrder() {
+        // Cenário real (Anota.AI, pedido 6a5ed0bdbd4231d650a99e21): info.total = 46.98 =
+        // itens 41.99 + frete 4.00 + taxa de serviço 0.99. Antes da correção, salvar o pedido
+        // pela tela derrubava o total para 41.99 e o lucro perdia as taxas duas vezes.
+        Order imported = orderRepository.save(Order.builder()
+                .merchant(merchant)
+                .dateTime(LocalDateTime.now())
+                .customer(customer)
+                .status(OrderStatus.PAID)
+                .origin(OrderOrigin.ANOTA_AI)
+                .externalOrderId("6a5ed0bdbd4231d650a99e21")
+                .totalValue(new BigDecimal("46.98"))
+                .deliveryFee(new BigDecimal("4.00"))
+                .serviceFee(new BigDecimal("0.99"))
+                .totalCost(BigDecimal.ZERO)
+                .estimatedProfit(new BigDecimal("41.99"))
+                .items(new ArrayList<>())
+                .build());
+        imported.getItems().add(OrderItem.builder()
+                .order(imported).product(product).quantity(1)
+                .unitPrice(new BigDecimal("41.99")).unitCost(BigDecimal.ZERO)
+                .build());
+        orderRepository.saveAndFlush(imported);
+
+        OrderResponse response = orderService.update(merchant.getId(), imported.getId(),
+                OrderRequest.builder()
+                        .customerId(customer.getId())
+                        .items(List.of(OrderItemRequest.builder()
+                                .productId(product.getId()).quantity(1).build()))
+                        .status(OrderStatus.PAID)
+                        .build());
+
+        // product.price = 20.00 (catálogo) + 4.00 de frete + 0.99 de taxa
+        assertThat(response.getTotalValue()).isEqualByComparingTo("24.99");
+        assertThat(response.getDeliveryFee()).isEqualByComparingTo("4.00");
+        assertThat(response.getServiceFee()).isEqualByComparingTo("0.99");
+    }
+
+    @Test
+    @DisplayName("updatedAt é gravado na criação e atualizado a cada edição")
+    void updatedAt_shouldBeWrittenOnCreateAndBumpedOnUpdate() {
+        OrderResponse created = orderService.create(merchant.getId(), simpleRequest());
+        // O timestamp é escrito no flush; o teste roda numa transação só, então força o flush.
+        orderRepository.flush();
+        LocalDateTime afterCreate = orderRepository.findById(created.getId()).orElseThrow().getUpdatedAt();
+        assertThat(afterCreate).isNotNull();
+
+        orderService.update(merchant.getId(), created.getId(), OrderRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product.getId()).quantity(3).build()))
+                .build());
+        orderRepository.flush();
+
+        LocalDateTime afterUpdate = orderRepository.findById(created.getId()).orElseThrow().getUpdatedAt();
+        assertThat(afterUpdate).isAfterOrEqualTo(afterCreate);
     }
 
     @Test
