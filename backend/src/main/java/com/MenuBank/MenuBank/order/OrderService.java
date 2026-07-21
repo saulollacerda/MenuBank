@@ -129,9 +129,12 @@ public class OrderService {
                 ? orderRepository.findPageByMerchantIdAndCustomerNameContaining(merchantId, term, pageable)
                 : orderRepository.findPageByMerchantIdAndStatusAndCustomerNameContaining(merchantId, status, term, pageable);
 
-        Set<UUID> productIds = page.getContent().stream()
+        List<OrderItem> pageItems = page.getContent().stream()
                 .filter(o -> o.getItems() != null)
                 .flatMap(o -> o.getItems().stream())
+                .toList();
+
+        Set<UUID> productIds = pageItems.stream()
                 .map(i -> i.getProduct().getId())
                 .collect(Collectors.toSet());
         Map<UUID, List<Include>> includesByProduct = productIds.isEmpty() ? Map.of() :
@@ -139,7 +142,12 @@ public class OrderService {
                         .stream()
                         .collect(Collectors.groupingBy(inc -> inc.getProduct().getId()));
 
-        return page.map(o -> toResponse(o, includesByProduct));
+        // Resolved ONCE for the whole page. Per order, every one carrying unmatched
+        // subItems cost its own query (N+1): a page of 20 imported orders fired 20 extra
+        // SELECTs just to decide which "register ingredient" buttons to hide.
+        Set<String> registeredCanonicalNames = registeredCanonicalNamesFor(pageItems, merchantId);
+
+        return page.map(o -> toResponse(o, includesByProduct, registeredCanonicalNames));
     }
 
     @Transactional(readOnly = true)
@@ -299,13 +307,22 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        return toResponse(order, null);
+        return toResponse(order, null, null);
     }
 
-    private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct) {
+    /**
+     * @param includesByProduct            includes already loaded for the page, or {@code null}
+     *                                     to fetch them per product (single order).
+     * @param pageRegisteredCanonicalNames canonical names already resolved for the page, or
+     *                                     {@code null} to resolve them from this order alone.
+     */
+    private OrderResponse toResponse(Order order, Map<UUID, List<Include>> includesByProduct,
+                                     Set<String> pageRegisteredCanonicalNames) {
         List<OrderItem> items = order.getItems() != null ? order.getItems() : List.of();
         UUID orderMerchantId = order.getMerchant().getId();
-        Set<String> registeredCanonicalNames = registeredCanonicalNamesFor(items, orderMerchantId);
+        Set<String> registeredCanonicalNames = pageRegisteredCanonicalNames != null
+                ? pageRegisteredCanonicalNames
+                : registeredCanonicalNamesFor(items, orderMerchantId);
         List<OrderItemResponse> itemResponses = items.stream()
                 .map(item -> toItemResponse(item, orderMerchantId, includesByProduct, order.getOrigin(),
                         registeredCanonicalNames))
@@ -394,10 +411,10 @@ public class OrderService {
     }
 
     /**
-     * Nomes canônicos dos subItems não-casados que JÁ existem como ingrediente do merchant.
-     * Uma única consulta cobre todos os itens do pedido — usada para derivar quais botões de
-     * "cadastrar ingrediente" já não são necessários (o ingrediente foi criado). Vazio quando
-     * o pedido não tem subItems não-casados, evitando a consulta.
+     * Canonical names of unmatched subItems that ALREADY exist as an ingredient of the
+     * merchant. A single query covers every item received — a single order or a whole page —
+     * and drives which "register ingredient" buttons are no longer needed (the ingredient
+     * has been created). Empty when there are no unmatched subItems, skipping the query.
      */
     private Set<String> registeredCanonicalNamesFor(List<OrderItem> items, UUID merchantId) {
         Set<String> canonicalNames = items.stream()
