@@ -73,7 +73,7 @@ const hoveredBarIndex = ref<number | null>(null)
 
 const topProducts = computed(() => dash.data?.topProducts ?? [])
 
-const INGREDIENT_RANKING_LIMIT = 5
+const INGREDIENT_RANKING_LIMIT = 10
 
 const ingredientRanking = computed(() =>
   (dash.ingredientRanking ?? []).slice(0, INGREDIENT_RANKING_LIMIT),
@@ -385,7 +385,7 @@ function navIngredientsWithName(name: string | null) {
               flex-direction: column;
               gap: 10px;
               margin-top: 16px;
-              max-height: 320px;
+              max-height: 240px;
               overflow-y: auto;
             "
           >

@@ -144,7 +144,7 @@ describe('DashboardView — seletor de período', () => {
     expect(text).toContain('850 g')
   })
 
-  it('limita o ranking de ingredientes a 5 itens', () => {
+  it('limita o ranking de ingredientes a 10 itens', () => {
     dashboardStoreMock.ingredientRanking = Array.from({ length: 15 }, (_, i) => ({
       ingredientName: `Ingrediente ${i + 1}`,
       unit: 'kg',
@@ -153,9 +153,9 @@ describe('DashboardView — seletor de período', () => {
     }))
     const wrapper = mount(DashboardView)
     const rows = wrapper.findAll('[data-testid="ingredient-ranking-row"]')
-    expect(rows).toHaveLength(5)
+    expect(rows).toHaveLength(10)
     expect(rows[0]!.text()).toContain('Ingrediente 1')
-    expect(rows[4]!.text()).toContain('Ingrediente 5')
+    expect(rows[9]!.text()).toContain('Ingrediente 10')
   })
 
   it('a lista do ranking de ingredientes tem rolagem própria', () => {
