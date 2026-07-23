@@ -4,6 +4,7 @@ import SettingsView from '@/views/SettingsView.vue'
 import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
 import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
 import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
+import IfoodCatalogPublishModal from '@/components/IfoodCatalogPublishModal.vue'
 import { ifoodAuthService, type IfoodStatusResponse } from '@/services/ifoodAuthService'
 import { billingService } from '@/services/billingService'
 import type { PlanResponse, SubscriptionResponse } from '@/types/Billing'
@@ -63,6 +64,7 @@ const mockedBilling = vi.mocked(billingService)
 const STUBS = {
   IfoodConnectModal: true,
   IfoodCatalogImportModal: true,
+  IfoodCatalogPublishModal: true,
   IfoodOrderSyncModal: true,
 }
 
@@ -181,6 +183,25 @@ describe('SettingsView — checklist iFood', () => {
     await wrapper.find('[data-testid="ifood-stage-catalog-action"]').trigger('click')
 
     expect(wrapper.findComponent(IfoodCatalogImportModal).exists()).toBe(true)
+  })
+
+  it('a etapa de publicação fica desabilitada enquanto a conta não estiver conectada', async () => {
+    const wrapper = await mountView(statusOf())
+
+    const stage = wrapper.find('[data-testid="ifood-stage-publish"]')
+    expect(stage.exists()).toBe(true)
+    expect(stage.text()).toContain('Cardápio Digital')
+    expect(
+      wrapper.find('[data-testid="ifood-stage-publish-action"]').attributes('disabled'),
+    ).toBeDefined()
+  })
+
+  it('clicar na ação de publicação abre o modal de publicação de cardápio', async () => {
+    const wrapper = await mountView(statusOf({ connected: true }))
+
+    await wrapper.find('[data-testid="ifood-stage-publish-action"]').trigger('click')
+
+    expect(wrapper.findComponent(IfoodCatalogPublishModal).exists()).toBe(true)
   })
 
   it('clicar na ação da etapa 3 abre o modal de sincronia', async () => {

@@ -1,12 +1,16 @@
 # iFood — Catalog API v2.0
 
-> **Scope for MenuBank: read-only.** We only fetch the catalog and import it into our system.
-> We never write/update the iFood catalog — no item creation, price sync, or availability
-> management on the iFood side.
+> **Scope for MenuBank: read and write.** `IfoodCatalogClient`/`IfoodCatalogImportService`
+> fetch the catalog and import it into our system; `IfoodCatalogWriteClient`/
+> `IfoodCatalogPublishService` push MenuBank products back to iFood.
 >
-> **Implemented (v1):** items → `Product`, categories → `Category` only. Option groups /
-> complements are NOT imported yet (candidates for ingredient suggestions in a future version).
+> **Read (v1):** items → `Product`, categories → `Category` only. Option groups /
+> complements are NOT imported (candidates for ingredient suggestions in a future version).
 > See `IfoodCatalogClient` and `IfoodCatalogImportService`.
+>
+> **Write (v1):** category creation, item publish, batch price/status sync and batch
+> follow-up — scoped to the `WHITELABEL` context, single catalog, simple items only. See
+> [Write support](#write-support) below.
 
 ## Read endpoints (confirmed)
 
@@ -178,3 +182,131 @@ Limits sellable quantity of a product; at zero stock the item becomes `UNAVAILAB
 | Options in `INGREDIENTS` groups | `Ingredient` suggestions (no cost data available) |
 | `status`, inventory | Ignored (display-only on iFood side) |
 | Cost / ficha técnica | **Not available** — merchant fills in after import |
+
+## Write support
+
+Implemented. See `HOMOLOGATION.md` § Módulo Catalog for the full homologation checklist and
+the official request/response examples ("Padrões comuns").
+
+### Scope decisions
+
+- **WHITELABEL only.** MenuBank writes are scoped to the `WHITELABEL` context (Cardápio
+  Digital), never `DEFAULT` (delivery). Since unlisted contexts inherit the item's root
+  values, a naive write (root `price`/`status` with no `contextModifiers`) would also expose
+  the item on delivery. So the item root `status` always goes out as `UNAVAILABLE`, and the
+  real `status`/`price`/`externalCode` travel on a `contextModifiers` entry with
+  `catalogContext: "WHITELABEL"`. This keeps the item hidden on every context except
+  WHITELABEL.
+- **No multi-catalog support.** Single catalog only — explicit product scope decision, not
+  an API limitation.
+- **Complements, pizza, combo, availability scheduling, `POST /inventory`** — deferred.
+  iFood's own homologation criteria mark these "(se aplicável)"; build only when a real
+  merchant menu needs them. MenuBank has no option-group/complement domain model today.
+  `PUT /items` is sent with empty `optionGroups`/`options`.
+
+### Write endpoints (implemented)
+
+`IfoodCatalogWriteClient` — same `ifood.catalog-base-url` and Bearer auth as the read
+client, but these endpoints are **merchant-scoped** (`/merchants/{merchantId}/...`), not
+catalog-scoped. Pure transport: no retry, no error translation (both live in the service).
+
+| Change | Endpoint | Client method |
+|---|---|---|
+| Create a category | `POST /merchants/{merchantId}/categories` | `createCategory` → returns the created category with its `id` |
+| Create/fully rewrite an item | `PUT /merchants/{merchantId}/items` | `upsertItem` — item + products + empty option groups/options in one call. **Idempotent**; omitted fields are removed (full replace) |
+| Change item price (batch) | `PATCH /merchants/{merchantId}/items/price` | `updatePrices` — body `{"prices":[{"productId","price"}]}`, flat number (**not** `{value}`). Async → returns `batchId` |
+| Pause/reactivate item (batch) | `PATCH /merchants/{merchantId}/items/status` | `updateStatus` — body `{"items":[{"id","status"}]}`. Async → returns `batchId` |
+| Check batch result | `GET /merchants/{merchantId}/batch/{batchId}` | `getBatch` → `{batchId, status, successCount, failureCount, results[]{resourceId, result}}` |
+
+Not implemented (deferred with complements/inventory): `PATCH /options/price`,
+`PATCH /options/status`, `PATCH /optionGroups/status`, `POST /inventory`.
+
+Item lifecycle: `AVAILABLE` (purchasable) / `UNAVAILABLE` (paused, hidden until back to
+`AVAILABLE`) — toggle via `PATCH /items/status` without resending the full item. Note that
+this endpoint carries no `catalogContext`, so it changes the **root** status: pausing is
+always safe, but reactivating through it lifts the root `UNAVAILABLE` that keeps the item
+off delivery. Republish via `POST /publish` to restore the WHITELABEL-only shape.
+
+### Publish payload
+
+`IfoodCatalogItemRequest.whitelabelItem(...)` builds every `PUT /items` body:
+
+```json
+{
+  "item": {
+    "id": "<ifood_item_id>", "type": "DEFAULT", "categoryId": "<Category.externalId>",
+    "status": "UNAVAILABLE", "price": { "value": 25.00 }, "externalCode": "MB-<product.id>",
+    "contextModifiers": [
+      { "catalogContext": "WHITELABEL", "price": { "value": 25.00 },
+        "status": "AVAILABLE", "externalCode": "MB-<product.id>" }
+    ]
+  },
+  "products": [ { "id": "<ifood_product_id>", "name": "X-Burger" } ],
+  "optionGroups": [], "options": []
+}
+```
+
+- `contextModifiers[0].status` is `AVAILABLE` for `ProductStatus.ACTIVE`, `UNAVAILABLE` for
+  `INACTIVE`. The root status is always `UNAVAILABLE`.
+- `externalCode` uses `Product.externalId` when set, otherwise the derived `"MB-" + product.id`.
+  An existing `externalId` is never overwritten.
+- `products[].description` is omitted — MenuBank has no product description yet.
+
+### Publish service
+
+`IfoodCatalogPublishService` — the mirror of `IfoodCatalogImportService`. Not
+`@Transactional` on purpose: each generated id is saved as soon as iFood accepts the item,
+so a mid-batch failure never loses identity that already exists on the iFood side (which
+would make a republish duplicate items).
+
+| Method | Behaviour |
+|---|---|
+| `publish(merchantId, productIds)` | Empty/null list = all `ACTIVE` products. Per product: ensure the `Category` exists on iFood (`Category.externalId` null → `POST /categories`, id persisted), then `PUT /items`. |
+| `syncPrices(merchantId, productIds)` | Current MenuBank prices via a single `PATCH /items/price`; returns the `batchId`. Only products already published. |
+| `syncStatus(merchantId, changes)` | Single `PATCH /items/status`; returns the `batchId`. |
+| `getBatch(merchantId, batchId)` | Passthrough of the batch result. |
+
+**Item identity.** Publishing persists the generated iFood ids on `products`
+(`ifood_item_id`, `ifood_product_id`, `ifood_published_at` — Flyway `V25`, all nullable).
+UUID v4 is generated on the first publish and reused afterwards, so republishing is
+idempotent and never duplicates. A product with a null `ifood_item_id` is "not published
+yet" and is reported as skipped by the sync operations.
+
+**Bulk performance.** Price and status sync are a single batched call each — no per-item
+loop, no polling storm (homologation requires 100+ items in under 10 seconds).
+
+### Resilience
+
+- **Validation before sending**, so no invalid payload ever reaches iFood: name ≤ 100 chars
+  (product and category), description ≤ 500, price a positive number, status restricted to
+  `AVAILABLE`/`UNAVAILABLE`, product must have a category. An invalid product is reported as
+  skipped-with-reason (pt-BR) and never aborts the batch.
+- **Retry with exponential backoff for transient failures only** — `5xx` and network errors,
+  up to 3 attempts (`ifood.retry-backoff-millis`, default 200 ms). `4xx` is never retried.
+  A `401` triggers one token refresh via `IfoodTokenService.handleUnauthorized()` and one
+  retry, outside the backoff count. Exhausted retries raise `IfoodUnavailableException`.
+- **Typed exceptions**: `400`/`422` → `IfoodBadRequestException`, `404` →
+  `IfoodResourceNotFoundException`, `409` → `IfoodCatalogConflictException`.
+- **No silent failures.** During `publish`, a per-item `4xx` becomes a `FAILED` entry with a
+  pt-BR reason and the batch continues; everything else surfaces as an error status.
+
+### REST contract
+
+`IfoodCatalogController`, under `/api/integrations/ifood/catalog` (merchant resolved from
+the authenticated user via `AuthHelper`).
+
+| Endpoint | Request | Response |
+|---|---|---|
+| `POST /publish` | `{ "productIds": ["uuid", ...] }` (may be omitted/empty = all active) | `{ "publishedProducts": n, "skippedProducts": n, "items": [ { "productId", "name", "externalCode", "outcome": "PUBLISHED"\|"SKIPPED"\|"FAILED", "reason" } ] }` |
+| `PATCH /prices` | `{ "productIds": [...] }` | `{ "batchId", "requested": n, "skipped": [ { "productId", "reason" } ] }` |
+| `PATCH /status` | `{ "items": [ { "productId", "status": "AVAILABLE"\|"UNAVAILABLE" } ] }` | same shape as `/prices` |
+| `GET /batch/{batchId}` | — | `{ "batchId", "status", "successCount", "failureCount", "results": [ { "resourceId", "result" } ] }` |
+
+- `skippedProducts` aggregates both `SKIPPED` (validation) and `FAILED` (API) items — every
+  one of them carries a pt-BR `reason`.
+- `batchId` is `null` when nothing was eligible to send; the whole selection is then in
+  `skipped`.
+
+Errors are `ProblemDetail` with pt-BR details: not connected / reauthorization required →
+`409`, `IfoodBadRequestException` → `422`, `IfoodResourceNotFoundException` → `404`,
+`IfoodCatalogConflictException` → `409`, `IfoodUnavailableException` → `503`.

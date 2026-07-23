@@ -8,6 +8,7 @@ import lombok.*;
 import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,6 +55,17 @@ public class Product {
     @Column(name = "origin", nullable = false, length = 20,
             columnDefinition = "varchar(20) not null default 'MENUBANK'")
     private CatalogOrigin origin = CatalogOrigin.MENUBANK;
+
+    // iFood Catalog publish identity — generated on the first publish and reused afterwards
+    // so republishing is idempotent (PUT /items never duplicates). Null until published.
+    @Column(name = "ifood_item_id", length = 36)
+    private String ifoodItemId;
+
+    @Column(name = "ifood_product_id", length = 36)
+    private String ifoodProductId;
+
+    @Column(name = "ifood_published_at")
+    private LocalDateTime ifoodPublishedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
