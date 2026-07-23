@@ -5,6 +5,7 @@ import com.MenuBank.MenuBank.integration.ifood.dto.IfoodCatalogImportResult;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodCatalogImportResult.ItemOutcome;
 import com.MenuBank.MenuBank.integration.ifood.dto.IfoodCatalogImportResult.Outcome;
 import com.MenuBank.MenuBank.integration.ifood.services.IfoodCatalogImportService;
+import com.MenuBank.MenuBank.integration.ifood.services.IfoodCatalogPublishService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ class IfoodCatalogControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private IfoodCatalogImportService importService;
+    @MockitoBean private IfoodCatalogPublishService publishService;
     @MockitoBean private AuthHelper authHelper;
 
     private UUID merchantId;

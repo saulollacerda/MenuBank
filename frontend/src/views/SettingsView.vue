@@ -12,6 +12,7 @@ import type { PlanResponse, SubscriptionResponse } from '@/types/Billing'
 import { clearPendingIfoodAuth, hasPendingIfoodAuth } from '@/composables/useIfoodConnectFlow'
 import IfoodConnectModal from '@/components/IfoodConnectModal.vue'
 import IfoodCatalogImportModal from '@/components/IfoodCatalogImportModal.vue'
+import IfoodCatalogPublishModal from '@/components/IfoodCatalogPublishModal.vue'
 import IfoodOrderSyncModal from '@/components/IfoodOrderSyncModal.vue'
 import IfoodMerchantModal from '@/components/IfoodMerchantModal.vue'
 
@@ -103,6 +104,7 @@ const ifoodStatus = ref<IfoodStatusResponse | null>(null)
 const ifoodModal = ref(false)
 const ifoodResume = ref(false)
 const ifoodCatalogModal = ref(false)
+const ifoodPublishModal = ref(false)
 const ifoodSyncModal = ref(false)
 const ifoodMerchantModal = ref(false)
 
@@ -674,6 +676,48 @@ onMounted(async () => {
                 </UIBtn>
               </div>
 
+              <!-- Publicar cardápio no Cardápio Digital (WHITELABEL) -->
+              <div
+                data-testid="ifood-stage-publish"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  background: UI.bg,
+                  borderRadius: '9px',
+                  opacity: ifoodConnected ? 1 : 0.6,
+                }"
+              >
+                <span
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    background: UI.blueBg,
+                    color: UI.blue2,
+                  }"
+                >
+                  <UIIcon name="link" :size="12" />
+                </span>
+                <div style="flex: 1">
+                  <div :style="{ fontSize: '12.5px', fontWeight: 600 }">Publicar cardápio</div>
+                  <div :style="{ fontSize: '11px', color: UI.textSub }">
+                    Envia seus produtos para o Cardápio Digital do iFood e sincroniza preços e
+                    disponibilidade.
+                  </div>
+                </div>
+                <UIBtn
+                  variant="secondary"
+                  size="sm"
+                  data-testid="ifood-stage-publish-action"
+                  :disabled="!ifoodConnected"
+                  @click="ifoodPublishModal = true"
+                >
+                  Publicar
+                </UIBtn>
+              </div>
+
               <!-- Etapa 3 — Sincronia de pedidos -->
               <div
                 data-testid="ifood-stage-sync"
@@ -1099,6 +1143,10 @@ onMounted(async () => {
               v-if="ifoodCatalogModal"
               @imported="handleIfoodCatalogImported"
               @close="ifoodCatalogModal = false"
+            />
+            <IfoodCatalogPublishModal
+              v-if="ifoodPublishModal"
+              @close="ifoodPublishModal = false"
             />
             <IfoodOrderSyncModal
               v-if="ifoodSyncModal"
